@@ -40,39 +40,44 @@
     --radius: 0.55rem;
   }
 
+  /*
+   * Dark variant, using the surfaces from GitHub's dark theme:
+   * canvas #0d1117, subtle/overlay #161b22, muted #21262d, border #30363d,
+   * foreground #e6edf3, muted foreground #8b949e.
+   */
   .dark {
-    --background: 20 14% 8%;
-    --foreground: 30 12% 94%;
+    --background: 216 28% 7%;
+    --foreground: 208 35% 93%;
 
-    --card: 20 13% 10%;
-    --card-foreground: 30 12% 94%;
+    --card: 215 21% 11%;
+    --card-foreground: 208 35% 93%;
 
-    --popover: 20 13% 11%;
-    --popover-foreground: 30 12% 94%;
+    --popover: 215 21% 11%;
+    --popover-foreground: 208 35% 93%;
 
     --primary: 142 65% 45%;
     --primary-foreground: 144 80% 8%;
 
-    --secondary: 20 10% 16%;
-    --secondary-foreground: 30 12% 94%;
+    --secondary: 215 15% 15%;
+    --secondary-foreground: 208 35% 93%;
 
-    --muted: 20 10% 16%;
-    --muted-foreground: 28 8% 66%;
+    --muted: 215 15% 15%;
+    --muted-foreground: 212 9% 58%;
 
-    --accent: 20 10% 18%;
-    --accent-foreground: 30 12% 94%;
+    --accent: 215 15% 15%;
+    --accent-foreground: 208 35% 93%;
 
-    --destructive: 0 62% 46%;
+    --destructive: 358 75% 59%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 20 8% 20%;
-    --input: 20 8% 24%;
+    --border: 212 12% 21%;
+    --input: 212 12% 24%;
     --ring: 142 65% 45%;
 
-    --sidebar: 20 13% 10%;
-    --sidebar-foreground: 30 12% 92%;
-    --sidebar-accent: 20 10% 16%;
-    --sidebar-border: 20 8% 18%;
+    --sidebar: 216 30% 6%;
+    --sidebar-foreground: 208 35% 93%;
+    --sidebar-accent: 215 21% 11%;
+    --sidebar-border: 215 15% 15%;
   }
 }
 
