@@ -3,10 +3,10 @@
 import { createContext, useContext, type ReactNode } from "react";
 
 import type { ViewCounts } from "@/lib/views";
-import type { CategoryDTO, LabelDTO, SettingsDTO } from "@/types/kairos";
+import type { CategoryDTO, SettingsDTO } from "@/types/kairos";
 
 /**
- * Data every page needs: settings, the categories and labels used by the
+ * Data every page needs: settings, the categories used by the quick-add and
  * details panel, and the counters shown in the sidebar.
  *
  * Loaded once in the app layout (a Server Component) and shared with the client
@@ -17,7 +17,6 @@ export type AppData = {
   /** Today's date-only value in the user's configured timezone. */
   today: string;
   categories: CategoryDTO[];
-  labels: LabelDTO[];
   counts: ViewCounts;
 };
 

@@ -1,33 +1,25 @@
 "use client";
 
-import { CircleCheckBig, Inbox, ListTodo, CalendarDays, CalendarRange } from "lucide-react";
+import { CircleCheckBig, ListTodo, CalendarDays, CalendarRange } from "lucide-react";
 
 import type { ViewCounts } from "@/lib/views";
 
 export type NavItem = {
   href: string;
   label: string;
-  icon: typeof Inbox;
+  icon: typeof ListTodo;
   countKey: Exclude<keyof ViewCounts, "byCategory">;
-  /** Views whose counts can be zero without being hidden. */
-  alwaysShow?: boolean;
 };
 
+/**
+ * Sidebar navigation.
+ *
+ * There is no Inbox: anything without a date shows up as "Unscheduled" in All
+ * Tasks, which is also where past days are listed.
+ */
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/inbox", label: "Inbox", icon: Inbox, countKey: "inbox", alwaysShow: true },
-  { href: "/today", label: "Today", icon: CalendarDays, countKey: "today", alwaysShow: true },
-  {
-    href: "/upcoming",
-    label: "Upcoming",
-    icon: CalendarRange,
-    countKey: "upcoming",
-    alwaysShow: true,
-  },
-  { href: "/tasks", label: "All Tasks", icon: ListTodo, countKey: "all", alwaysShow: true },
-  {
-    href: "/completed",
-    label: "Completed",
-    icon: CircleCheckBig,
-    countKey: "completed",
-  },
+  { href: "/today", label: "Today", icon: CalendarDays, countKey: "today" },
+  { href: "/upcoming", label: "Upcoming", icon: CalendarRange, countKey: "upcoming" },
+  { href: "/tasks", label: "All Tasks", icon: ListTodo, countKey: "all" },
+  { href: "/completed", label: "Completed", icon: CircleCheckBig, countKey: "completed" },
 ];

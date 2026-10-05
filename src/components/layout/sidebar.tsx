@@ -14,12 +14,13 @@ import {
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { useAppData } from "@/components/app-data";
-import { NAV_ITEMS } from "@/components/layout/nav-items";
-import { CategoryDialog } from "@/components/categories/category-dialog";
 import { CategoryDeleteDialog } from "@/components/categories/category-delete-dialog";
+import { CategoryDialog } from "@/components/categories/category-dialog";
+import { NAV_ITEMS } from "@/components/layout/nav-items";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,10 +28,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDroppable } from "@dnd-kit/core";
+import { NAME_MAX_LENGTH } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { CategoryDTO } from "@/types/kairos";
+import { createCategoryAction } from "@/server/actions/taxonomy";
 
 function CategoryRow({
   category,
@@ -102,15 +106,83 @@ function CategoryRow({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <CategoryDialog
-        open={editing}
-        onOpenChange={setEditing}
-        category={category}
-      />
-      <CategoryDeleteDialog
-        open={deleting}
-        onOpenChange={setDeleting}
-        category={category}
+      <CategoryDialog open={editing} onOpenChange={setEditing} category={category} />
+      <CategoryDeleteDialog open={deleting} onOpenChange={setDeleting} category={category} />
+    </div>
+  );
+}
+
+/** Inline "add category": type a name, press Enter. No dialog, no color picker. */
+function QuickAddCategory() {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  // Enter and blur both fire; only the first one may create the category.
+  const submitted = useRef(false);
+
+  function startAdding() {
+    submitted.current = false;
+    setAdding(true);
+  }
+
+  async function submit() {
+    if (submitted.current) return;
+    submitted.current = true;
+
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setAdding(false);
+      setName("");
+      return;
+    }
+
+    setSaving(true);
+    const result = await createCategoryAction({ name: trimmed });
+    setSaving(false);
+    setName("");
+    setAdding(false);
+
+    if (!result.ok) {
+      toast.error("Couldn't create the category", { description: result.error });
+    }
+  }
+
+  if (!adding) {
+    return (
+      <button
+        type="button"
+        onClick={startAdding}
+        className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+      >
+        <Plus className="h-4 w-4" />
+        Add category
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-1 flex items-center gap-1.5 px-1">
+      <Plus className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <Input
+        autoFocus
+        value={name}
+        disabled={saving}
+        maxLength={NAME_MAX_LENGTH}
+        placeholder="Category name"
+        aria-label="New category name"
+        className="h-7 text-sm"
+        onChange={(event) => setName(event.target.value)}
+        onBlur={() => void submit()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            void submit();
+          }
+          if (event.key === "Escape") {
+            setName("");
+            setAdding(false);
+          }
+        }}
       />
     </div>
   );
@@ -156,7 +228,6 @@ function ThemeToggle() {
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { categories, counts } = useAppData();
   const pathname = usePathname();
-  const [creating, setCreating] = useState(false);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -203,15 +274,6 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <h2 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             Categories
           </h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            aria-label="Add category"
-            onClick={() => setCreating(true)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
         </div>
 
         {categories.length === 0 ? (
@@ -231,14 +293,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-        >
-          <Plus className="h-4 w-4" />
-          Add category
-        </button>
+        <QuickAddCategory />
       </div>
 
       <div className="border-t border-sidebar-border px-3 py-3">
@@ -273,8 +328,6 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <ThemeToggle />
         </div>
       </div>
-
-      <CategoryDialog open={creating} onOpenChange={setCreating} />
     </div>
   );
 }

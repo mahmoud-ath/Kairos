@@ -21,7 +21,7 @@ export type TaskLike = {
 };
 
 export type SectionKind =
-  | "overdue"
+  | "past"
   | "today"
   | "upcoming"
   | "unscheduled"
@@ -33,13 +33,12 @@ export type TaskSection<T extends TaskLike = TaskLike> = {
   key: string;
   title: string;
   kind: SectionKind;
-  /** Scheduled date for date groups, otherwise `null`. */
+  /** The date this group represents, otherwise `null`. */
   date: string | null;
   tasks: T[];
 };
 
 export type ViewScope =
-  | { kind: "inbox" }
   | { kind: "today" }
   | { kind: "upcoming" }
   | { kind: "all" }
@@ -78,25 +77,24 @@ export function taskAnchorDate(task: TaskLike): string | null {
   return task.scheduledDate ?? task.dueDate ?? null;
 }
 
+/**
+ * Anchor used by date-grouped views (All Tasks).
+ *
+ * Overdue work is grouped under the day that makes it late (its deadline, or
+ * its planned day when there is no deadline) so nothing hides in the future.
+ */
+export function groupedAnchorDate(task: TaskLike, today: string): string | null {
+  if (isTaskOverdue(task, today)) {
+    return task.dueDate ?? task.scheduledDate ?? null;
+  }
+  return taskAnchorDate(task);
+}
+
 function sortTasks<T extends TaskLike>(tasks: readonly T[]): T[] {
   return [...tasks].sort((a, b) => {
     if (a.position !== b.position) return a.position - b.position;
     return a.id < b.id ? -1 : 1;
   });
-}
-
-function dateSection<T extends TaskLike>(
-  date: string,
-  today: string,
-  tasks: readonly T[],
-): TaskSection<T> {
-  return {
-    key: `date:${date}`,
-    title: formatRelativeDate(date, today),
-    kind: compareDateOnly(date, today) === 0 ? "today" : "upcoming",
-    date,
-    tasks: sortTasks(tasks),
-  };
 }
 
 function plainSection<T extends TaskLike>(
@@ -107,6 +105,21 @@ function plainSection<T extends TaskLike>(
   date: string | null = null,
 ): TaskSection<T> {
   return { key, title, kind, date, tasks: sortTasks(tasks) };
+}
+
+function dateSection<T extends TaskLike>(
+  date: string,
+  today: string,
+  tasks: readonly T[],
+): TaskSection<T> {
+  const comparison = compareDateOnly(date, today);
+  return plainSection(
+    `date:${date}`,
+    formatRelativeDate(date, today),
+    comparison === 0 ? "today" : comparison < 0 ? "past" : "upcoming",
+    tasks,
+    date,
+  );
 }
 
 /** Completed tasks are ordered by completion time, newest first. */
@@ -162,7 +175,6 @@ export function bucketByDate<T extends TaskLike>(
       bucket.push(task);
       upcoming.set(anchor, bucket);
     } else {
-      // The anchor is in the past but the task is not overdue (it is done).
       unscheduled.push(task);
     }
   }
@@ -176,11 +188,31 @@ export function bucketByDate<T extends TaskLike>(
   };
 }
 
+/** Group tasks by the day they belong to (past days included). */
+function groupByDay<T extends TaskLike>(
+  tasks: readonly T[],
+  today: string,
+): { dates: string[]; byDate: Map<string, T[]>; unscheduled: T[] } {
+  const byDate = new Map<string, T[]>();
+  const unscheduled: T[] = [];
+
+  for (const task of tasks) {
+    const anchor = groupedAnchorDate(task, today);
+    if (!anchor) {
+      unscheduled.push(task);
+      continue;
+    }
+    const bucket = byDate.get(anchor) ?? [];
+    bucket.push(task);
+    byDate.set(anchor, bucket);
+  }
+
+  return { dates: [...byDate.keys()].sort(compareDateOnly), byDate, unscheduled };
+}
+
 /** Which completed tasks still belong to a given view. */
 function matchesDoneScope(scope: ViewScope, task: TaskLike, today: string): boolean {
   switch (scope.kind) {
-    case "inbox":
-      return !task.categoryId && !task.scheduledDate;
     case "today": {
       const anchor = taskAnchorDate(task);
       return anchor !== null && compareDateOnly(anchor, today) === 0;
@@ -221,14 +253,6 @@ export function buildSections<T extends TaskLike>({
     : [];
 
   switch (scope.kind) {
-    case "inbox": {
-      // Unfinished top-level tasks with no category and no planned day.
-      const items = visible.filter((task) => !task.categoryId && !task.scheduledDate);
-      const sections: TaskSection<T>[] = [plainSection("inbox", "Inbox", "all", items)];
-      if (done.length > 0) sections.push(completedSection(done));
-      return sections;
-    }
-
     case "today": {
       // Exactly two groups: anything overdue, then what is planned for (or due)
       // today. A task only ever appears in one of them.
@@ -244,7 +268,7 @@ export function buildSections<T extends TaskLike>({
       }
       const sections: TaskSection<T>[] = [];
       if (overdue.length > 0) {
-        sections.push(plainSection("overdue", "Overdue", "overdue", overdue));
+        sections.push(plainSection("overdue", "Overdue", "past", overdue));
       }
       sections.push(plainSection("today", "Today", "today", dueToday, today));
       if (done.length > 0) sections.push(completedSection(done));
@@ -255,7 +279,7 @@ export function buildSections<T extends TaskLike>({
       const buckets = bucketByDate(visible, today);
       const sections: TaskSection<T>[] = [];
       if (buckets.overdue.length > 0) {
-        sections.push(plainSection("overdue", "Overdue", "overdue", buckets.overdue));
+        sections.push(plainSection("overdue", "Overdue", "past", buckets.overdue));
       }
       for (const date of buckets.upcomingDates) {
         sections.push(dateSection(date, today, buckets.upcoming.get(date) ?? []));
@@ -264,17 +288,28 @@ export function buildSections<T extends TaskLike>({
       return sections;
     }
 
-    case "all":
-    case "category": {
-      const scoped =
-        scope.kind === "category"
-          ? visible.filter((task) => task.categoryId === scope.categoryId)
-          : visible;
+    case "all": {
+      // Every day that has work, oldest first — so yesterday and earlier days
+      // are visible instead of being folded into a single "overdue" pile.
+      const { dates, byDate, unscheduled } = groupByDay(visible, today);
+      const sections: TaskSection<T>[] = dates.map((date) =>
+        dateSection(date, today, byDate.get(date) ?? []),
+      );
+      if (unscheduled.length > 0) {
+        sections.push(
+          plainSection("unscheduled", "Unscheduled", "unscheduled", unscheduled),
+        );
+      }
+      if (done.length > 0) sections.push(completedSection(done));
+      return sections;
+    }
 
+    case "category": {
+      const scoped = visible.filter((task) => task.categoryId === scope.categoryId);
       const buckets = bucketByDate(scoped, today);
       const sections: TaskSection<T>[] = [];
       if (buckets.overdue.length > 0) {
-        sections.push(plainSection("overdue", "Overdue", "overdue", buckets.overdue));
+        sections.push(plainSection("overdue", "Overdue", "past", buckets.overdue));
       }
       if (buckets.today.length > 0) {
         sections.push(plainSection("today", "Today", "today", buckets.today, today));
@@ -305,13 +340,13 @@ export function selectScopedTasks<T extends TaskLike>(
 }
 
 export type ViewCounts = {
-  inbox: number;
   today: number;
   upcoming: number;
   overdue: number;
   all: number;
   completed: number;
   open: number;
+  unscheduled: number;
   /** Unfinished top-level tasks per category id. */
   byCategory: Record<string, number>;
 };
@@ -338,14 +373,16 @@ export function buildViewCounts(tasks: readonly TaskLike[], today: string): View
     byCategory[task.categoryId] = (byCategory[task.categoryId] ?? 0) + 1;
   }
 
+  const unscheduled = open.filter((task) => groupedAnchorDate(task, today) === null).length;
+
   return {
-    inbox: countOpen({ kind: "inbox" }),
     today: countOpen({ kind: "today" }),
     upcoming: countOpen({ kind: "upcoming" }),
     overdue: open.filter((task) => isTaskOverdue(task, today)).length,
-    all: countOpen({ kind: "all" }),
+    all: open.length,
     completed: done.length,
     open: open.length,
+    unscheduled,
     byCategory,
   };
 }

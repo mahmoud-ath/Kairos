@@ -4,6 +4,12 @@
  * The whole file is validated and cross-checked *before* anything touches the
  * database. Validation is pure so the settings page can show a summary (and any
  * problems) to the user for confirmation first.
+ *
+ * Version history
+ *  - v1: tasks, subtasks, categories, labels, label assignments, events, settings
+ *  - v2: labels and priorities were removed (categories are the only grouping).
+ *        v1 files are still accepted; their labels and priorities are ignored,
+ *        with a warning in the summary.
  */
 
 import { z } from "zod";
@@ -12,7 +18,8 @@ import { DATE_ONLY_PATTERN, isValidDateOnly, isValidTimeZone } from "@/lib/dates
 import { NOTES_MAX_LENGTH, NAME_MAX_LENGTH, TITLE_MAX_LENGTH } from "@/lib/constants";
 
 export const BACKUP_FORMAT = "kairos-backup";
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
+export const SUPPORTED_BACKUP_VERSIONS = [1, 2] as const;
 
 const dateOnly = z
   .string()
@@ -34,18 +41,11 @@ export const backupCategorySchema = z.object({
   createdAt: timestamp.optional(),
 });
 
-export const backupLabelSchema = z.object({
-  id: z.string().min(1).max(64),
-  name: z.string().min(1).max(NAME_MAX_LENGTH),
-  color: z.string().min(1).max(32),
-});
-
 export const backupTaskSchema = z.object({
   id: z.string().min(1).max(64),
   title: z.string().min(1).max(TITLE_MAX_LENGTH),
   notes: z.string().max(NOTES_MAX_LENGTH).nullable().optional(),
   status: z.enum(["TODO", "DONE"]),
-  priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]),
   categoryId: z.string().max(64).nullable().optional(),
   parentId: z.string().max(64).nullable().optional(),
   scheduledDate: nullableDateOnly.optional(),
@@ -54,11 +54,8 @@ export const backupTaskSchema = z.object({
   createdAt: timestamp.optional(),
   updatedAt: timestamp.optional(),
   completedAt: nullableTimestamp.optional(),
-});
-
-export const backupTaskLabelSchema = z.object({
-  taskId: z.string().min(1).max(64),
-  labelId: z.string().min(1).max(64),
+  /** Legacy (v1): Kairos no longer has priorities. Accepted and ignored. */
+  priority: z.string().max(16).optional(),
 });
 
 export const backupEventSchema = z.object({
@@ -78,15 +75,16 @@ export const backupSettingsSchema = z.object({
 export const backupDataSchema = z.object({
   settings: backupSettingsSchema,
   categories: z.array(backupCategorySchema).max(500),
-  labels: z.array(backupLabelSchema).max(1000),
   tasks: z.array(backupTaskSchema).max(50000),
-  taskLabels: z.array(backupTaskLabelSchema).max(200000).optional(),
   events: z.array(backupEventSchema).max(500000).optional(),
+  /** Legacy (v1): ignored, reported as a warning. */
+  labels: z.array(z.unknown()).max(5000).optional(),
+  taskLabels: z.array(z.unknown()).max(200000).optional(),
 });
 
 export const backupFileSchema = z.object({
   format: z.literal(BACKUP_FORMAT),
-  version: z.literal(BACKUP_VERSION),
+  version: z.union([z.literal(1), z.literal(2)]),
   exportedAt: timestamp.optional(),
   data: backupDataSchema,
 });
@@ -94,9 +92,7 @@ export const backupFileSchema = z.object({
 export type BackupFile = z.infer<typeof backupFileSchema>;
 export type BackupTask = z.infer<typeof backupTaskSchema>;
 export type BackupCategory = z.infer<typeof backupCategorySchema>;
-export type BackupLabel = z.infer<typeof backupLabelSchema>;
 export type BackupEvent = z.infer<typeof backupEventSchema>;
-export type BackupTaskLabel = z.infer<typeof backupTaskLabelSchema>;
 
 export type BackupSummary = {
   version: number;
@@ -105,8 +101,6 @@ export type BackupSummary = {
   subtasks: number;
   completedTasks: number;
   categories: number;
-  labels: number;
-  taskLabels: number;
   events: number;
   timezone: string;
   theme: string;
@@ -120,7 +114,7 @@ export type BackupValidation =
 
 /**
  * Validate a parsed backup object, including every cross-reference between
- * tasks, subtasks, categories and labels.
+ * tasks, subtasks and categories.
  */
 export function validateBackup(raw: unknown): BackupValidation {
   const parsed = backupFileSchema.safeParse(raw);
@@ -131,9 +125,22 @@ export function validateBackup(raw: unknown): BackupValidation {
     return { ok: false, errors };
   }
 
-  const data = parsed.data.data;
+  const file = parsed.data;
+  const data = file.data;
   const errors: string[] = [];
   const warnings: string[] = [];
+
+  if (file.version === 1) {
+    const legacyLabels = (data.labels?.length ?? 0) + (data.taskLabels?.length ?? 0);
+    if (legacyLabels > 0) {
+      warnings.push(
+        "This is a version 1 backup. Labels are no longer part of Kairos, so label data was ignored.",
+      );
+    }
+    if (data.tasks.some((task) => task.priority && task.priority !== "NONE")) {
+      warnings.push("Priorities are no longer part of Kairos and were ignored.");
+    }
+  }
 
   const categoryIds = new Set<string>();
   for (const category of data.categories) {
@@ -141,12 +148,6 @@ export function validateBackup(raw: unknown): BackupValidation {
       errors.push(`Duplicate category id "${category.id}".`);
     }
     categoryIds.add(category.id);
-  }
-
-  const labelIds = new Set<string>();
-  for (const label of data.labels) {
-    if (labelIds.has(label.id)) errors.push(`Duplicate label id "${label.id}".`);
-    labelIds.add(label.id);
   }
 
   const taskById = new Map<string, BackupTask>();
@@ -208,22 +209,6 @@ export function validateBackup(raw: unknown): BackupValidation {
     }
   }
 
-  const taskLabels = data.taskLabels ?? [];
-  const seenPairs = new Set<string>();
-  for (const pair of taskLabels) {
-    if (!taskById.has(pair.taskId)) {
-      errors.push(`Label assignment references missing task "${pair.taskId}".`);
-    }
-    if (!labelIds.has(pair.labelId)) {
-      errors.push(`Label assignment references missing label "${pair.labelId}".`);
-    }
-    const key = `${pair.taskId}::${pair.labelId}`;
-    if (seenPairs.has(key)) {
-      errors.push(`Duplicate label assignment for task "${pair.taskId}".`);
-    }
-    seenPairs.add(key);
-  }
-
   const events = data.events ?? [];
   for (const event of events) {
     if (event.taskId && !taskById.has(event.taskId)) {
@@ -240,16 +225,14 @@ export function validateBackup(raw: unknown): BackupValidation {
 
   return {
     ok: true,
-    data: parsed.data,
+    data: file,
     summary: {
-      version: parsed.data.version,
-      exportedAt: parsed.data.exportedAt ?? null,
+      version: file.version,
+      exportedAt: file.exportedAt ?? null,
       tasks: data.tasks.length - subtasks,
       subtasks,
       completedTasks,
       categories: data.categories.length,
-      labels: data.labels.length,
-      taskLabels: taskLabels.length,
       events: events.length,
       timezone: data.settings.timezone,
       theme: data.settings.theme,
@@ -280,13 +263,11 @@ export function buildBackupFile(input: {
     position: number;
     createdAt: Date;
   }>;
-  labels: Array<{ id: string; name: string; color: string }>;
   tasks: Array<{
     id: string;
     title: string;
     notes: string | null;
     status: string;
-    priority: string;
     categoryId: string | null;
     parentId: string | null;
     scheduledDate: Date | null;
@@ -296,7 +277,6 @@ export function buildBackupFile(input: {
     updatedAt: Date;
     completedAt: Date | null;
   }>;
-  taskLabels: Array<{ taskId: string; labelId: string }>;
   events: Array<{
     id: string;
     taskId: string | null;
@@ -325,13 +305,11 @@ export function buildBackupFile(input: {
         position: category.position,
         createdAt: category.createdAt.toISOString(),
       })),
-      labels: input.labels,
       tasks: input.tasks.map((task) => ({
         id: task.id,
         title: task.title,
         notes: task.notes,
         status: task.status as BackupTask["status"],
-        priority: task.priority as BackupTask["priority"],
         categoryId: task.categoryId,
         parentId: task.parentId,
         scheduledDate: dateOnly(task.scheduledDate),
@@ -341,7 +319,6 @@ export function buildBackupFile(input: {
         updatedAt: task.updatedAt.toISOString(),
         completedAt: task.completedAt ? task.completedAt.toISOString() : null,
       })),
-      taskLabels: input.taskLabels,
       events: input.events.map((event) => ({
         id: event.id,
         taskId: event.taskId,

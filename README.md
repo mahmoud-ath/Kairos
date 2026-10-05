@@ -10,21 +10,20 @@ Desktop layout:
 
 ```
 ┌───────────────┬────────────────────────────────────────────┬─────────────────┐
-│ Kairos        │  Today                                     │  Progress       │
-│               │  [ search ]  [filters]        Clear done   │  62%  12 of 19  │
-│  Inbox    3   │  ┌──────────────────────────────────────┐  │  ▓▓▓▓▓▓░░░░░░   │
-│  Today    7   │  │ +  Add a task…            [Add]      │  │                 │
-│  Upcoming 12  │  └──────────────────────────────────────┘  │  Completed  12  │
-│  All Tasks 19 │  OVERDUE  2                                │  Remaining   7  │
-│  Completed 12 │  ⠿ ☐ Send the invoice        ! High  Due  │                 │
-│               │  TODAY  5                                  │  Completed/day  │
-│  CATEGORIES   │  ⠿ ☐ Draft the roadmap       2/4  Work     │  ▁▃▅▂▇▅▆        │
-│  ● Work   4   │  │   ☐ Collect feedback                    │                 │
-│  ● Personal 2 │  │   ☐ Outline themes                      │  [Statistics]   │
-│  ● Learning 1 │  ⠿ ☐ Book the dentist        Med  Personal │                 │
-│  + Add        │                                            │                 │
-│  Statistics   │                                            │                 │
-│  Settings     │                                            │                 │
+│ Kairos        │  All Tasks                                 │  Progress       │
+│               │  [ search ]  [ category ]      Clear done  │  62%  12 of 19  │
+│  Today    7   │  ┌──────────────────────────────────────┐  │  ▓▓▓▓▓▓░░░░░░   │
+│  Upcoming 12  │  │ +  Add a task and press Enter…       │  │                 │
+│  All Tasks 19 │  └──────────────────────────────────────┘  │  Completed  12  │
+│  Completed 12 │  YESTERDAY  1                              │  Remaining   7  │
+│               │  ⠿ ☐ Send the invoice         Due Oct 2    │                 │
+│  CATEGORIES   │  TODAY  5                                  │  Completed/day  │
+│  ● Work   4   │  ⠿ ☐ Draft the roadmap       2/4  Work     │  ▁▃▅▂▇▅▆        │
+│  ● Personal 2 │  │   ☐ Collect feedback                    │                 │
+│  ● Learning 1 │  │   ☐ Outline themes                      │  [Statistics]   │
+│  + Add        │  ⠿ ☐ Book the dentist         Personal     │                 │
+│  Statistics   │  UNSCHEDULED  1                            │                 │
+│  Settings     │  ⠿ ○ Replace the kitchen filter            │                 │
 └───────────────┴────────────────────────────────────────────┴─────────────────┘
 ```
 
@@ -58,26 +57,28 @@ Accounts, sharing and collaboration are explicitly out of scope for v1.
 **Tasks**
 
 - Create, edit, complete, reopen and delete tasks; inline title editing
-- Plain-text notes, optional category, multiple colour-coded labels
-- Priority (none / low / medium / high)
+- Notes: click anywhere on a task (or its notes icon) to write plain-text notes
+- One optional **category**; create new categories inline from the sidebar, the
+  quick-add field or the details panel
 - *Planned date* (when you intend to work on it) and *due date* (the deadline)
 - Subtasks with one visible nesting level, completion progress such as `2/4`
-- Manual ordering, drag and drop, and keyboard-accessible alternatives
+- Manual ordering, drag and drop (including nesting), and keyboard-accessible
+  alternatives for every drag action
 - Delete with an **Undo** action
 
 **Views**
 
-- **Inbox** — unfinished tasks with no category and no planned day
 - **Today** — what you planned for today, plus overdue work in its own section
 - **Upcoming** — everything planned later, grouped by day
-- **All Tasks** — every top-level task, grouped by date
+- **All Tasks** — every task grouped by day, from the earliest past day
+  (*Yesterday* and earlier) through today and the future, then *Unscheduled*
 - **Completed** — finished tasks, newest first
 - **Category views** — overdue / today / upcoming / unscheduled for one category
 
 **Finding things**
 
 - Search across titles and notes
-- Filters for category, label, priority and completion status
+- Filters for category and completion status
 - Clear completed tasks (with confirmation)
 
 **Statistics**
@@ -91,6 +92,7 @@ Accounts, sharing and collaboration are explicitly out of scope for v1.
 **Settings**
 
 - Light, dark and system themes; timezone; first day of the week
+- Manage categories
 - Versioned JSON export and import, plus “reset all data”
 
 **Everything local**
@@ -196,7 +198,7 @@ backup. The application also exports an official, versioned JSON format.
 
 1. Open **Settings → Backup & data → Export JSON**. The browser downloads
    `kairos-backup-YYYY-MM-DD.json` containing tasks, subtasks, categories,
-   labels, label assignments, history events and settings.
+   history events and settings.
 2. To restore, choose **Import JSON**, pick the file, and review the summary that
    appears (counts, timezone, and any warnings). Importing **replaces** the
    current data, in a single transaction, and is rejected outright if the file is
@@ -205,6 +207,13 @@ backup. The application also exports an official, versioned JSON format.
 
 Exported files are private user data: keep them out of repositories (`.gitignore`
 already excludes `*.kairos.json` and `backups/`).
+
+> **Upgrading from an earlier build.** The bundled migration
+> `20261005090000_drop_priority_and_labels` removes the label tables and the
+> `priority` column (categories are now the only grouping, and priorities are
+> gone). Export a backup first if you want to keep that data. Backups made by the
+> earlier version are still importable: their labels and priorities are ignored,
+> and the import summary tells you so.
 
 ### Copying the SQLite file
 
@@ -254,6 +263,11 @@ A few decisions worth knowing before reading the code:
   unfinished subtasks in one transaction; reopening a parent leaves subtasks
   alone; completing every subtask does not complete the parent; deleting a parent
   deletes its subtasks.
+- **Nesting by drag.** Dragging a task to the right onto another task makes it a
+  subtask (the target row is highlighted and the drag preview says
+  “→ make subtask”); dragging a subtask to the left, or dropping it in a day's
+  empty space, pulls it back out. The details panel and each row's menu offer the
+  same actions without a mouse drag.
 - **Ordering.** Positions are integers. When something moves, the server rebuilds
   the order for the whole sibling set inside a transaction, so the result is
   always consistent (`src/lib/ordering.ts`).
@@ -262,8 +276,8 @@ A few decisions worth knowing before reading the code:
   day it was finished. Each task counts at most once per day, no matter how often
   its checkbox is toggled.
 - **Categories vs. deletion.** Deleting a category moves its tasks to
-  Uncategorized (`onDelete: SetNull`); deleting a label removes only the
-  assignments. Tasks are never deleted as a side effect.
+  Uncategorized (`onDelete: SetNull`), so tasks are never deleted as a side
+  effect.
 - **Optimistic updates.** Changes appear immediately through React's
   `useOptimistic`; if a save fails, React discards the change and the UI
   explains what happened and that the list was restored. New tasks get their id
@@ -276,7 +290,7 @@ A few decisions worth knowing before reading the code:
 src/
 ├── app/
 │   ├── (app)/                 # authenticated-free app shell routes
-│   │   ├── inbox/ today/ upcoming/ tasks/ completed/
+│   │   ├── today/ upcoming/ tasks/ completed/
 │   │   ├── categories/[id]/ statistics/ settings/
 │   │   └── layout.tsx         # sidebar + shell, loaded once
 │   ├── api/backup/            # JSON export download
@@ -285,7 +299,7 @@ src/
 ├── components/
 │   ├── tasks/                 # workspace, rows, details panel, optimistic state
 │   ├── layout/                # sidebar, progress panel, mobile drawer
-│   ├── categories/ labels/ statistics/ settings/
+│   ├── categories/ statistics/ settings/
 │   └── ui/                    # shadcn/ui primitives
 ├── lib/                       # pure, testable rules
 │   ├── dates.ts               # date-only handling and timezone "today"
@@ -302,7 +316,7 @@ prisma/
 └── migrations/                # committed, applied on start
 tests/
 ├── unit/                      # grouping, subtask rules, ordering, backups, stats
-└── e2e/                       # Playwright: task workflow, drag and drop, backups
+└── e2e/                       # Playwright: workflow, drag and drop, backups
 ```
 
 ---
@@ -312,22 +326,25 @@ tests/
 ```bash
 bun run typecheck   # tsc
 bun run lint        # eslint
-bun test            # 63 unit tests: date grouping, subtask rules, ordering,
-                    # backup validation, statistics history, date handling
+bun test            # 67 unit tests: date grouping, subtask rules, ordering,
+                    # backup validation (incl. v1 files), statistics, dates
 bun run test:e2e    # builds, then runs Playwright against a throw-away database
 ```
 
 Unit tests cover the pure rules in `src/lib`. The Playwright suite drives the
 real application and covers:
 
-- the main workflow: capture a task with Enter, confirm it survives a reload,
-  add a subtask, complete the subtask without completing the parent, complete and
-  reopen the parent, delete the task and undo it
-- the first-run experience: reset all data, load the example tasks
-- drag and drop: reordering persists, and dropping into a date group changes the
-  planned date
-- backup: export → wipe → import round-trips tasks, subtasks, categories, labels
-  and counters; an invalid file is rejected without touching the data
+- the main workflow: Enter creates a task, it survives a reload, notes are saved
+  by clicking a task, subtasks can be added and ticked without completing the
+  parent, the parent can be completed and reopened, then deleted and undone
+- the first-run experience: reset all data, load the example tasks, and the All
+  Tasks view showing *Yesterday*, *Today* and *Unscheduled* groups
+- quick category creation from the sidebar
+- drag and drop: reordering persists, dropping into a date group changes the
+  planned date, dragging a task right nests it, and a subtask can be pulled back
+  out
+- backup: export → wipe → import round-trips tasks, subtasks, categories and
+  counters; an invalid file is rejected without touching the data
 - statistics, settings, the export endpoint and the health check
 
 ---
@@ -337,8 +354,10 @@ real application and covers:
 - Single user, no authentication, no accounts, no sharing — see the security
   notice above.
 - One instance with one SQLite database. Horizontal scaling is not supported.
+- One level of subtasks, and one category per task. Labels and priorities were
+  removed from the product; a task is grouped by its category and dates.
 - No recurring tasks, reminders, notifications or calendar sync.
-- Subtasks have a title and a status only (no notes, dates or priorities).
+- Subtasks have a title and a status only (no notes, dates or categories).
 - All top-level tasks are loaded for the current page and grouped in the browser;
   this is comfortable for personal volumes and keeps the UI responsive.
 - Undo is available for deletions and for failed saves, not for edits.

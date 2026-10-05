@@ -10,8 +10,6 @@ import type { TaskDTO, TaskFilters } from "@/types/kairos";
 export const DEFAULT_FILTERS: TaskFilters = {
   query: "",
   categoryId: "all",
-  labelId: "all",
-  priority: "all",
   status: "all",
 };
 
@@ -38,12 +36,6 @@ export function applyFilters(tasks: readonly TaskDTO[], filters: TaskFilters): T
       }
     }
 
-    if (filters.labelId !== "all" && !task.labels.some((l) => l.id === filters.labelId)) {
-      return false;
-    }
-
-    if (filters.priority !== "all" && task.priority !== filters.priority) return false;
-
     if (filters.status === "open" && task.status !== "TODO") return false;
     if (filters.status === "done" && task.status !== "DONE") return false;
 
@@ -53,11 +45,7 @@ export function applyFilters(tasks: readonly TaskDTO[], filters: TaskFilters): T
 
 export function hasActiveFilters(filters: TaskFilters): boolean {
   return (
-    filters.query.trim() !== "" ||
-    filters.categoryId !== "all" ||
-    filters.labelId !== "all" ||
-    filters.priority !== "all" ||
-    filters.status !== "all"
+    filters.query.trim() !== "" || filters.categoryId !== "all" || filters.status !== "all"
   );
 }
 
@@ -65,8 +53,6 @@ export function countActiveFilters(filters: TaskFilters): number {
   let count = 0;
   if (filters.query.trim() !== "") count += 1;
   if (filters.categoryId !== "all") count += 1;
-  if (filters.labelId !== "all") count += 1;
-  if (filters.priority !== "all") count += 1;
   if (filters.status !== "all") count += 1;
   return count;
 }

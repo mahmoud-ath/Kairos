@@ -10,10 +10,9 @@ import { z } from "zod";
 
 import { NAME_MAX_LENGTH, NOTES_MAX_LENGTH, TITLE_MAX_LENGTH } from "@/lib/constants";
 import { DATE_ONLY_PATTERN, isValidDateOnly, isValidTimeZone } from "@/lib/dates";
-import type { TaskPriority, TaskStatus } from "@/types/kairos";
+import type { TaskStatus } from "@/types/kairos";
 
 export const taskStatusSchema = z.enum(["TODO", "DONE"]);
-export const taskPrioritySchema = z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]);
 export const themeSchema = z.enum(["light", "dark", "system"]);
 
 export const idSchema = z
@@ -68,11 +67,6 @@ export const colorSchema = z
 
 export const positionSchema = z.number().int().min(0).max(100000);
 
-export const labelIdsSchema = z
-  .array(idSchema)
-  .max(30, "Too many labels.")
-  .transform((ids) => [...new Set(ids)]);
-
 /* -------------------------------------------------------------------------- */
 /* Tasks                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -88,12 +82,10 @@ export const createTaskInputSchema = z.object({
   id: idSchema.optional(),
   title: titleSchema,
   notes: notesSchema.optional(),
-  priority: taskPrioritySchema.optional(),
   categoryId: optionalIdSchema.optional(),
   parentId: optionalIdSchema.optional(),
   scheduledDate: optionalDateOnlySchema.optional(),
   dueDate: optionalDateOnlySchema.optional(),
-  labelIds: labelIdsSchema.optional(),
 });
 
 export type CreateTaskInput = z.input<typeof createTaskInputSchema>;
@@ -104,12 +96,10 @@ export const updateTaskInputSchema = z
     id: idSchema,
     title: titleSchema.optional(),
     notes: notesSchema.optional(),
-    priority: taskPrioritySchema.optional(),
     categoryId: optionalIdSchema.optional(),
     parentId: optionalIdSchema.optional(),
     scheduledDate: optionalDateOnlySchema.optional(),
     dueDate: optionalDateOnlySchema.optional(),
-    labelIds: labelIdsSchema.optional(),
     status: taskStatusSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 1, "Nothing to update.");
@@ -129,12 +119,10 @@ export const restoreTaskSchema = z.object({
   title: titleSchema,
   notes: notesSchema.optional(),
   status: taskStatusSchema.optional(),
-  priority: taskPrioritySchema.optional(),
   categoryId: optionalIdSchema.optional(),
   scheduledDate: optionalDateOnlySchema.optional(),
   dueDate: optionalDateOnlySchema.optional(),
   position: z.number().int().optional(),
-  labelIds: labelIdsSchema.optional(),
   subtasks: z
     .array(
       z.object({
@@ -148,20 +136,22 @@ export const restoreTaskSchema = z.object({
     .optional(),
 });
 
-/** `beforeId` positions the task ahead of that sibling; `null` appends. */
+/** Move a task inside its sibling group, optionally changing its planned day. */
 export const reorderTaskSchema = z.object({
   id: idSchema,
   parentId: optionalIdSchema,
-  /** Target scheduled date group (`null` = unscheduled). */
+  /** Target planned-date group (`null` = unscheduled). */
   scheduledDate: optionalDateOnlySchema.optional(),
   /** Index inside the destination group. */
   targetIndex: z.number().int().min(0).max(10000),
 });
 
+/** Move a task to another category, under (or out of) a parent, or onto a day. */
 export const moveTaskSchema = z.object({
   id: idSchema,
-  parentId: optionalIdSchema,
-  categoryId: optionalIdSchema,
+  parentId: optionalIdSchema.optional(),
+  categoryId: optionalIdSchema.optional(),
+  scheduledDate: optionalDateOnlySchema.optional(),
 });
 
 export const moveTaskToCategorySchema = z.object({
@@ -177,7 +167,7 @@ export const clearCompletedSchema = z.object({
 });
 
 /* -------------------------------------------------------------------------- */
-/* Categories / labels                                                        */
+/* Categories                                                                 */
 /* -------------------------------------------------------------------------- */
 
 export const createCategorySchema = z.object({
@@ -190,17 +180,6 @@ export const updateCategorySchema = z.object({
   name: nameSchema.optional(),
   color: colorSchema.optional(),
   position: positionSchema.optional(),
-});
-
-export const createLabelSchema = z.object({
-  name: nameSchema,
-  color: colorSchema.optional(),
-});
-
-export const updateLabelSchema = z.object({
-  id: idSchema,
-  name: nameSchema.optional(),
-  color: colorSchema.optional(),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -238,5 +217,4 @@ export function firstErrorMessage(error: z.ZodError, fallback = "Invalid input."
   return error.issues[0]?.message ?? fallback;
 }
 
-export const priorityValues = taskPrioritySchema.options as TaskPriority[];
 export const statusValues = taskStatusSchema.options as TaskStatus[];

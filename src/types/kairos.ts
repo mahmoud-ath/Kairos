@@ -8,14 +8,7 @@
  */
 
 export type TaskStatus = "TODO" | "DONE";
-export type TaskPriority = "NONE" | "LOW" | "MEDIUM" | "HIGH";
 export type ThemePreference = "light" | "dark" | "system";
-
-export type LabelDTO = {
-  id: string;
-  name: string;
-  color: string;
-};
 
 export type SubtaskDTO = {
   id: string;
@@ -30,7 +23,7 @@ export type TaskDTO = {
   title: string;
   notes: string | null;
   status: TaskStatus;
-  priority: TaskPriority;
+  /** Tasks have at most one category; subtasks inherit their parent's. */
   categoryId: string | null;
   parentId: string | null;
   scheduledDate: string | null;
@@ -39,7 +32,6 @@ export type TaskDTO = {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
-  labels: LabelDTO[];
   subtasks: SubtaskDTO[];
 };
 
@@ -68,7 +60,6 @@ export type TaskSummary = {
   categoryId: string | null;
   scheduledDate: string | null;
   dueDate: string | null;
-  priority: TaskPriority;
   position: number;
   completedAt: string | null;
 };
@@ -76,8 +67,6 @@ export type TaskSummary = {
 export type TaskFilters = {
   query: string;
   categoryId: string | "all";
-  labelId: string | "all";
-  priority: TaskPriority | "all";
   status: "all" | "open" | "done";
 };
 

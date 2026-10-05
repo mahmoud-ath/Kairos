@@ -21,6 +21,10 @@ export type OptimisticAction =
   | { type: "remove"; id: string }
   | { type: "addSubtask"; parentId: string; subtask: SubtaskDTO }
   | { type: "removeSubtask"; parentId: string; subtaskId: string }
+  /** Dragged onto another task: it becomes a subtask. */
+  | { type: "nest"; parentId: string; subtask: SubtaskDTO }
+  /** Dragged out again: the subtask becomes a top-level task. */
+  | { type: "unnest"; parentId: string; task: TaskDTO }
   | {
       type: "reorder";
       orderedIds: string[];
@@ -75,6 +79,30 @@ export function optimisticReducer(
             }
           : task,
       );
+
+    case "nest":
+      return tasks
+        .filter((task) => task.id !== action.subtask.id)
+        .map((task) =>
+          task.id === action.parentId
+            ? { ...task, subtasks: [...task.subtasks, action.subtask] }
+            : task,
+        );
+
+    case "unnest":
+      return [
+        ...tasks.map((task) =>
+          task.id === action.parentId
+            ? {
+                ...task,
+                subtasks: task.subtasks.filter(
+                  (subtask) => subtask.id !== action.task.id,
+                ),
+              }
+            : task,
+        ),
+        action.task,
+      ];
 
     case "reorder": {
       const positions = new Map(action.orderedIds.map((id, index) => [id, index]));

@@ -3,8 +3,8 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { TaskRow, type RowCallbacks } from "@/components/tasks/task-row";
 import { SECTION_PREFIX } from "@/components/tasks/dnd-utils";
+import { TaskRow, type RowCallbacks } from "@/components/tasks/task-row";
 import { cn } from "@/lib/utils";
 import type { TaskSection } from "@/lib/views";
 import type { CategoryDTO, TaskDTO } from "@/types/kairos";
@@ -18,6 +18,8 @@ type TaskSectionViewProps = RowCallbacks & {
   showCategory: boolean;
   /** Sections whose order can be changed by dragging. */
   sortable: boolean;
+  /** Row highlighted as the target of a "make this a subtask" drag. */
+  nestTargetId?: string | null;
 };
 
 export function TaskSectionView({
@@ -28,6 +30,7 @@ export function TaskSectionView({
   categoryNames,
   showCategory,
   sortable,
+  nestTargetId,
   ...callbacks
 }: TaskSectionViewProps) {
   const { setNodeRef, isOver } = useDroppable({
@@ -44,7 +47,7 @@ export function TaskSectionView({
           id={`section-${section.key}`}
           className={cn(
             "text-xs font-semibold uppercase tracking-wide",
-            section.kind === "overdue" ? "text-destructive" : "text-muted-foreground",
+            section.kind === "past" ? "text-destructive" : "text-muted-foreground",
           )}
         >
           {section.title}
@@ -63,7 +66,7 @@ export function TaskSectionView({
       >
         {section.tasks.length === 0 ? (
           <p className="px-3 py-2 text-xs text-muted-foreground">
-            Nothing here yet — drop a task or use the field above.
+            Nothing here yet — add a task above, or drop one in.
           </p>
         ) : (
           <SortableContext
@@ -84,6 +87,7 @@ export function TaskSectionView({
                       ? (categoryNames.get(task.categoryId) ?? null)
                       : null
                   }
+                  nestTarget={nestTargetId === task.id}
                   {...callbacks}
                 />
               ))}

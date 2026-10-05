@@ -3,7 +3,7 @@ import { buildViewCounts } from "@/lib/views";
 import { todayDateOnly } from "@/lib/dates";
 import { getSettingsRecord } from "@/server/services/settings";
 import { listTaskSummaries } from "@/server/services/tasks";
-import { listCategories, listLabels } from "@/server/services/taxonomy";
+import { listCategories } from "@/server/services/taxonomy";
 import type { AppData } from "@/components/app-data";
 
 // Task data is mutable: never serve a cached render of the app shell.
@@ -13,9 +13,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const settings = await getSettingsRecord();
   const today = todayDateOnly(settings.timezone);
 
-  const [categories, labels, summaries] = await Promise.all([
+  const [categories, summaries] = await Promise.all([
     listCategories(),
-    listLabels(),
     listTaskSummaries(),
   ]);
 
@@ -23,7 +22,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     settings,
     today,
     categories,
-    labels,
     counts: buildViewCounts(summaries, today),
   };
 

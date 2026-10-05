@@ -7,6 +7,9 @@
 // Date-only values (`scheduledDate`, `dueDate`) are stored as UTC midnight so
 // that they are timezone independent. Event timestamps (`createdAt`,
 // `updatedAt`, `completedAt`, `TaskEvent.timestamp`) are real UTC instants.
+//
+// Categories are the only way tasks are grouped: there is no separate label
+// concept.
 
 generator client {
   provider = "prisma-client-js"
@@ -22,7 +25,6 @@ model Task {
   title         String
   notes         String?
   status        String    @default("TODO") // TODO | DONE
-  priority      String    @default("NONE") // NONE | LOW | MEDIUM | HIGH
   categoryId    String?
   parentId      String?
   scheduledDate DateTime?
@@ -35,7 +37,6 @@ model Task {
   category Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   parent   Task?       @relation("TaskToSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
   subtasks Task[]      @relation("TaskToSubtasks")
-  labels   TaskLabel[]
   events   TaskEvent[]
 
   @@index([parentId, position])
@@ -56,25 +57,6 @@ model Category {
   tasks Task[]
 
   @@index([position])
-}
-
-model Label {
-  id    String @id @default(cuid())
-  name  String @unique
-  color String @default("#64748b")
-
-  tasks TaskLabel[]
-}
-
-model TaskLabel {
-  taskId  String
-  labelId String
-
-  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
-
-  @@id([taskId, labelId])
-  @@index([labelId])
 }
 
 model TaskEvent {

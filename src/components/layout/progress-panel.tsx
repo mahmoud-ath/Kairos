@@ -43,9 +43,7 @@ export function ProgressPanelContent({
 
       <div className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between">
-          <span className="text-2xl font-semibold tabular-nums">
-            {parents.percentage}%
-          </span>
+          <span className="text-2xl font-semibold tabular-nums">{parents.percentage}%</span>
           <span className="text-xs text-muted-foreground">
             {parents.completed} of {parents.total} tasks
           </span>
@@ -81,14 +79,12 @@ export function ProgressPanelContent({
           <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Completed per day
           </h3>
-          <span className="text-xs text-muted-foreground">
-            last {progress.windowDays} days
-          </span>
+          <span className="text-xs text-muted-foreground">last {progress.windowDays} days</span>
         </div>
         <MiniActivityChart points={progress.activity} today={today} />
         <p className="text-xs text-muted-foreground">
-          {progress.activity.reduce((total, point) => total + point.completed, 0)} tasks
-          completed in this window
+          {progress.activity.reduce((total, point) => total + point.completed, 0)} tasks completed
+          in this window
         </p>
       </div>
 
@@ -100,10 +96,12 @@ export function ProgressPanelContent({
         </h3>
         <p>
           {counts.open} open · {counts.completed} completed
-          {totalCompleted > 0 ? ` · ${Math.round((counts.completed / totalCompleted) * 100)}% done` : ""}
+          {totalCompleted > 0
+            ? ` · ${Math.round((counts.completed / totalCompleted) * 100)}% done`
+            : ""}
         </p>
         <p>
-          {counts.overdue} overdue · {counts.today} in Today · {counts.inbox} in Inbox
+          {counts.overdue} overdue · {counts.today} in Today · {counts.unscheduled} unscheduled
         </p>
       </div>
 
@@ -148,10 +146,7 @@ export function ProgressPanel({
   }
 
   return (
-    <aside
-      aria-label="Progress"
-      className="hidden w-72 shrink-0 border-l border-border xl:block"
-    >
+    <aside aria-label="Progress" className="hidden w-72 shrink-0 border-l border-border xl:block">
       <div className="sticky top-0 max-h-screen overflow-y-auto">
         <div className="flex justify-end px-2 pt-2">
           <Tooltip>

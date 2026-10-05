@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSections, buildViewCounts, isTaskOverdue, selectScopedTasks } from "@/lib/views";
+import {
+  buildSections,
+  buildViewCounts,
+  isTaskOverdue,
+  selectScopedTasks,
+} from "@/lib/views";
 import type { TaskLike } from "@/lib/views";
 
-const TODAY = "2026-10-04";
+const TODAY = "2026-10-04"; // a Sunday
 
 function task(overrides: Partial<TaskLike> & { id: string }): TaskLike {
   return {
@@ -17,49 +22,40 @@ function task(overrides: Partial<TaskLike> & { id: string }): TaskLike {
   };
 }
 
-const inboxTask = task({ id: "inbox", position: 0 });
-
+const undated = task({ id: "undated", position: 0 });
 const scheduledToday = task({ id: "today", scheduledDate: TODAY, position: 1 });
-
-const overdueBySchedule = task({
-  id: "overdue-schedule",
-  scheduledDate: "2026-10-02",
-  position: 2,
-});
-
-const overdueByDue = task({ id: "overdue-due", dueDate: "2026-10-01", position: 3 });
-
+const yesterday = task({ id: "yesterday", scheduledDate: "2026-10-03", position: 2 });
+const overdueBySchedule = task({ id: "overdue-schedule", scheduledDate: "2026-10-02", position: 3 });
+const overdueByDue = task({ id: "overdue-due", dueDate: "2026-10-01", position: 4 });
 const overdueBoth = task({
   id: "overdue-both",
   scheduledDate: "2026-10-03",
   dueDate: "2026-09-30",
-  position: 4,
+  position: 5,
 });
-
-const upcomingA = task({ id: "up-1", scheduledDate: "2026-10-05", position: 5 });
-const upcomingB = task({ id: "up-2", scheduledDate: "2026-10-05", position: 6 });
-const upcomingLater = task({ id: "up-3", scheduledDate: "2026-10-09", position: 7 });
-
-const unscheduled = task({ id: "unscheduled", categoryId: "cat-1", position: 8 });
-
+const upcomingA = task({ id: "up-1", scheduledDate: "2026-10-05", position: 6 });
+const upcomingB = task({ id: "up-2", scheduledDate: "2026-10-05", position: 7 });
+const upcomingLater = task({ id: "up-3", scheduledDate: "2026-10-09", position: 8 });
+const categorized = task({ id: "categorized", categoryId: "cat-1", position: 9 });
 const doneToday = task({
   id: "done-today",
   status: "DONE",
   scheduledDate: TODAY,
   completedAt: "2026-10-04T09:00:00.000Z",
-  position: 9,
+  position: 10,
 });
 
 const allTasks: TaskLike[] = [
-  inboxTask,
+  undated,
   scheduledToday,
+  yesterday,
   overdueBySchedule,
   overdueByDue,
   overdueBoth,
   upcomingA,
   upcomingB,
   upcomingLater,
-  unscheduled,
+  categorized,
   doneToday,
 ];
 
@@ -68,6 +64,7 @@ describe("overdue rule", () => {
     expect(isTaskOverdue(overdueBySchedule, TODAY)).toBe(true);
     expect(isTaskOverdue(overdueByDue, TODAY)).toBe(true);
     expect(isTaskOverdue(overdueBoth, TODAY)).toBe(true);
+    expect(isTaskOverdue(yesterday, TODAY)).toBe(true);
     expect(isTaskOverdue(scheduledToday, TODAY)).toBe(false);
     expect(isTaskOverdue(upcomingA, TODAY)).toBe(false);
     expect(isTaskOverdue(doneToday, TODAY)).toBe(false);
@@ -75,20 +72,6 @@ describe("overdue rule", () => {
 
   it("treats a task due today as not overdue", () => {
     expect(isTaskOverdue(task({ id: "due-today", dueDate: TODAY }), TODAY)).toBe(false);
-  });
-});
-
-describe("inbox view", () => {
-  it("shows unfinished tasks with no category and no planned day", () => {
-    const sections = buildSections({
-      scope: { kind: "inbox" },
-      tasks: allTasks,
-      today: TODAY,
-      includeCompleted: false,
-    });
-    expect(sections).toHaveLength(1);
-    // A task that only has a deadline still counts as unscheduled.
-    expect(sections[0].tasks.map((t) => t.id)).toEqual(["inbox", "overdue-due"]);
   });
 });
 
@@ -102,8 +85,8 @@ describe("today view", () => {
     });
 
     expect(sections.map((section) => section.key)).toEqual(["overdue", "today"]);
-    expect(sections[0].title).toBe("Overdue");
     expect(sections[0].tasks.map((t) => t.id)).toEqual([
+      "yesterday",
       "overdue-schedule",
       "overdue-due",
       "overdue-both",
@@ -154,23 +137,59 @@ describe("upcoming view", () => {
 });
 
 describe("all tasks view", () => {
-  it("groups into overdue, today, upcoming and unscheduled", () => {
+  it("groups by day, including past days, then unscheduled and completed", () => {
     const sections = buildSections({
       scope: { kind: "all" },
       tasks: allTasks,
       today: TODAY,
       includeCompleted: true,
     });
-    expect(sections.map((section) => section.key)).toEqual([
-      "overdue",
-      "today",
-      "date:2026-10-05",
-      "date:2026-10-09",
-      "unscheduled",
-      "completed",
+
+    expect(sections.map((section) => [section.title, section.kind])).toEqual([
+      ["Wed, Sep 30", "past"],
+      ["Thu, Oct 1", "past"],
+      ["Fri, Oct 2", "past"],
+      ["Yesterday", "past"],
+      ["Today", "today"],
+      ["Tomorrow", "upcoming"],
+      ["Fri, Oct 9", "upcoming"],
+      ["Unscheduled", "unscheduled"],
+      ["Completed", "completed"],
     ]);
-    const completed = sections.at(-1);
-    expect(completed?.tasks.map((t) => t.id)).toEqual(["done-today"]);
+  });
+
+  it("shows yesterday as its own group instead of an overdue pile", () => {
+    const sections = buildSections({
+      scope: { kind: "all" },
+      tasks: allTasks,
+      today: TODAY,
+      includeCompleted: false,
+    });
+    const yesterdayGroup = sections.find((section) => section.title === "Yesterday");
+    expect(yesterdayGroup?.date).toBe("2026-10-03");
+    expect(yesterdayGroup?.tasks.map((t) => t.id)).toEqual(["yesterday"]);
+  });
+
+  it("puts tasks with no dates in Unscheduled", () => {
+    const sections = buildSections({
+      scope: { kind: "all" },
+      tasks: allTasks,
+      today: TODAY,
+      includeCompleted: false,
+    });
+    const unscheduled = sections.find((section) => section.key === "unscheduled");
+    expect(unscheduled?.tasks.map((t) => t.id)).toEqual(["undated", "categorized"]);
+  });
+
+  it("orders each day by position", () => {
+    const sections = buildSections({
+      scope: { kind: "all" },
+      tasks: allTasks,
+      today: TODAY,
+      includeCompleted: false,
+    });
+    const tomorrow = sections.find((section) => section.title === "Tomorrow");
+    expect(tomorrow?.tasks.map((t) => t.id)).toEqual(["up-1", "up-2"]);
   });
 });
 
@@ -200,26 +219,49 @@ describe("category view", () => {
       includeCompleted: false,
     });
     const ids = sections.flatMap((section) => section.tasks.map((t) => t.id));
-    expect(ids).toEqual(["unscheduled"]);
+    expect(ids).toEqual(["categorized"]);
+  });
+
+  it("groups a category into overdue, today, upcoming and unscheduled", () => {
+    const categorizedTasks = [
+      task({ id: "c-overdue", categoryId: "cat-1", scheduledDate: "2026-10-02" }),
+      task({ id: "c-today", categoryId: "cat-1", scheduledDate: TODAY }),
+      task({ id: "c-up", categoryId: "cat-1", scheduledDate: "2026-10-09" }),
+      task({ id: "c-none", categoryId: "cat-1" }),
+      task({ id: "other", categoryId: "cat-2", scheduledDate: TODAY }),
+    ];
+    const sections = buildSections({
+      scope: { kind: "category", categoryId: "cat-1" },
+      tasks: categorizedTasks,
+      today: TODAY,
+      includeCompleted: false,
+    });
+    expect(sections.map((section) => section.key)).toEqual([
+      "overdue",
+      "today",
+      "date:2026-10-09",
+      "unscheduled",
+    ]);
   });
 });
 
 describe("view counts", () => {
   it("counts unfinished tasks only, and agrees with the views", () => {
     const counts = buildViewCounts(allTasks, TODAY);
-    expect(counts.inbox).toBe(2); // inbox + a task that only has a deadline
-    expect(counts.today).toBe(4); // 3 overdue + 1 planned for today
-    expect(counts.upcoming).toBe(6); // overdue + the three future tasks
-    expect(counts.overdue).toBe(3);
-    expect(counts.all).toBe(9); // every unfinished task
+    expect(counts.today).toBe(5); // 4 overdue + 1 planned for today
+    expect(counts.upcoming).toBe(7); // overdue + the three future tasks
+    expect(counts.overdue).toBe(4);
+    expect(counts.all).toBe(10); // every unfinished task
     expect(counts.completed).toBe(1);
-    expect(counts.open).toBe(9);
+    expect(counts.open).toBe(10);
+    expect(counts.unscheduled).toBe(2);
     expect(counts.byCategory).toEqual({ "cat-1": 1 });
   });
 
   it("never shows a task twice in one view", () => {
     const scoped = selectScopedTasks({ kind: "today" }, allTasks, TODAY);
     expect(scoped.map((t) => t.id)).toEqual([
+      "yesterday",
       "overdue-schedule",
       "overdue-due",
       "overdue-both",
@@ -227,5 +269,11 @@ describe("view counts", () => {
       "done-today",
     ]);
     expect(new Set(scoped.map((t) => t.id)).size).toBe(scoped.length);
+  });
+
+  it("counts every open task exactly once in All Tasks", () => {
+    const ids = selectScopedTasks({ kind: "all" }, allTasks, TODAY).map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.length).toBe(allTasks.length);
   });
 });

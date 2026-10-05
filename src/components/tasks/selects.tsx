@@ -1,166 +1,197 @@
 "use client";
 
-import { Check, Tag } from "lucide-react";
+import { Check, Plus } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { PRIORITIES, PRIORITY_META } from "@/lib/constants";
+import { NAME_MAX_LENGTH } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import type { CategoryDTO, LabelDTO, TaskPriority } from "@/types/kairos";
+import type { CategoryDTO } from "@/types/kairos";
 
 const NONE_VALUE = "__none__";
 
+/**
+ * Category picker with inline creation.
+ *
+ * `onCreate` creates the category on the server and returns it (or `null` when
+ * it failed); the new category is selected straight away so tasks can be filed
+ * without leaving the form.
+ */
 export function CategorySelect({
   value,
   onChange,
   categories,
+  onCreate,
   disabled,
   disabledHint,
   className,
   id,
+  compact = false,
 }: {
   value: string | null;
   onChange: (categoryId: string | null) => void;
   categories: readonly CategoryDTO[];
+  onCreate?: (name: string) => Promise<CategoryDTO | null>;
   disabled?: boolean;
   disabledHint?: string;
   className?: string;
   id?: string;
+  compact?: boolean;
 }) {
-  return (
-    <Select
-      value={value ?? NONE_VALUE}
-      onValueChange={(next) => onChange(next === NONE_VALUE ? null : next)}
-      disabled={disabled}
-    >
-      <SelectTrigger id={id} className={cn("h-9", className)} title={disabledHint}>
-        <SelectValue placeholder="No category" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={NONE_VALUE}>No category</SelectItem>
-        {categories.map((category) => (
-          <SelectItem key={category.id} value={category.id}>
-            <span className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: category.color }}
-              />
-              {category.name}
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
+  const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  // Enter and blur both fire; only the first one may create the category.
+  const submitted = useRef(false);
 
-export function PrioritySelect({
-  value,
-  onChange,
-  className,
-  id,
-}: {
-  value: TaskPriority;
-  onChange: (priority: TaskPriority) => void;
-  className?: string;
-  id?: string;
-}) {
-  return (
-    <Select value={value} onValueChange={(next) => onChange(next as TaskPriority)}>
-      <SelectTrigger id={id} className={cn("h-9", className)}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {PRIORITIES.map((priority) => (
-          <SelectItem key={priority} value={priority}>
-            <span className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className={cn("h-1.5 w-1.5 rounded-full", PRIORITY_META[priority].dot)}
-              />
-              {PRIORITY_META[priority].label}
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
+  const selected = categories.find((category) => category.id === value) ?? null;
 
-export function LabelSelect({
-  value,
-  onChange,
-  labels,
-  id,
-}: {
-  value: readonly string[];
-  onChange: (labelIds: string[]) => void;
-  labels: readonly LabelDTO[];
-  id?: string;
-}) {
-  const selected = new Set(value);
+  function close(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      setCreating(false);
+      setDraft("");
+    }
+  }
 
-  function toggle(labelId: string) {
-    const next = new Set(selected);
-    if (next.has(labelId)) next.delete(labelId);
-    else next.add(labelId);
-    onChange([...next]);
+  async function submitNew() {
+    if (submitted.current) return;
+    submitted.current = true;
+
+    const name = draft.trim();
+    if (!name) {
+      setCreating(false);
+      setDraft("");
+      return;
+    }
+    if (!onCreate) return;
+
+    setBusy(true);
+    const created = await onCreate(name);
+    setBusy(false);
+    setDraft("");
+    setCreating(false);
+    if (!created) return;
+    onChange(created.id);
+    close(false);
   }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={close}>
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant="outline"
           id={id}
-          className="h-9 w-full justify-start font-normal"
+          disabled={disabled}
+          title={disabledHint}
+          className={cn(
+            "justify-start font-normal",
+            compact ? "h-8 px-2 text-xs" : "h-9 w-full",
+            className,
+          )}
         >
-          <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
-          {value.length === 0
-            ? "No labels"
-            : value.length === 1
-              ? (labels.find((label) => label.id === value[0])?.name ?? "1 label")
-              : `${value.length} labels`}
+          {selected ? (
+            <span
+              aria-hidden="true"
+              className="mr-2 h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: selected.color }}
+            />
+          ) : (
+            <span aria-hidden="true" className="mr-2 h-2.5 w-2.5 shrink-0 rounded-full border border-muted-foreground/40" />
+          )}
+          <span className="truncate">{selected ? selected.name : "No category"}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 p-1">
-        {labels.length === 0 ? (
-          <p className="px-2 py-1.5 text-sm text-muted-foreground">
-            No labels yet — create them in Settings.
+
+      <PopoverContent align="start" className="w-60 p-1">
+        {disabled ? (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">
+            {disabledHint ?? "Not available here."}
           </p>
         ) : (
-          labels.map((label) => {
-            const active = selected.has(label.id);
-            return (
+          <>
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={value === null}
+              onClick={() => {
+                onChange(null);
+                close(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              <span className="flex-1">No category</span>
+              {value === null ? <Check className="h-4 w-4 text-primary" /> : null}
+            </button>
+
+            {categories.map((category) => (
               <button
-                key={label.id}
+                key={category.id}
                 type="button"
-                role="menuitemcheckbox"
-                aria-checked={active}
-                onClick={() => toggle(label.id)}
+                role="menuitemradio"
+                aria-checked={category.id === value}
+                onClick={() => {
+                  onChange(category.id);
+                  close(false);
+                }}
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
               >
                 <span
                   aria-hidden="true"
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: label.color }}
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: category.color }}
                 />
-                <span className="flex-1 truncate">{label.name}</span>
-                {active ? <Check className="h-4 w-4 text-primary" /> : null}
+                <span className="flex-1 truncate">{category.name}</span>
+                {category.id === value ? <Check className="h-4 w-4 text-primary" /> : null}
               </button>
-            );
-          })
+            ))}
+
+            {onCreate ? (
+              <div className="mt-1 border-t border-border pt-1">
+                {creating ? (
+                  <Input
+                    autoFocus
+                    value={draft}
+                    maxLength={NAME_MAX_LENGTH}
+                    placeholder="New category name"
+                    aria-label="New category name"
+                    className={cn("h-8 text-sm", busy && "opacity-60")}
+                    disabled={busy}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onBlur={() => void submitNew()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void submitNew();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setCreating(false);
+                        setDraft("");
+                      }
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      submitted.current = false;
+                      setCreating(true);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <Plus className="h-4 w-4" />
+                    New category
+                  </button>
+                )}
+              </div>
+            ) : null}
+          </>
         )}
       </PopoverContent>
     </Popover>
@@ -206,3 +237,5 @@ export function DateField({
     </div>
   );
 }
+
+export { NONE_VALUE };

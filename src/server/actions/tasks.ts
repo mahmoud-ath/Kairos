@@ -76,7 +76,7 @@ export async function deleteTaskAction(input: unknown): Promise<ActionResult<Tas
   });
 }
 
-/** Recreate a deleted task with its subtasks and labels. */
+/** Recreate a deleted task with its subtasks. */
 export async function undoDeleteTaskAction(input: unknown): Promise<ActionResult<TaskDTO>> {
   return runAction(async () => {
     const values = restoreTaskSchema.parse(input);
@@ -98,7 +98,7 @@ export async function reorderTaskAction(input: unknown): Promise<ActionResult<un
   });
 }
 
-/** Move a task to another category or under/out of a parent task. */
+/** Move a task to another category, under/out of a parent, or onto a day. */
 export async function moveTaskAction(input: unknown): Promise<ActionResult<TaskDTO>> {
   return runAction(async () => {
     const values = moveTaskSchema.parse(input);
@@ -106,6 +106,7 @@ export async function moveTaskAction(input: unknown): Promise<ActionResult<TaskD
       id: values.id,
       parentId: values.parentId !== undefined ? values.parentId : undefined,
       categoryId: values.categoryId !== undefined ? values.categoryId : undefined,
+      scheduledDate: values.scheduledDate !== undefined ? values.scheduledDate : undefined,
     });
   });
 }

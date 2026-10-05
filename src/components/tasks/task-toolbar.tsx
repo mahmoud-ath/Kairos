@@ -22,9 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PRIORITIES, PRIORITY_META } from "@/lib/constants";
 import { countActiveFilters, DEFAULT_FILTERS } from "@/lib/filters";
-import type { CategoryDTO, LabelDTO, TaskFilters } from "@/types/kairos";
+import type { CategoryDTO, TaskFilters } from "@/types/kairos";
 
 const ALL = "all";
 
@@ -61,7 +60,6 @@ export function TaskToolbar({
   filters,
   onFiltersChange,
   categories,
-  labels,
   resultCount,
   totalCount,
   completedCount,
@@ -72,7 +70,6 @@ export function TaskToolbar({
   filters: TaskFilters;
   onFiltersChange: (filters: TaskFilters) => void;
   categories: readonly CategoryDTO[];
-  labels: readonly LabelDTO[];
   resultCount: number;
   totalCount: number;
   /** Completed tasks visible in this view (shown in the summary line). */
@@ -114,34 +111,11 @@ export function TaskToolbar({
         />
 
         <FilterSelect
-          ariaLabel="Filter by label"
-          value={filters.labelId}
-          onChange={(value) => onFiltersChange({ ...filters, labelId: value })}
-          className="h-9 w-auto min-w-28 text-xs"
-          options={[
-            { value: ALL, label: "All labels" },
-            ...labels.map((label) => ({ value: label.id, label: label.name })),
-          ]}
-        />
-
-        <FilterSelect
-          ariaLabel="Filter by priority"
-          value={filters.priority}
-          onChange={(value) => onFiltersChange({ ...filters, priority: value as TaskFilters["priority"] })}
-          className="h-9 w-auto min-w-28 text-xs"
-          options={[
-            { value: ALL, label: "Any priority" },
-            ...PRIORITIES.map((priority) => ({
-              value: priority,
-              label: PRIORITY_META[priority].label,
-            })),
-          ]}
-        />
-
-        <FilterSelect
           ariaLabel="Filter by status"
           value={filters.status}
-          onChange={(value) => onFiltersChange({ ...filters, status: value as TaskFilters["status"] })}
+          onChange={(value) =>
+            onFiltersChange({ ...filters, status: value as TaskFilters["status"] })
+          }
           className="h-9 w-auto min-w-28 text-xs"
           options={[
             { value: ALL, label: "Any status" },

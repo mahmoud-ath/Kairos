@@ -47,7 +47,7 @@ export async function importBackupAction(
   });
 }
 
-/** Delete every task, category, label and event; settings return to defaults. */
+/** Delete every task, category and event; settings return to defaults. */
 export async function resetAllDataAction(input: unknown): Promise<ActionResult<undefined>> {
   return runAction(async () => {
     resetInputSchema.parse(input);

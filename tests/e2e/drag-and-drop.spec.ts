@@ -7,26 +7,47 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * distance → move onto the target → up), so these tests drive the mouse
  * directly. A tall viewport keeps every row on screen, which makes the
  * coordinates stable for the whole gesture.
+ *
+ * The horizontal offset matters: dragging right onto a task nests it, while a
+ * neutral drag reorders.
  */
 test.use({ viewport: { width: 1440, height: 1400 } });
 
+/**
+ * The current page's quick-add input.
+ *
+ * A client-side navigation can briefly keep the previous route's tree in the
+ * DOM (hidden), so wait until exactly one is present.
+ */
+async function quickAdd(page: Page) {
+  const input = page.getByLabel("New task title");
+  await expect(input).toHaveCount(1);
+  return input;
+}
+
 async function addTask(page: Page, title: string, plannedDate?: string) {
-  await page.getByLabel("New task title").fill(title);
-  if (plannedDate) await page.getByLabel("Planned date").fill(plannedDate);
-  await page.getByLabel("New task title").press("Enter");
+  const input = await quickAdd(page);
+  await input.fill(title);
+  if (plannedDate) {
+    const date = page.getByLabel("Planned date");
+    await expect(date).toHaveCount(1);
+    await date.fill(plannedDate);
+  }
+  await input.press("Enter");
   await expect(page.getByRole("button", { name: `Open task ${title}` })).toBeVisible();
 }
 
-/** Drag a row's handle onto a point inside `target`. */
+/** Drag a row's handle to the given row, offset horizontally by `dx`. */
 async function dragHandleOnto(
   page: Page,
   handleLabel: string,
   target: Locator,
-  offsetY = 8,
+  { dx = 0, dy = 8 }: { dx?: number; dy?: number } = {},
 ) {
   await page.evaluate(() => window.scrollTo(0, 0));
 
   const handle = page.getByRole("button", { name: handleLabel });
+  await handle.scrollIntoViewIfNeeded();
   await expect(handle).toBeVisible();
   const handleBox = await handle.boundingBox();
   if (!handleBox) throw new Error(`Handle "${handleLabel}" has no bounding box.`);
@@ -36,12 +57,13 @@ async function dragHandleOnto(
 
   await page.mouse.move(startX, startY);
   await page.mouse.down();
-  // Move past the 6px activation distance before looking at the target.
-  await page.mouse.move(startX + 10, startY + 10, { steps: 4 });
+  // Move past the 6px activation distance before heading for the target.
+  await page.mouse.move(startX + 8, startY + 8, { steps: 4 });
 
   const targetBox = await target.boundingBox();
   if (!targetBox) throw new Error("Drop target has no bounding box.");
-  await page.mouse.move(targetBox.x + 60, targetBox.y + offsetY, { steps: 15 });
+  // The horizontal offset from the drag start decides nest vs. reorder.
+  await page.mouse.move(startX + dx, targetBox.y + dy, { steps: 15 });
   await page.mouse.up();
 }
 
@@ -67,18 +89,14 @@ test("reorders tasks by dragging and persists the new order", async ({ page }) =
   );
 
   // Drag "beta" onto the row above it, inside the same (Unscheduled) group.
-  await dragHandleOnto(
-    page,
-    `Reorder task ${beta}`,
-    page.getByRole("listitem").filter({ hasText: alpha }),
-    10,
-  );
+  await dragHandleOnto(page, `Reorder task ${beta}`, page.getByRole("listitem").filter({ hasText: alpha }), {
+    dy: 10,
+  });
 
   await expect
     .poll(async () => (await rowTexts(page, [alpha, beta]))[0] ?? "")
     .toContain(beta);
 
-  // The order came from the database, not just the DOM.
   await page.reload();
   await expect
     .poll(async () => (await rowTexts(page, [alpha, beta]))[0] ?? "")
@@ -87,10 +105,14 @@ test("reorders tasks by dragging and persists the new order", async ({ page }) =
 
 test("dropping a task into a date group changes its planned date", async ({ page }) => {
   const moved = "Drag move me";
+  const anchor = "Drag tomorrow anchor";
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const later = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  // Upcoming groups by planned date, so both rows are next to each other.
+  // Upcoming groups by planned date: one task creates a "Tomorrow" group for the
+  // other one to be dropped into.
   await page.goto("/upcoming");
+  await addTask(page, anchor, tomorrow);
   await addTask(page, moved, later);
 
   const row = page.getByRole("listitem").filter({ hasText: moved });
@@ -99,9 +121,8 @@ test("dropping a task into a date group changes its planned date", async ({ page
   const tomorrowHeading = page.getByRole("heading", { name: "Tomorrow", exact: true }).first();
   await expect(tomorrowHeading).toBeVisible();
 
-  await dragHandleOnto(page, `Reorder task ${moved}`, tomorrowHeading, 56);
+  await dragHandleOnto(page, `Reorder task ${moved}`, tomorrowHeading, { dy: 56 });
 
-  // Moving between date groups changes scheduledDate (the day chip follows).
   await expect(
     page.getByRole("listitem").filter({ hasText: moved }).getByText("Tomorrow"),
   ).toBeVisible();
@@ -110,4 +131,53 @@ test("dropping a task into a date group changes its planned date", async ({ page
   await expect(
     page.getByRole("listitem").filter({ hasText: moved }).getByText("Tomorrow"),
   ).toBeVisible();
+});
+
+test("dragging a task right onto another makes it a subtask", async ({ page }) => {
+  const parent = "Drag nest parent";
+  const child = "Drag nest child";
+
+  await page.goto("/tasks");
+  await addTask(page, parent);
+  await addTask(page, child);
+
+  const parentRow = page.getByRole("listitem").filter({ hasText: parent });
+  await expect(parentRow.getByLabel("0 of 1 subtasks completed")).toBeHidden();
+
+  // Drag the child to the right, onto the parent row.
+  await dragHandleOnto(page, `Reorder task ${child}`, parentRow, { dx: 90, dy: 12 });
+
+  // The parent now reports one subtask, and the child is nested under it.
+  await expect(
+    page.getByRole("listitem").filter({ hasText: parent }).getByLabel("0 of 1 subtasks completed"),
+  ).toBeVisible();
+  await expect(page.getByLabel(`Complete ${child}`).first()).toBeVisible();
+
+  // It is nested in the database too, not only in the DOM.
+  await page.reload();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: parent }).getByLabel("0 of 1 subtasks completed"),
+  ).toBeVisible();
+});
+
+test("a subtask can be pulled back out to the top level", async ({ page }) => {
+  const parent = "Drag nest parent";
+  const child = "Drag nest child";
+
+  await page.goto("/tasks");
+  const parentRow = page.getByRole("listitem").filter({ hasText: parent });
+  await expect(parentRow.getByLabel("0 of 1 subtasks completed")).toBeVisible();
+
+  // Keyboard/click alternative to dragging left.
+  await page.getByRole("button", { name: `Move ${child} to the top level` }).first().click();
+
+  await expect(
+    page.getByRole("listitem").filter({ hasText: parent }).getByLabel("0 of 1 subtasks completed"),
+  ).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: `Open task ${child}` })).toBeVisible();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: parent }).getByLabel("1 of 1 subtasks completed"),
+  ).toBeHidden();
 });

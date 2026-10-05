@@ -1,14 +1,7 @@
 "use client";
 
-import {
-  ArrowDown,
-  ArrowUp,
-  Check,
-  Plus,
-  RotateCcw,
-  Trash2,
-} from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowDown, ArrowUp, Check, CornerDownRight, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   AlertDialog,
@@ -24,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -38,17 +32,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  CategorySelect,
-  DateField,
-  LabelSelect,
-  PrioritySelect,
-} from "@/components/tasks/selects";
+import { CategorySelect, DateField } from "@/components/tasks/selects";
 import { NOTES_MAX_LENGTH, TITLE_MAX_LENGTH } from "@/lib/constants";
 import { formatTimestamp } from "@/lib/dates";
-import type { CategoryDTO, LabelDTO, TaskDTO, TaskPriority } from "@/types/kairos";
+import type { CategoryDTO, TaskDTO } from "@/types/kairos";
 
 const TOP_LEVEL = "__top__";
 
@@ -61,36 +49,40 @@ export type TaskDetailsCallbacks = {
   onRenameSubtask: (parentId: string, subtaskId: string, title: string) => void;
   onDeleteSubtask: (parentId: string, subtaskId: string) => void;
   onMoveSubtask: (parentId: string, subtaskId: string, direction: "up" | "down") => void;
+  onUnnest: (parentId: string, subtaskId: string) => void;
   onChangeParent: (taskId: string, parentId: string | null) => void;
 };
 
 /**
- * Details panel for the selected task: every field lives here, including the
- * keyboard-friendly alternatives to dragging (category, dates, parent, order).
+ * Details panel for the selected task: title, notes, category, dates, nesting
+ * and subtasks — including the keyboard-friendly alternatives to dragging.
  */
 export function TaskDetailsPanel({
   task,
   open,
   onOpenChange,
   categories,
-  labels,
   parentOptions,
   timeZone,
+  focusTarget,
+  onCreateCategory,
   ...callbacks
 }: {
   task: TaskDTO | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   categories: readonly CategoryDTO[];
-  labels: readonly LabelDTO[];
   parentOptions: readonly { id: string; title: string }[];
   timeZone: string;
+  focusTarget: "notes" | null;
+  onCreateCategory: (name: string) => Promise<CategoryDTO | null>;
 } & TaskDetailsCallbacks) {
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [subtaskDraft, setSubtaskDraft] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setTitle(task?.title ?? "");
@@ -98,6 +90,17 @@ export function TaskDetailsPanel({
     setAddingSubtask(false);
     setSubtaskDraft("");
   }, [task?.id, task?.title, task?.notes, open]);
+
+  // Opening from a row's notes button puts the cursor straight in the notes.
+  useEffect(() => {
+    if (open && focusTarget === "notes") {
+      notesRef.current?.focus();
+      notesRef.current?.setSelectionRange(
+        notesRef.current.value.length,
+        notesRef.current.value.length,
+      );
+    }
+  }, [open, focusTarget, task?.id]);
 
   if (!task) {
     return (
@@ -112,7 +115,6 @@ export function TaskDetailsPanel({
     );
   }
 
-  const isSubtask = task.parentId !== null;
   const done = task.status === "DONE";
   const doneSubtasks = task.subtasks.filter((subtask) => subtask.status === "DONE").length;
 
@@ -148,7 +150,7 @@ export function TaskDetailsPanel({
             Task details
           </SheetTitle>
           <SheetDescription className="sr-only">
-            Edit the title, notes, category, labels, priority and dates of this task.
+            Edit the title, notes, category and dates of this task, and manage its subtasks.
           </SheetDescription>
         </SheetHeader>
 
@@ -188,7 +190,6 @@ export function TaskDetailsPanel({
                       minute: "2-digit",
                     })}`
                   : ""}
-                {isSubtask ? " · Subtask" : ""}
               </p>
             </div>
           </div>
@@ -197,40 +198,56 @@ export function TaskDetailsPanel({
             <Label htmlFor="details-notes">Notes</Label>
             <Textarea
               id="details-notes"
+              ref={notesRef}
               value={notes}
               maxLength={NOTES_MAX_LENGTH}
-              placeholder="Add context, links, or a checklist…"
+              placeholder="Add notes, links, or a checklist…"
               onChange={(event) => setNotes(event.target.value)}
               onBlur={commitNotes}
-              className="min-h-24 text-sm"
+              className="min-h-28 text-sm"
             />
+            <p className="text-xs text-muted-foreground">Saved when you click away.</p>
           </div>
 
           <Separator />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="details-priority">Priority</Label>
-              <PrioritySelect
-                id="details-priority"
-                value={task.priority}
-                onChange={(priority: TaskPriority) => void callbacks.onPatch(task.id, { priority })}
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
               <Label htmlFor="details-category">Category</Label>
               <CategorySelect
                 id="details-category"
                 value={task.categoryId}
                 categories={categories}
-                disabled={isSubtask}
-                disabledHint="Subtasks inherit their parent's category."
-                onChange={(categoryId) => void callbacks.onPatch(task.id, { categoryId })}
+                onCreate={onCreateCategory}
+                onChange={(categoryId) => {
+                  void callbacks.onPatch(task.id, { categoryId });
+                }}
               />
-              {isSubtask ? (
-                <p className="text-xs text-muted-foreground">Inherited from the parent task.</p>
-              ) : null}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="details-parent">Nesting</Label>
+              <Select
+                value={task.parentId ?? TOP_LEVEL}
+                onValueChange={(value) =>
+                  callbacks.onChangeParent(task.id, value === TOP_LEVEL ? null : value)
+                }
+              >
+                <SelectTrigger id="details-parent">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TOP_LEVEL}>Top-level task</SelectItem>
+                  {parentOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      Subtask of “{option.title}”
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                You can also drag a task right onto another to nest it.
+              </p>
             </div>
 
             <DateField
@@ -238,7 +255,9 @@ export function TaskDetailsPanel({
               label="Planned date"
               value={task.scheduledDate}
               hint="When you plan to work on it."
-              onChange={(scheduledDate) => void callbacks.onPatch(task.id, { scheduledDate })}
+              onChange={(scheduledDate) => {
+                void callbacks.onPatch(task.id, { scheduledDate });
+              }}
             />
 
             <DateField
@@ -246,46 +265,10 @@ export function TaskDetailsPanel({
               label="Due date"
               value={task.dueDate}
               hint="The deadline."
-              onChange={(dueDate) => void callbacks.onPatch(task.id, { dueDate })}
+              onChange={(dueDate) => {
+                void callbacks.onPatch(task.id, { dueDate });
+              }}
             />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="details-labels">Labels</Label>
-            <LabelSelect
-              id="details-labels"
-              value={task.labels.map((label) => label.id)}
-              labels={labels}
-              onChange={(labelIds) =>
-                void callbacks.onPatch(task.id, {
-                  labels: labelIds
-                    .map((id) => labels.find((label) => label.id === id))
-                    .filter((label): label is LabelDTO => Boolean(label)),
-                })
-              }
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="details-parent">Nesting</Label>
-            <Select
-              value={task.parentId ?? TOP_LEVEL}
-              onValueChange={(value) =>
-                callbacks.onChangeParent(task.id, value === TOP_LEVEL ? null : value)
-              }
-            >
-              <SelectTrigger id="details-parent">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TOP_LEVEL}>Top-level task</SelectItem>
-                {parentOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    Subtask of “{option.title}”
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <Separator />
@@ -300,118 +283,114 @@ export function TaskDetailsPanel({
                     : `${doneSubtasks} of ${task.subtasks.length} done`}
                 </p>
               </div>
-              {!isSubtask ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => setAddingSubtask(true)}
-                >
-                  <Plus className="mr-1 h-3.5 w-3.5" />
-                  Add
-                </Button>
-              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => setAddingSubtask(true)}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Add
+              </Button>
             </div>
 
-            {isSubtask ? (
-              <p className="text-xs text-muted-foreground">
-                Subtasks cannot contain other subtasks.
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-1">
-                {task.subtasks.map((subtask) => (
-                  <li
-                    key={subtask.id}
-                    className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5"
+            <ul className="flex flex-col gap-1">
+              {task.subtasks.map((subtask) => (
+                <li
+                  key={subtask.id}
+                  className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5"
+                >
+                  <Checkbox
+                    checked={subtask.status === "DONE"}
+                    aria-label={
+                      subtask.status === "DONE"
+                        ? `Reopen ${subtask.title}`
+                        : `Complete ${subtask.title}`
+                    }
+                    onCheckedChange={(checked) =>
+                      callbacks.onToggleSubtask(task.id, subtask.id, checked ? "DONE" : "TODO")
+                    }
+                    className="h-3.5 w-3.5"
+                  />
+                  <input
+                    defaultValue={subtask.title}
+                    aria-label={`Subtask title ${subtask.title}`}
+                    className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                    onBlur={(event) => {
+                      const next = event.target.value.trim();
+                      if (next && next !== subtask.title) {
+                        callbacks.onRenameSubtask(task.id, subtask.id, next);
+                      } else {
+                        event.target.value = subtask.title;
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        (event.target as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    aria-label={`Move ${subtask.title} up`}
+                    onClick={() => callbacks.onMoveSubtask(task.id, subtask.id, "up")}
                   >
-                    <Checkbox
-                      checked={subtask.status === "DONE"}
-                      aria-label={
-                        subtask.status === "DONE"
-                          ? `Reopen ${subtask.title}`
-                          : `Complete ${subtask.title}`
-                      }
-                      onCheckedChange={(checked) =>
-                        callbacks.onToggleSubtask(
-                          task.id,
-                          subtask.id,
-                          checked ? "DONE" : "TODO",
-                        )
-                      }
-                      className="h-3.5 w-3.5"
-                    />
-                    <input
-                      defaultValue={subtask.title}
-                      aria-label={`Subtask title ${subtask.title}`}
-                      className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-                      onBlur={(event) => {
-                        const next = event.target.value.trim();
-                        if (next && next !== subtask.title) {
-                          callbacks.onRenameSubtask(task.id, subtask.id, next);
-                        } else {
-                          event.target.value = subtask.title;
-                        }
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          (event.target as HTMLInputElement).blur();
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      aria-label={`Move ${subtask.title} up`}
-                      onClick={() => callbacks.onMoveSubtask(task.id, subtask.id, "up")}
-                    >
-                      <ArrowUp className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      aria-label={`Move ${subtask.title} down`}
-                      onClick={() => callbacks.onMoveSubtask(task.id, subtask.id, "down")}
-                    >
-                      <ArrowDown className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      aria-label={`Delete subtask ${subtask.title}`}
-                      onClick={() => callbacks.onDeleteSubtask(task.id, subtask.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    <ArrowUp className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    aria-label={`Move ${subtask.title} down`}
+                    onClick={() => callbacks.onMoveSubtask(task.id, subtask.id, "down")}
+                  >
+                    <ArrowDown className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground"
+                    aria-label={`Move ${subtask.title} to the top level`}
+                    title="Make it a task again"
+                    onClick={() => callbacks.onUnnest(task.id, subtask.id)}
+                  >
+                    <CornerDownRight className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    aria-label={`Delete subtask ${subtask.title}`}
+                    onClick={() => callbacks.onDeleteSubtask(task.id, subtask.id)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
 
-            {addingSubtask && !isSubtask ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  autoFocus
-                  value={subtaskDraft}
-                  aria-label="New subtask title"
-                  placeholder="Subtask title"
-                  className="h-8 text-sm"
-                  onChange={(event) => setSubtaskDraft(event.target.value)}
-                  onBlur={() => void submitSubtask()}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void submitSubtask();
-                    }
-                    if (event.key === "Escape") {
-                      setSubtaskDraft("");
-                      setAddingSubtask(false);
-                    }
-                  }}
-                />
-              </div>
+            {addingSubtask ? (
+              <Input
+                autoFocus
+                value={subtaskDraft}
+                aria-label="New subtask title"
+                placeholder="Subtask title"
+                className="h-8 text-sm"
+                onChange={(event) => setSubtaskDraft(event.target.value)}
+                onBlur={() => void submitSubtask()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void submitSubtask();
+                  }
+                  if (event.key === "Escape") {
+                    setSubtaskDraft("");
+                    setAddingSubtask(false);
+                  }
+                }}
+              />
             ) : null}
           </div>
 

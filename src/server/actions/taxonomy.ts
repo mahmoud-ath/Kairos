@@ -1,24 +1,19 @@
 "use server";
 
-import {
-  createCategorySchema,
-  createLabelSchema,
-  idSchema,
-  updateCategorySchema,
-  updateLabelSchema,
-} from "@/lib/validation";
 import { z } from "zod";
 
-import type { ActionResult, CategoryDTO, LabelDTO } from "@/types/kairos";
+import {
+  createCategorySchema,
+  idSchema,
+  updateCategorySchema,
+} from "@/lib/validation";
+import type { ActionResult, CategoryDTO } from "@/types/kairos";
 import { runAction } from "@/server/actions/helpers";
 import {
   createCategory,
-  createLabel,
   deleteCategory,
-  deleteLabel,
   reorderCategories,
   updateCategory,
-  updateLabel,
 } from "@/server/services/taxonomy";
 
 export async function createCategoryAction(
@@ -57,31 +52,6 @@ export async function reorderCategoriesAction(
   return runAction(async () => {
     const { ids } = z.object({ ids: z.array(idSchema).max(200) }).parse(input);
     await reorderCategories(ids);
-    return undefined;
-  });
-}
-
-export async function createLabelAction(input: unknown): Promise<ActionResult<LabelDTO>> {
-  return runAction(async () => {
-    const values = createLabelSchema.parse(input);
-    const label = await createLabel(values);
-    return { id: label.id, name: label.name, color: label.color };
-  });
-}
-
-export async function updateLabelAction(input: unknown): Promise<ActionResult<LabelDTO>> {
-  return runAction(async () => {
-    const values = updateLabelSchema.parse(input);
-    const label = await updateLabel(values);
-    return { id: label.id, name: label.name, color: label.color };
-  });
-}
-
-/** Deleting a label removes its assignments; tasks are not deleted. */
-export async function deleteLabelAction(input: unknown): Promise<ActionResult<undefined>> {
-  return runAction(async () => {
-    const { id } = z.object({ id: idSchema }).parse(input);
-    await deleteLabel(id);
     return undefined;
   });
 }

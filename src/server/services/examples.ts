@@ -15,13 +15,12 @@ import { getSettings } from "@/server/services/settings";
  * never be polluted with demo data.
  */
 export async function loadExampleTasks(): Promise<{ tasks: number; categories: number }> {
-  const [taskCount, categoryCount, labelCount] = await Promise.all([
+  const [taskCount, categoryCount] = await Promise.all([
     prisma.task.count(),
     prisma.category.count(),
-    prisma.label.count(),
   ]);
 
-  if (taskCount > 0 || categoryCount > 0 || labelCount > 0) {
+  if (taskCount > 0 || categoryCount > 0) {
     throw new ServiceError(
       "Example data can only be loaded into an empty workspace. Delete your existing data first.",
     );
@@ -37,75 +36,56 @@ export async function loadExampleTasks(): Promise<{ tasks: number; categories: n
     prisma.category.create({ data: { name: "Learning", color: "#8b5cf6", position: 2 } }),
   ]);
 
-  const [deepWork, quickWin] = await Promise.all([
-    prisma.label.create({ data: { name: "Deep work", color: "#f97316" } }),
-    prisma.label.create({ data: { name: "Quick win", color: "#14b8a6" } }),
-  ]);
-
   const plan = [
     {
       title: "Draft the Q3 roadmap",
       notes: "Three themes: retention, onboarding, and reporting.",
-      priority: "HIGH",
       categoryId: work.id,
       scheduledDate: day(0),
       dueDate: day(2),
-      labels: [deepWork.id],
       subtasks: ["Collect customer feedback", "Outline the themes", "Review with the team"],
     },
     {
       title: "Review pull requests",
-      priority: "MEDIUM",
       categoryId: work.id,
       scheduledDate: day(0),
       dueDate: null,
-      labels: [quickWin.id],
       subtasks: ["Storage layer", "Dashboard polish"],
     },
     {
       title: "Book the dentist",
-      priority: "LOW",
       categoryId: personal.id,
       scheduledDate: day(0),
       dueDate: day(1),
-      labels: [quickWin.id],
       subtasks: [],
     },
     {
       title: "Weekly review",
-      notes: "Clear the inbox, plan next week, pick three priorities.",
-      priority: "MEDIUM",
+      notes: "Clear the list, plan next week, pick three priorities.",
       categoryId: null,
       scheduledDate: day(1),
       dueDate: null,
-      labels: [],
       subtasks: [],
     },
     {
       title: "Finish the TypeScript course",
-      priority: "LOW",
       categoryId: learning.id,
       scheduledDate: day(3),
       dueDate: day(10),
-      labels: [deepWork.id],
       subtasks: ["Generics chapter", "Practice project"],
     },
     {
       title: "Replace the kitchen filter",
-      priority: "NONE",
       categoryId: personal.id,
       scheduledDate: null,
       dueDate: null,
-      labels: [],
       subtasks: [],
     },
     {
       title: "Publish the changelog",
-      priority: "MEDIUM",
       categoryId: work.id,
       scheduledDate: null,
       dueDate: day(-1),
-      labels: [],
       subtasks: [],
       completed: true,
     },
@@ -120,16 +100,12 @@ export async function loadExampleTasks(): Promise<{ tasks: number; categories: n
       data: {
         title: item.title,
         notes: "notes" in item ? (item.notes as string) : null,
-        priority: item.priority,
         categoryId: item.categoryId,
         scheduledDate: item.scheduledDate ?? null,
         dueDate: item.dueDate ?? null,
         position,
         status: completed ? "DONE" : "TODO",
         completedAt: completed ? day(-1) : null,
-        labels: {
-          createMany: { data: item.labels.map((labelId) => ({ labelId })) },
-        },
       },
     });
     position += 1;

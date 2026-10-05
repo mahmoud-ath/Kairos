@@ -8,6 +8,7 @@ import {
   validateBackup,
 } from "@/lib/backup";
 
+/** A complete, consistent version 2 backup. */
 function validBackup() {
   return {
     format: BACKUP_FORMAT,
@@ -19,14 +20,12 @@ function validBackup() {
         { id: "cat-1", name: "Work", color: "#3b82f6", position: 0 },
         { id: "cat-2", name: "Home", color: "#22c55e", position: 1 },
       ],
-      labels: [{ id: "label-1", name: "Deep work", color: "#f97316" }],
       tasks: [
         {
           id: "task-1",
           title: "Write the report",
           notes: null,
           status: "TODO",
-          priority: "HIGH",
           categoryId: "cat-1",
           parentId: null,
           scheduledDate: "2026-10-04",
@@ -40,7 +39,6 @@ function validBackup() {
           id: "task-2",
           title: "Outline",
           status: "DONE",
-          priority: "NONE",
           categoryId: "cat-1",
           parentId: "task-1",
           scheduledDate: null,
@@ -49,7 +47,6 @@ function validBackup() {
           completedAt: "2026-10-03T08:00:00.000Z",
         },
       ],
-      taskLabels: [{ taskId: "task-1", labelId: "label-1" }],
       events: [
         {
           id: "event-1",
@@ -68,11 +65,11 @@ describe("backup validation", () => {
     const result = validateBackup(validBackup());
     expect(result.ok).toBe(true);
     if (!result.ok) return;
+    expect(result.summary.version).toBe(2);
     expect(result.summary.tasks).toBe(1);
     expect(result.summary.subtasks).toBe(1);
     expect(result.summary.completedTasks).toBe(1);
     expect(result.summary.categories).toBe(2);
-    expect(result.summary.labels).toBe(1);
     expect(result.summary.events).toBe(1);
     expect(result.summary.timezone).toBe("Europe/Berlin");
     expect(result.summary.warnings).toEqual([]);
@@ -84,7 +81,7 @@ describe("backup validation", () => {
   });
 
   it("rejects an unsupported version", () => {
-    const result = validateBackup({ ...validBackup(), version: 99 });
+    const result = validateBackup({ ...validBackup(), version: 3 });
     expect(result.ok).toBe(false);
   });
 
@@ -139,14 +136,6 @@ describe("backup validation", () => {
     if (!result.ok) expect(result.errors.join(" ")).toMatch(/Duplicate task id/);
   });
 
-  it("rejects label assignments to missing tasks or labels", () => {
-    const backup = validBackup();
-    backup.data.taskLabels.push({ taskId: "task-1", labelId: "label-missing" });
-    const result = validateBackup(backup);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.join(" ")).toMatch(/missing label/);
-  });
-
   it("warns about a subtask category mismatch and a completed task without a time", () => {
     const backup = validBackup();
     backup.data.tasks[1].categoryId = "cat-2";
@@ -172,6 +161,33 @@ describe("backup validation", () => {
   });
 });
 
+describe("version 1 compatibility", () => {
+  it("still imports v1 files, ignoring labels and priorities", () => {
+    const legacy = {
+      format: BACKUP_FORMAT,
+      version: 1,
+      exportedAt: "2026-10-01T12:00:00.000Z",
+      data: {
+        ...validBackup().data,
+        tasks: [
+          { ...validBackup().data.tasks[0], priority: "HIGH" },
+          { ...validBackup().data.tasks[1], priority: "NONE" },
+        ],
+        labels: [{ id: "label-1", name: "Deep work", color: "#f97316" }],
+        taskLabels: [{ taskId: "task-1", labelId: "label-1" }],
+      },
+    };
+
+    const result = validateBackup(legacy);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.summary.version).toBe(1);
+    expect(result.summary.tasks).toBe(1);
+    expect(result.summary.warnings.join(" ")).toMatch(/Labels are no longer part of Kairos/);
+    expect(result.summary.warnings.join(" ")).toMatch(/Priorities are no longer part of Kairos/);
+  });
+});
+
 describe("backup export shape", () => {
   it("is versioned and contains every entity the app can hold", () => {
     const file = buildBackupFile({
@@ -185,14 +201,12 @@ describe("backup export shape", () => {
           createdAt: new Date("2026-01-01T00:00:00.000Z"),
         },
       ],
-      labels: [{ id: "label-1", name: "Deep work", color: "#f97316" }],
       tasks: [
         {
           id: "task-1",
           title: "Task",
           notes: "Notes",
           status: "TODO",
-          priority: "LOW",
           categoryId: "cat-1",
           parentId: null,
           scheduledDate: new Date("2026-10-04T00:00:00.000Z"),
@@ -203,25 +217,23 @@ describe("backup export shape", () => {
           completedAt: null,
         },
       ],
-      taskLabels: [{ taskId: "task-1", labelId: "label-1" }],
       events: [],
       now: new Date("2026-10-04T12:00:00.000Z"),
     });
 
     expect(file.format).toBe(BACKUP_FORMAT);
-    expect(file.version).toBe(BACKUP_VERSION);
+    expect(file.version).toBe(2);
     expect(file.exportedAt).toBe("2026-10-04T12:00:00.000Z");
     expect(file.data.tasks[0].scheduledDate).toBe("2026-10-04");
     expect(file.data.settings.timezone).toBe("UTC");
+    expect("labels" in file.data).toBe(false);
   });
 
   it("round-trips through validation", () => {
     const file = buildBackupFile({
       settings: { theme: "light", timezone: "UTC", weekStartsOn: 0 },
       categories: [],
-      labels: [],
       tasks: [],
-      taskLabels: [],
       events: [],
     });
     const result = validateBackup(JSON.parse(JSON.stringify(file)));

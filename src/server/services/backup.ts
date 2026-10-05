@@ -7,19 +7,16 @@ import {
   type BackupSummary,
 } from "@/lib/backup";
 import { dateOnlyToDate } from "@/lib/dates";
-import type { ThemePreference } from "@/types/kairos";
 import { prisma } from "@/server/db";
 import { ServiceError } from "@/server/services/tasks";
 import { getSettings, SETTINGS_ID } from "@/server/services/settings";
 
 /** Build a complete, versioned export of the database. */
 export async function exportBackup(): Promise<BackupFile> {
-  const [settings, categories, labels, tasks, taskLabels, events] = await Promise.all([
+  const [settings, categories, tasks, events] = await Promise.all([
     getSettings(),
     prisma.category.findMany({ orderBy: { position: "asc" } }),
-    prisma.label.findMany({ orderBy: { name: "asc" } }),
     prisma.task.findMany({ orderBy: [{ position: "asc" }, { id: "asc" }] }),
-    prisma.taskLabel.findMany(),
     prisma.taskEvent.findMany({ orderBy: { timestamp: "asc" } }),
   ]);
 
@@ -30,9 +27,7 @@ export async function exportBackup(): Promise<BackupFile> {
       weekStartsOn: settings.weekStartsOn,
     },
     categories,
-    labels,
     tasks,
-    taskLabels,
     events,
   });
 }
@@ -42,7 +37,8 @@ export async function exportBackup(): Promise<BackupFile> {
  *
  * The file is fully validated (including cross-references) before this runs, and
  * everything is written inside one transaction: if any row fails, the existing
- * data stays exactly as it was.
+ * data stays exactly as it was. Version 1 files are accepted; their labels and
+ * priorities are ignored because Kairos no longer has them.
  */
 export async function importBackup(raw: unknown): Promise<{ summary: BackupSummary }> {
   const validation = validateBackup(raw);
@@ -58,10 +54,8 @@ export async function importBackup(raw: unknown): Promise<{ summary: BackupSumma
   await prisma.$transaction(
     async (tx) => {
       // Wipe current data (children first).
-      await tx.taskLabel.deleteMany();
       await tx.taskEvent.deleteMany();
       await tx.task.deleteMany();
-      await tx.label.deleteMany();
       await tx.category.deleteMany();
 
       for (const category of data.categories) {
@@ -72,12 +66,6 @@ export async function importBackup(raw: unknown): Promise<{ summary: BackupSumma
             color: category.color,
             position: category.position,
           },
-        });
-      }
-
-      for (const label of data.labels) {
-        await tx.label.create({
-          data: { id: label.id, name: label.name, color: label.color },
         });
       }
 
@@ -97,7 +85,6 @@ export async function importBackup(raw: unknown): Promise<{ summary: BackupSumma
             title: task.title,
             notes: task.notes ?? null,
             status: task.status,
-            priority: task.priority,
             categoryId,
             parentId: task.parentId ?? null,
             scheduledDate: task.scheduledDate ? dateOnlyToDate(task.scheduledDate) : null,
@@ -118,16 +105,6 @@ export async function importBackup(raw: unknown): Promise<{ summary: BackupSumma
         const parent = task.parentId ? parentById.get(task.parentId) : undefined;
         // Subtasks always inherit their parent's category.
         await createTask(task, parent?.categoryId ?? task.categoryId ?? null);
-      }
-
-      const taskLabels = data.taskLabels ?? [];
-      if (taskLabels.length > 0) {
-        await tx.taskLabel.createMany({
-          data: taskLabels.map((pair) => ({
-            taskId: pair.taskId,
-            labelId: pair.labelId,
-          })),
-        });
       }
 
       const taskIds = new Set(data.tasks.map((task) => task.id));
@@ -167,17 +144,10 @@ export async function importBackup(raw: unknown): Promise<{ summary: BackupSumma
 /** Delete everything and start over with default settings. */
 export async function resetAllData(): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await tx.taskLabel.deleteMany();
     await tx.taskEvent.deleteMany();
     await tx.task.deleteMany();
-    await tx.label.deleteMany();
     await tx.category.deleteMany();
     await tx.settings.deleteMany();
   });
   await getSettings(); // recreate the singleton with defaults
-}
-
-/** Small helper used by tests and the settings page. */
-export function currentThemeOrFallback(theme: string): ThemePreference {
-  return theme === "light" || theme === "dark" ? theme : "system";
 }

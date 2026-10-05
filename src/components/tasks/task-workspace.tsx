@@ -14,24 +14,24 @@ import {
 import { toast } from "sonner";
 
 import { useAppData, usePanelState } from "@/components/app-data";
-import { useDragRegistry } from "@/components/dnd/drag-provider";
+import { useDragRegistry, useDragState } from "@/components/dnd/drag-provider";
 import { ProgressPanel, ProgressPanelSheet } from "@/components/layout/progress-panel";
 import { EmptyState } from "@/components/tasks/empty-state";
 import {
   CATEGORY_PREFIX,
   findDragItem,
+  NEST_DELTA,
+  nestParentIdFor,
   reorderedIdsFor,
   scheduledDateForSection,
   sectionByKey,
   sectionOf,
   SECTION_PREFIX,
   SUBTASK_LIST_PREFIX,
+  UNNEST_DELTA,
+  type DragIntent,
 } from "@/components/tasks/dnd-utils";
-import {
-  clientTaskId,
-  optimisticReducer,
-  type OptimisticAction,
-} from "@/components/tasks/optimistic";
+import { clientTaskId, optimisticReducer, type OptimisticAction } from "@/components/tasks/optimistic";
 import { QuickAdd, type QuickAddValues } from "@/components/tasks/quick-add";
 import { TaskDetailsPanel } from "@/components/tasks/task-details";
 import { TaskSectionView } from "@/components/tasks/task-section";
@@ -39,8 +39,20 @@ import { TaskToolbar } from "@/components/tasks/task-toolbar";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_FILTERS, applyFilters, filtersIncludeCompleted } from "@/lib/filters";
 import type { WorkspaceProgress } from "@/lib/stats";
-import { buildSections, defaultCategoryId, defaultScheduledDate, selectScopedTasks, type ViewScope } from "@/lib/views";
-import type { ActionResult, SubtaskDTO, TaskDTO, TaskFilters } from "@/types/kairos";
+import {
+  buildSections,
+  defaultCategoryId,
+  defaultScheduledDate,
+  selectScopedTasks,
+  type ViewScope,
+} from "@/lib/views";
+import type {
+  ActionResult,
+  CategoryDTO,
+  SubtaskDTO,
+  TaskDTO,
+  TaskFilters,
+} from "@/types/kairos";
 import {
   clearCompletedAction,
   createTaskAction,
@@ -51,6 +63,7 @@ import {
   undoDeleteTaskAction,
   updateTaskAction,
 } from "@/server/actions/tasks";
+import { createCategoryAction } from "@/server/actions/taxonomy";
 
 export type TaskWorkspaceProps = {
   scope: ViewScope;
@@ -77,13 +90,15 @@ export function TaskWorkspace({
   showCategory,
   statisticsHref,
 }: TaskWorkspaceProps) {
-  const { categories, labels, today, counts, settings } = useAppData();
+  const { categories, today, counts, settings } = useAppData();
   const { handlers } = useDragRegistry();
+  const dragState = useDragState();
   const panel = usePanelState();
 
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [focusTarget, setFocusTarget] = useState<"notes" | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
   const [optimisticTasks, applyOptimistic] = useOptimistic(tasks, optimisticReducer);
   const [, startTransition] = useTransition();
@@ -101,7 +116,10 @@ export function TaskWorkspace({
   const sections = useMemo(
     () =>
       buildSections({ scope, tasks: visibleTasks, today, includeCompleted }).filter(
-        (section) => section.tasks.length > 0 || section.kind === "today" || section.kind === "all",
+        (section) =>
+          section.tasks.length > 0 ||
+          (section.kind === "today" && scope.kind !== "completed") ||
+          section.kind === "unscheduled",
       ),
     [scope, visibleTasks, today, includeCompleted],
   );
@@ -124,7 +142,9 @@ export function TaskWorkspace({
     scope.kind === "category" ? "category" : "all";
   const clearCompletedCount =
     clearCompletedScope === "category" ? completedInScope : counts.completed;
-  const workspaceIsEmpty = counts.all === 0 && counts.completed === 0;
+  const workspaceIsEmpty = counts.open === 0 && counts.completed === 0;
+
+  const nestTargetId = dragState.intent === "nest" ? dragState.overId : null;
 
   const quickAddRef = useRef<HTMLDivElement>(null);
 
@@ -168,11 +188,7 @@ export function TaskWorkspace({
     );
   }
 
-  function handleToggleSubtask(
-    parentId: string,
-    subtaskId: string,
-    status: "TODO" | "DONE",
-  ) {
+  function handleToggleSubtask(parentId: string, subtaskId: string, status: "TODO" | "DONE") {
     mutate(
       {
         type: "patchSubtask",
@@ -191,11 +207,9 @@ export function TaskWorkspace({
     const input: Record<string, unknown> = { id: taskId };
     if (patch.title !== undefined) input.title = patch.title;
     if (patch.notes !== undefined) input.notes = patch.notes;
-    if (patch.priority !== undefined) input.priority = patch.priority;
     if (patch.categoryId !== undefined) input.categoryId = patch.categoryId;
     if (patch.scheduledDate !== undefined) input.scheduledDate = patch.scheduledDate;
     if (patch.dueDate !== undefined) input.dueDate = patch.dueDate;
-    if (patch.labels !== undefined) input.labelIds = patch.labels.map((label) => label.id);
     if (patch.status !== undefined) input.status = patch.status;
 
     mutate({ type: "patch", id: taskId, patch }, () => updateTaskAction(input));
@@ -217,6 +231,19 @@ export function TaskWorkspace({
     mutate({ type: "patch", id: taskId, patch: { parentId } }, () =>
       moveTaskAction({ id: taskId, parentId }),
     );
+  }
+
+  /** Quick creation from any category picker. */
+  async function handleCreateCategory(name: string): Promise<CategoryDTO | null> {
+    const result = await createCategoryAction({ name });
+    if (!result.ok || !result.data) {
+      toast.error("Couldn't create the category", {
+        description: result.ok ? "Please try again." : result.error,
+      });
+      return null;
+    }
+    toast.success(`Category “${result.data.name}” created`);
+    return result.data;
   }
 
   function handleAddSubtask(parentId: string, title: string) {
@@ -245,11 +272,7 @@ export function TaskWorkspace({
     );
   }
 
-  function handleMoveSubtask(
-    parentId: string,
-    subtaskId: string,
-    direction: "up" | "down",
-  ) {
+  function handleMoveSubtask(parentId: string, subtaskId: string, direction: "up" | "down") {
     const parent = optimisticTasks.find((task) => task.id === parentId);
     if (!parent) return;
     const index = parent.subtasks.findIndex((subtask) => subtask.id === subtaskId);
@@ -287,8 +310,56 @@ export function TaskWorkspace({
     );
   }
 
+  /** Turn a task into a subtask of `parentId`. */
+  function handleNest(taskId: string, parentId: string) {
+    const child = optimisticTasks.find((task) => task.id === taskId);
+    const parent = optimisticTasks.find((task) => task.id === parentId);
+    if (!child || !parent) return;
+
+    const subtask: SubtaskDTO = {
+      id: child.id,
+      title: child.title,
+      status: child.status,
+      position: parent.subtasks.length,
+      completedAt: child.completedAt,
+    };
+    mutate({ type: "nest", parentId, subtask }, () =>
+      moveTaskAction({ id: taskId, parentId }),
+    );
+    toast.success(`“${child.title}” is now a subtask of “${parent.title}”`);
+  }
+
+  /** Pull a subtask back out to the top level. */
+  function handleUnnest(parentId: string, subtaskId: string, scheduledDate?: string | null) {
+    const parent = optimisticTasks.find((task) => task.id === parentId);
+    const subtask = parent?.subtasks.find((candidate) => candidate.id === subtaskId);
+    if (!parent || !subtask) return;
+
+    const now = new Date().toISOString();
+    const promoted: TaskDTO = {
+      id: subtask.id,
+      title: subtask.title,
+      notes: null,
+      status: subtask.status,
+      categoryId: parent.categoryId,
+      parentId: null,
+      scheduledDate: scheduledDate !== undefined ? scheduledDate : parent.scheduledDate,
+      dueDate: null,
+      position: nextPositionFor(optimisticTasks),
+      createdAt: now,
+      updatedAt: now,
+      completedAt: subtask.completedAt,
+      subtasks: [],
+    };
+    const date =
+      scheduledDate !== undefined ? scheduledDate : parent.scheduledDate;
+
+    mutate({ type: "unnest", parentId, task: promoted }, () =>
+      moveTaskAction({ id: subtaskId, parentId: null, scheduledDate: date }),
+    );
+  }
+
   function handleDelete(taskId: string) {
-    const task = optimisticTasks.find((candidate) => candidate.id === taskId);
     startTransition(async () => {
       applyOptimistic({ type: "remove", id: taskId });
       const result = await deleteTaskAction({ id: taskId });
@@ -312,7 +383,7 @@ export function TaskWorkspace({
       });
     });
 
-    if (task && selectedId === taskId) setSelectedId(null);
+    if (selectedId === taskId) setSelectedId(null);
   }
 
   async function restoreSnapshot(snapshot: TaskDTO) {
@@ -321,12 +392,10 @@ export function TaskWorkspace({
       title: snapshot.title,
       notes: snapshot.notes,
       status: snapshot.status,
-      priority: snapshot.priority,
       categoryId: snapshot.categoryId,
       scheduledDate: snapshot.scheduledDate,
       dueDate: snapshot.dueDate,
       position: snapshot.position,
-      labelIds: snapshot.labels.map((label) => label.id),
       subtasks: snapshot.subtasks.map((subtask) => ({
         id: subtask.id,
         title: subtask.title,
@@ -363,7 +432,6 @@ export function TaskWorkspace({
       title: values.title,
       notes: null,
       status: "TODO",
-      priority: values.priority,
       categoryId: values.categoryId,
       parentId: null,
       scheduledDate: values.scheduledDate,
@@ -372,7 +440,6 @@ export function TaskWorkspace({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       completedAt: null,
-      labels: [],
       subtasks: [],
     };
 
@@ -382,7 +449,6 @@ export function TaskWorkspace({
         const result = await createTaskAction({
           id: optimisticTask.id,
           title: values.title,
-          priority: values.priority,
           categoryId: values.categoryId,
           scheduledDate: values.scheduledDate,
         });
@@ -398,23 +464,67 @@ export function TaskWorkspace({
   /* Drag and drop                                                          */
   /* ---------------------------------------------------------------------- */
 
+  /** What a drop would mean right now — used for highlighting and hints. */
   useEffect(() => {
-    handlers.current.onDragEnd = (event: DragEndEvent) => {
-      handleDragEnd(event);
+    handlers.current.resolveIntent = (
+      activeId: string,
+      overId: string,
+      deltaX: number,
+    ): DragIntent => {
+      const active = findDragItem(optimisticTasks, activeId);
+      if (!active) return "invalid";
+
+      if (overId.startsWith(CATEGORY_PREFIX)) {
+        return active.parentId ? "invalid" : "category";
+      }
+
+      const over = findDragItem(optimisticTasks, overId);
+
+      if (active.parentId) {
+        // Subtasks stay in their parent unless they are clearly pulled out.
+        if (over?.parentId === active.parentId) return "reorder";
+        if (overId === `${SUBTASK_LIST_PREFIX}${active.parentId}`) return "reorder";
+        if (!over && overId.startsWith(SECTION_PREFIX)) return "unnest";
+        if (over && over.parentId === null && deltaX <= UNNEST_DELTA) return "unnest";
+        return "invalid";
+      }
+
+      if (over && over.task.id !== activeId) {
+        if (deltaX >= NEST_DELTA) return "nest";
+        return over.parentId ? "invalid" : "reorder";
+      }
+
+      return overId.startsWith(SECTION_PREFIX) ? "reorder" : "invalid";
     };
-    handlers.current.renderOverlay = (id: string) => {
+
+    handlers.current.renderOverlay = (id: string, intent: DragIntent | null) => {
       const item = findDragItem(optimisticTasks, id);
       if (!item) return null;
+      const hint =
+        intent === "nest"
+          ? "→ make subtask"
+          : intent === "unnest"
+            ? "← move to top level"
+            : intent === "category"
+              ? "→ move to category"
+              : intent === "invalid" && item.parentId
+                ? "← drag left to un-nest"
+                : null;
       return (
-        <div className="max-w-72 truncate rounded-md border border-border bg-card px-2.5 py-1.5 text-sm shadow-sm">
-          {item.task.title}
+        <div className="flex max-w-80 items-center gap-2 truncate rounded-md border border-border bg-card px-2.5 py-1.5 text-sm shadow-sm">
+          <span className="truncate">{item.task.title}</span>
+          {hint ? <span className="shrink-0 text-xs font-medium text-primary">{hint}</span> : null}
         </div>
       );
+    };
+
+    handlers.current.onDragEnd = (event: DragEndEvent) => {
+      handleDragEnd(event);
     };
   });
 
   function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
+    const { active, over, delta } = event;
     if (!over) return;
     const activeId = String(active.id);
     const overId = String(over.id);
@@ -422,20 +532,41 @@ export function TaskWorkspace({
 
     const activeItem = findDragItem(optimisticTasks, activeId);
     if (!activeItem) return;
+    const overItem = findDragItem(optimisticTasks, overId);
+    const intent: DragIntent =
+      handlers.current.resolveIntent?.(activeId, overId, delta.x) ?? "invalid";
 
     // 1. Dropped on a category in the sidebar.
-    if (overId.startsWith(CATEGORY_PREFIX)) {
-      // Guard: a subtask can never become a category-level task by dragging.
-      if (activeItem.parentId) return;
+    if (intent === "category") {
       const categoryId = overId.slice(CATEGORY_PREFIX.length) || null;
       if (categoryId === activeItem.task.categoryId) return;
       handleMoveToCategory(activeId, categoryId);
       return;
     }
 
-    const overItem = findDragItem(optimisticTasks, overId);
+    // 2. Dropped onto another task, offset to the right: nest it.
+    if (intent === "nest" && overItem) {
+      const parentId = nestParentIdFor(activeId, overItem);
+      if (!parentId) return;
+      handleNest(activeId, parentId);
+      return;
+    }
 
-    // 2. Subtasks can only be reordered inside their own parent.
+    // 3. A subtask dragged to the left: pull it out to the top level.
+    if (intent === "unnest" && activeItem.parentId) {
+      const targetSection = overItem
+        ? sectionOf(sections, overId)
+        : overId.startsWith(SECTION_PREFIX)
+          ? sectionByKey(sections, overId.slice(SECTION_PREFIX.length))
+          : null;
+      const scheduledDate = targetSection
+        ? scheduledDateForSection(targetSection)
+        : undefined;
+      handleUnnest(activeItem.parentId, activeId, scheduledDate);
+      return;
+    }
+
+    // 4. Subtasks can only be reordered inside their own parent.
     if (activeItem.parentId) {
       const targetParentId = overItem?.parentId
         ? overItem.parentId
@@ -459,10 +590,7 @@ export function TaskWorkspace({
       return;
     }
 
-    // A parent task dropped onto a subtask row is never a valid move.
-    if (overItem?.parentId) return;
-
-    // 3. Parent tasks inside or between date groups.
+    // 5. Top-level tasks: reorder, or move to another date group.
     const sourceSection = sectionOf(sections, activeId);
     const targetSection = overItem
       ? sectionOf(sections, overId)
@@ -470,6 +598,7 @@ export function TaskWorkspace({
         ? sectionByKey(sections, overId.slice(SECTION_PREFIX.length))
         : null;
     if (!targetSection || targetSection.kind === "completed") return;
+    if (overItem?.parentId) return;
 
     const targetIds = targetSection.tasks.map((task) => task.id);
     const targetIndex = overItem ? targetIds.indexOf(overId) : targetIds.length;
@@ -480,15 +609,13 @@ export function TaskWorkspace({
     if (orderedIds.join() === targetIds.join() && scheduledDate === undefined) return;
     if (sourceSection?.key === targetSection.key && sourceSection.tasks.length === 0) return;
 
-    mutate(
-      { type: "reorder", movedId: activeId, orderedIds, scheduledDate },
-      () =>
-        reorderTaskAction({
-          id: activeId,
-          parentId: null,
-          scheduledDate,
-          targetIndex,
-        }),
+    mutate({ type: "reorder", movedId: activeId, orderedIds, scheduledDate }, () =>
+      reorderTaskAction({
+        id: activeId,
+        parentId: null,
+        scheduledDate,
+        targetIndex,
+      }),
     );
   }
 
@@ -496,11 +623,15 @@ export function TaskWorkspace({
   /* Render                                                                 */
   /* ---------------------------------------------------------------------- */
 
+  function openDetails(taskId: string, focus: "notes" | null = null) {
+    setSelectedId(taskId);
+    setFocusTarget(focus);
+    setDetailsOpen(true);
+  }
+
   const rowCallbacks = {
-    onOpen: (taskId: string) => {
-      setSelectedId(taskId);
-      setDetailsOpen(true);
-    },
+    onOpen: (taskId: string) => openDetails(taskId),
+    onOpenNotes: (taskId: string) => openDetails(taskId, "notes"),
     onToggle: handleToggle,
     onRename: (taskId: string, title: string) => handlePatchTask(taskId, { title }),
     onDelete: handleDelete,
@@ -512,8 +643,10 @@ export function TaskWorkspace({
     onRenameSubtask: handleRenameSubtask,
     onDeleteSubtask: handleDeleteSubtask,
     onMoveSubtask: handleMoveSubtask,
+    onUnnest: (parentId: string, subtaskId: string) => handleUnnest(parentId, subtaskId),
   };
 
+  // Nesting is limited to one level, so only top-level tasks can be parents.
   const parentOptions = optimisticTasks
     .filter((task) => task.id !== selectedTask?.id)
     .map((task) => ({ id: task.id, title: task.title }));
@@ -555,19 +688,19 @@ export function TaskWorkspace({
           </div>
         </header>
 
-        <div className="mt-4 flex flex-col gap-3">
+        <div className="mt-4 flex flex-col gap-3" ref={quickAddRef}>
           <QuickAdd
             categories={categories}
             defaultCategoryId={defaultCategoryId(scope)}
             defaultScheduledDate={defaultScheduledDate(scope, today)}
             onSubmit={handleQuickAdd}
+            onCreateCategory={handleCreateCategory}
           />
 
           <TaskToolbar
             filters={filters}
             onFiltersChange={setFilters}
             categories={categories}
-            labels={labels}
             resultCount={visibleCount}
             totalCount={scopedTasks.length}
             completedCount={completedInScope}
@@ -588,6 +721,7 @@ export function TaskWorkspace({
               categoryNames={categoryNames}
               showCategory={showCategory}
               sortable={section.kind !== "completed"}
+              nestTargetId={nestTargetId}
               {...rowCallbacks}
             />
           ))}
@@ -598,9 +732,7 @@ export function TaskWorkspace({
                 title={emptyTitle}
                 description={emptyDescription}
                 workspaceIsEmpty={workspaceIsEmpty}
-                onFocusQuickAdd={() =>
-                  quickAddRef.current?.querySelector("input")?.focus()
-                }
+                onFocusQuickAdd={() => quickAddRef.current?.querySelector("input")?.focus()}
               />
             </div>
           ) : null}
@@ -622,9 +754,10 @@ export function TaskWorkspace({
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
         categories={categories}
-        labels={labels}
         parentOptions={parentOptions}
         timeZone={settings.timezone}
+        focusTarget={focusTarget}
+        onCreateCategory={handleCreateCategory}
         onPatch={(taskId, patch) => {
           handlePatchTask(taskId, patch);
           return Promise.resolve({ ok: true });
@@ -636,6 +769,7 @@ export function TaskWorkspace({
         onRenameSubtask={handleRenameSubtask}
         onDeleteSubtask={handleDeleteSubtask}
         onMoveSubtask={handleMoveSubtask}
+        onUnnest={handleUnnest}
         onChangeParent={handleChangeParent}
       />
     </div>

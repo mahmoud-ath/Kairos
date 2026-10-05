@@ -18,12 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  DateChip,
-  LabelChips,
-  PriorityIndicator,
-  SubtaskProgressLabel,
-} from "@/components/tasks/task-bits";
+import { DateChip, NotesButton, SubtaskProgressLabel } from "@/components/tasks/task-bits";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -44,6 +39,7 @@ import type { CategoryDTO, TaskDTO } from "@/types/kairos";
 
 export type RowCallbacks = {
   onOpen: (taskId: string) => void;
+  onOpenNotes: (taskId: string) => void;
   onToggle: (task: TaskDTO) => void;
   onRename: (taskId: string, title: string) => void;
   onDelete: (taskId: string) => void;
@@ -55,6 +51,8 @@ export type RowCallbacks = {
   onRenameSubtask: (parentId: string, subtaskId: string, title: string) => void;
   onDeleteSubtask: (parentId: string, subtaskId: string) => void;
   onMoveSubtask: (parentId: string, subtaskId: string, direction: "up" | "down") => void;
+  /** Pull a subtask back out to the top level (keyboard-friendly alternative). */
+  onUnnest: (parentId: string, subtaskId: string) => void;
 };
 
 type TaskRowProps = RowCallbacks & {
@@ -63,8 +61,8 @@ type TaskRowProps = RowCallbacks & {
   selected: boolean;
   categories: readonly CategoryDTO[];
   categoryName?: string | null;
-  /** Highlights the row while it is the drag preview target. */
-  dragging?: boolean;
+  /** Highlighted because a drag would nest the dragged task under this one. */
+  nestTarget?: boolean;
 };
 
 function InlineTitleEditor({
@@ -131,10 +129,7 @@ function SubtaskRow({
 }) {
   const [editing, setEditing] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: subtask.id,
-      data: { type: "subtask", parentId },
-    });
+    useSortable({ id: subtask.id, data: { type: "subtask", parentId } });
 
   const done = subtask.status === "DONE";
 
@@ -142,12 +137,21 @@ function SubtaskRow({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("group/sub flex items-center gap-1.5 py-0.5", isDragging && "opacity-50")}
+      onClick={(event) => {
+        event.stopPropagation();
+        callbacks.onOpen(parentId);
+      }}
+      className={cn(
+        "group/sub flex cursor-pointer items-center gap-1.5 rounded-md py-0.5 hover:bg-accent/40",
+        isDragging && "opacity-50",
+      )}
     >
       <button
         type="button"
         className="grid h-6 w-5 cursor-grab place-items-center text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover/sub:opacity-100"
         aria-label={`Reorder subtask ${subtask.title}`}
+        title="Drag to reorder · drag left to move it out of this task"
+        onClick={(event) => event.stopPropagation()}
         {...attributes}
         {...listeners}
       >
@@ -182,8 +186,10 @@ function SubtaskRow({
             "min-w-0 flex-1 truncate text-left text-[13px] text-muted-foreground hover:text-foreground",
             done && "line-through opacity-70",
           )}
-          onDoubleClick={() => setEditing(true)}
-          onClick={() => setEditing(true)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setEditing(true);
+          }}
           title="Click to rename"
         >
           {subtask.title}
@@ -196,7 +202,10 @@ function SubtaskRow({
           size="icon"
           className="h-6 w-6"
           aria-label={`Move ${subtask.title} up`}
-          onClick={() => callbacks.onMoveSubtask(parentId, subtask.id, "up")}
+          onClick={(event) => {
+            event.stopPropagation();
+            callbacks.onMoveSubtask(parentId, subtask.id, "up");
+          }}
         >
           <ArrowUp className="h-3 w-3" />
         </Button>
@@ -205,16 +214,35 @@ function SubtaskRow({
           size="icon"
           className="h-6 w-6"
           aria-label={`Move ${subtask.title} down`}
-          onClick={() => callbacks.onMoveSubtask(parentId, subtask.id, "down")}
+          onClick={(event) => {
+            event.stopPropagation();
+            callbacks.onMoveSubtask(parentId, subtask.id, "down");
+          }}
         >
           <ArrowDown className="h-3 w-3" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
+          className="h-6 w-6 text-muted-foreground"
+          aria-label={`Move ${subtask.title} to the top level`}
+          title="Make it a task again"
+          onClick={(event) => {
+            event.stopPropagation();
+            callbacks.onUnnest(parentId, subtask.id);
+          }}
+        >
+          <CornerDownRight className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
           className="h-6 w-6 text-muted-foreground hover:text-destructive"
           aria-label={`Delete subtask ${subtask.title}`}
-          onClick={() => callbacks.onDeleteSubtask(parentId, subtask.id)}
+          onClick={(event) => {
+            event.stopPropagation();
+            callbacks.onDeleteSubtask(parentId, subtask.id);
+          }}
         >
           <Trash2 className="h-3 w-3" />
         </Button>
@@ -252,6 +280,7 @@ function SubtaskList({
   return (
     <div
       ref={setNodeRef}
+      onClick={(event) => event.stopPropagation()}
       className={cn("ml-7 border-l border-border/70 pl-3", isOver && "border-primary/50")}
     >
       <ul className="flex flex-col">
@@ -308,18 +337,25 @@ export function TaskRow({
   selected,
   categories,
   categoryName,
-  dragging,
+  nestTarget,
   ...callbacks
 }: TaskRowProps) {
   const [editing, setEditing] = useState(false);
   const [subtaskMode, setSubtaskMode] = useState<"hidden" | "list" | "adding">(
     task.subtasks.length > 0 ? "list" : "hidden",
   );
+  const previousSubtaskCount = useRef(task.subtasks.length);
+
+  // Show the list as soon as the task gains its first subtask (e.g. by dragging
+  // another task onto it).
+  useEffect(() => {
+    if (previousSubtaskCount.current === 0 && task.subtasks.length > 0) {
+      setSubtaskMode("list");
+    }
+    previousSubtaskCount.current = task.subtasks.length;
+  }, [task.subtasks.length]);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: task.id,
-      data: { type: "task", parentId: null },
-    });
+    useSortable({ id: task.id, data: { type: "task", parentId: null } });
 
   const done = task.status === "DONE";
   const doneSubtasks = task.subtasks.filter((subtask) => subtask.status === "DONE").length;
@@ -336,15 +372,20 @@ export function TaskRow({
         "group/row list-none rounded-md border border-transparent transition-colors",
         selected && "border-border bg-accent/60",
         isDragging && "opacity-50",
-        dragging && "ring-1 ring-primary/40",
-        !selected && "hover:bg-accent/40",
+        nestTarget && "border-dashed border-primary/60 bg-primary/5",
+        !selected && !nestTarget && "hover:bg-accent/40",
       )}
     >
-      <div className="flex items-start gap-1.5 px-2 py-2">
+      <div
+        onClick={() => callbacks.onOpen(task.id)}
+        className="flex cursor-pointer items-start gap-1.5 px-2 py-2"
+      >
         <button
           type="button"
           className="mt-0.5 grid h-6 w-5 shrink-0 cursor-grab place-items-center text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
           aria-label={`Reorder task ${task.title}`}
+          title="Drag to reorder · drag right onto a task to make it a subtask"
+          onClick={(event) => event.stopPropagation()}
           {...attributes}
           {...listeners}
         >
@@ -375,7 +416,10 @@ export function TaskRow({
             ) : (
               <button
                 type="button"
-                onClick={() => callbacks.onOpen(task.id)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  callbacks.onOpen(task.id);
+                }}
                 onDoubleClick={(event) => {
                   event.stopPropagation();
                   setEditing(true);
@@ -390,7 +434,6 @@ export function TaskRow({
               </button>
             )}
 
-            <PriorityIndicator priority={task.priority} />
             {task.scheduledDate ? (
               <DateChip date={task.scheduledDate} today={today} kind="scheduled" />
             ) : null}
@@ -406,7 +449,6 @@ export function TaskRow({
                 {categoryName}
               </span>
             ) : null}
-            <LabelChips labels={task.labels} />
             {task.subtasks.length > 0 ? (
               <SubtaskProgressLabel done={doneSubtasks} total={task.subtasks.length} />
             ) : null}
@@ -417,17 +459,24 @@ export function TaskRow({
           ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center gap-0.5">
+          <NotesButton
+            hasNotes={Boolean(task.notes)}
+            ariaLabel={`Notes for ${task.title}`}
+            onClick={() => callbacks.onOpenNotes(task.id)}
+          />
+
           {task.subtasks.length > 0 ? (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground"
+              className="h-6 w-6 text-muted-foreground"
               aria-label={subtaskMode === "hidden" ? "Show subtasks" : "Hide subtasks"}
               aria-expanded={subtaskMode !== "hidden"}
-              onClick={() =>
-                setSubtaskMode((mode) => (mode === "hidden" ? "list" : "hidden"))
-              }
+              onClick={(event) => {
+                event.stopPropagation();
+                setSubtaskMode((mode) => (mode === "hidden" ? "list" : "hidden"));
+              }}
             >
               {subtaskMode === "hidden" ? (
                 <ChevronRight className="h-4 w-4" />
@@ -442,8 +491,9 @@ export function TaskRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100"
+                className="h-6 w-6 text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100"
                 aria-label={`Actions for ${task.title}`}
+                onClick={(event) => event.stopPropagation()}
               >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
@@ -452,6 +502,10 @@ export function TaskRow({
               <DropdownMenuItem onSelect={() => setEditing(true)}>
                 <Pencil className="mr-2 h-4 w-4" />
                 Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => callbacks.onOpenNotes(task.id)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                {task.notes ? "Edit notes" : "Add notes"}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => callbacks.onToggle(task)}>
                 {done ? "Reopen task" : "Complete task"}
@@ -475,7 +529,7 @@ export function TaskRow({
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <CalendarDays className="mr-2 h-4 w-4" />
-                  Schedule
+                  Plan for
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem onSelect={() => callbacks.onSchedule(task.id, today)}>
@@ -521,7 +575,7 @@ export function TaskRow({
 
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                Drag with the handle to reorder
+                Drag the handle sideways to nest or un-nest
               </DropdownMenuLabel>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
@@ -547,4 +601,3 @@ export function TaskRow({
     </li>
   );
 }
-         

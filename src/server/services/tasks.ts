@@ -39,7 +39,7 @@ const TASK_ORDER: Prisma.TaskOrderByWithRelationInput[] = [
 /* -------------------------------------------------------------------------- */
 
 /**
- * Every top-level task with its subtasks and labels.
+ * Every top-level task with its subtasks.
  *
  * Kairos is a personal task manager, so a page loads the (small) full set and
  * groups it in the UI with the shared helpers in `src/lib/views.ts`. Statistics
@@ -64,7 +64,6 @@ export async function listTaskSummaries(): Promise<TaskSummary[]> {
       categoryId: true,
       scheduledDate: true,
       dueDate: true,
-      priority: true,
       position: true,
       completedAt: true,
     },
@@ -97,17 +96,6 @@ async function assertCategoryExists(
     select: { id: true },
   });
   if (!category) throw new ServiceError("That category no longer exists.");
-}
-
-async function assertLabelsExist(
-  db: Prisma.TransactionClient | typeof prisma,
-  labelIds: readonly string[],
-): Promise<void> {
-  if (labelIds.length === 0) return;
-  const found = await db.label.count({ where: { id: { in: [...labelIds] } } });
-  if (found !== labelIds.length) {
-    throw new ServiceError("One of the selected labels no longer exists.");
-  }
 }
 
 async function nextSiblingPosition(
@@ -153,9 +141,6 @@ export async function createTask(values: CreateTaskValues): Promise<TaskDTO> {
     await assertCategoryExists(prisma, categoryId);
   }
 
-  const labelIds = values.labelIds ?? [];
-  await assertLabelsExist(prisma, labelIds);
-
   const position = await nextSiblingPosition(prisma, parentId);
 
   const created = await prisma.task.create({
@@ -163,15 +148,11 @@ export async function createTask(values: CreateTaskValues): Promise<TaskDTO> {
       ...(values.id ? { id: values.id } : {}),
       title: values.title,
       notes: values.notes ?? null,
-      priority: values.priority ?? "NONE",
       categoryId,
       parentId,
       scheduledDate: values.scheduledDate ? dateOnlyToDate(values.scheduledDate) : null,
       dueDate: values.dueDate ? dateOnlyToDate(values.dueDate) : null,
       position,
-      labels: labelIds.length
-        ? { createMany: { data: labelIds.map((labelId) => ({ labelId })) } }
-        : undefined,
     },
     include: TASK_INCLUDE,
   });
@@ -205,10 +186,6 @@ export async function updateTask(values: UpdateTaskValues): Promise<TaskDTO> {
     if (values.notes !== undefined) {
       data.notes = values.notes;
       changed.push("notes");
-    }
-    if (values.priority !== undefined) {
-      data.priority = values.priority;
-      changed.push("priority");
     }
     if (values.dueDate !== undefined) {
       if (isSubtask) throw new ServiceError("Subtasks do not have their own dates.");
@@ -286,34 +263,15 @@ export async function updateTask(values: UpdateTaskValues): Promise<TaskDTO> {
       changed.push("status");
     }
 
-    if (Object.keys(data).length === 0 && values.labelIds === undefined) {
+    if (Object.keys(data).length === 0) {
       throw new ServiceError("Nothing to update.");
     }
 
-    let updated: TaskWithRelations;
-    if (Object.keys(data).length > 0) {
-      updated = await tx.task.update({
-        where: { id: values.id },
-        data,
-        include: TASK_INCLUDE,
-      });
-    } else {
-      updated = await tx.task.findUniqueOrThrow({
-        where: { id: values.id },
-        include: TASK_INCLUDE,
-      });
-    }
-
-    if (values.labelIds !== undefined) {
-      await assertLabelsExist(tx, values.labelIds);
-      await tx.taskLabel.deleteMany({ where: { taskId: values.id } });
-      if (values.labelIds.length > 0) {
-        await tx.taskLabel.createMany({
-          data: values.labelIds.map((labelId) => ({ taskId: values.id, labelId })),
-        });
-      }
-      changed.push("labels");
-    }
+    const updated: TaskWithRelations = await tx.task.update({
+      where: { id: values.id },
+      data,
+      include: TASK_INCLUDE,
+    });
 
     // Subtasks always follow their parent's category.
     if (categoryChangedTo !== undefined && updated.subtasks.length > 0) {
@@ -460,8 +418,8 @@ export async function setSubtaskStatus(
 }
 
 /**
- * Delete a task. Deleting a parent removes its subtasks (database cascade) and
- * label assignments. The deleted task is returned so the UI can offer undo.
+ * Delete a task. Deleting a parent removes its subtasks (database cascade).
+ * The deleted task is returned so the UI can offer undo.
  */
 export async function deleteTask(id: string): Promise<TaskDTO> {
   const task = await prisma.task.findUnique({ where: { id }, include: TASK_INCLUDE });
@@ -488,12 +446,10 @@ export async function restoreTask(values: {
   title: string;
   notes?: string | null;
   status?: "TODO" | "DONE";
-  priority?: "NONE" | "LOW" | "MEDIUM" | "HIGH";
   categoryId?: string | null;
   scheduledDate?: string | null;
   dueDate?: string | null;
   position?: number;
-  labelIds?: string[];
   subtasks?: Array<{
     id: string;
     title: string;
@@ -516,16 +472,6 @@ export async function restoreTask(values: {
     if (!category) categoryId = null; // its category was deleted in the meantime
   }
 
-  const labelIds = values.labelIds ?? [];
-  const validLabels = labelIds.length
-    ? (
-        await prisma.label.findMany({
-          where: { id: { in: labelIds } },
-          select: { id: true },
-        })
-      ).map((label) => label.id)
-    : [];
-
   const subtasks = values.subtasks ?? [];
 
   const created = await prisma.$transaction(async (tx) => {
@@ -535,16 +481,12 @@ export async function restoreTask(values: {
         title: values.title,
         notes: values.notes ?? null,
         status: values.status ?? "TODO",
-        priority: values.priority ?? "NONE",
         categoryId,
         parentId: null,
         scheduledDate: values.scheduledDate ? dateOnlyToDate(values.scheduledDate) : null,
         dueDate: values.dueDate ? dateOnlyToDate(values.dueDate) : null,
         position: values.position ?? 0,
         completedAt: values.status === "DONE" ? new Date() : null,
-        labels: validLabels.length
-          ? { createMany: { data: validLabels.map((labelId) => ({ labelId })) } }
-          : undefined,
       },
     });
 
@@ -577,6 +519,7 @@ export async function moveTask(values: {
   id: string;
   parentId?: string | null;
   categoryId?: string | null;
+  scheduledDate?: string | null;
 }): Promise<TaskDTO> {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.task.findUnique({
@@ -623,6 +566,19 @@ export async function moveTask(values: {
 
     if (Object.keys(data).length === 0) {
       throw new ServiceError("Nothing to move.");
+    }
+
+    const willBeSubtask =
+      values.parentId !== undefined ? values.parentId !== null : existing.parentId !== null;
+
+    // A task can also be dropped onto a day at the same time (un-nesting).
+    if (values.scheduledDate !== undefined) {
+      if (willBeSubtask) {
+        throw new ServiceError("Subtasks do not have their own dates.");
+      }
+      data.scheduledDate = values.scheduledDate
+        ? dateOnlyToDate(values.scheduledDate)
+        : null;
     }
 
     await tx.task.update({ where: { id: values.id }, data });

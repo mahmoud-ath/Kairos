@@ -1,6 +1,18 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
-/** Reset every task, category, label and event through the settings UI. */
+/**
+ * Backup round-trip.
+ *
+ * A client-side navigation can briefly keep the previous route's tree in the
+ * DOM (hidden), so locators that exist on several routes are awaited with
+ * `expectSingle` before being asserted on.
+ */
+async function expectSingle(locator: Locator): Promise<Locator> {
+  await expect(locator).toHaveCount(1);
+  return locator;
+}
+
+/** Reset every task, category and event through the settings UI. */
 async function resetAllData(page: Page) {
   await page.goto("/settings");
   await page.getByRole("button", { name: "Reset everything" }).click();
@@ -10,21 +22,22 @@ async function resetAllData(page: Page) {
   await expect(page.getByText("All data deleted")).toBeVisible();
 }
 
-test("JSON export and import round-trips tasks, subtasks, categories and labels", async ({
-  page,
-}) => {
+/** The counts and rows the example data should produce after a restore. */
+async function expectExampleDataRestored(page: Page) {
+  await expect(
+    page.getByRole("button", { name: "Open task Draft the Q3 roadmap" }),
+  ).toBeVisible();
+  await expect(await expectSingle(page.getByLabel("0 of 3 subtasks completed"))).toBeVisible();
+  await expect(await expectSingle(page.getByRole("link", { name: "Today 3" }))).toBeVisible();
+  await expect(await expectSingle(page.getByRole("link", { name: "Completed 1" }))).toBeVisible();
+}
+
+test("JSON export and import round-trips tasks, subtasks and categories", async ({ page }) => {
   // Start from an empty workspace, then load the known example data set.
   await resetAllData(page);
   await page.goto("/today");
   await page.getByRole("button", { name: "Load example tasks" }).click();
-  await expect(
-    page.getByRole("button", { name: "Open task Draft the Q3 roadmap" }),
-  ).toBeVisible();
-
-  // Server-computed counters (never sent from the client).
-  await expect(page.getByRole("link", { name: "Today 3" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Upcoming 2" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Completed 1" })).toBeVisible();
+  await expectExampleDataRestored(page);
 
   // Export: the browser downloads a versioned backup file.
   await page.goto("/settings");
@@ -50,21 +63,15 @@ test("JSON export and import round-trips tasks, subtasks, categories and labels"
   await page.getByRole("button", { name: "Replace data" }).click();
   await expect(page.getByText("Backup imported")).toBeVisible();
 
-  // Everything came back: tasks, subtasks, categories, labels and counters.
+  // Everything came back: tasks, subtasks, categories, notes and counters.
   await page.goto("/today");
-  await expect(
-    page.getByRole("button", { name: "Open task Draft the Q3 roadmap" }),
-  ).toBeVisible();
-  await expect(page.getByLabel("0 of 3 subtasks completed")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Today 3" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Completed 1" })).toBeVisible();
+  await expectExampleDataRestored(page);
+  await expect(page.getByRole("link", { name: /^Work/ }).first()).toBeVisible();
 
-  // Categories and labels survived too.
-  await expect(page.getByRole("link", { name: /^Work/ })).toBeVisible();
   await page.getByRole("button", { name: "Open task Draft the Q3 roadmap" }).click();
   const sheet = page.getByRole("dialog").first();
-  await expect(sheet.getByLabel("Labels").getByText("Deep work")).toBeVisible();
   await expect(sheet.getByLabel("Category")).toContainText("Work");
+  await expect(sheet.getByLabel("Notes")).toHaveValue(/retention/);
 });
 
 test("import rejects an invalid file without touching the data", async ({ page }) => {
@@ -74,7 +81,7 @@ test("import rejects an invalid file without touching the data", async ({ page }
     name: "broken-kairos.json",
     mimeType: "application/json",
     buffer: Buffer.from(
-      JSON.stringify({ format: "kairos-backup", version: 1, data: { tasks: [] } }),
+      JSON.stringify({ format: "kairos-backup", version: 2, data: { tasks: [] } }),
       "utf8",
     ),
   });

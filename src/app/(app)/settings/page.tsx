@@ -5,15 +5,14 @@ import { PreferencesForm } from "@/components/settings/preferences-form";
 import { TaxonomyManager } from "@/components/settings/taxonomy-manager";
 import { getSettingsRecord } from "@/server/services/settings";
 import { prisma } from "@/server/db";
-import { listCategories, listLabels } from "@/server/services/taxonomy";
+import { listCategories } from "@/server/services/taxonomy";
 
 export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-  const [settings, categories, labels, taskCount] = await Promise.all([
+  const [settings, categories, taskCount] = await Promise.all([
     getSettingsRecord(),
     listCategories(),
-    listLabels(),
     prisma.task.count({ where: { parentId: null } }),
   ]);
 
@@ -27,7 +26,7 @@ export default async function SettingsPage() {
       </header>
 
       <PreferencesForm settings={settings} />
-      <TaxonomyManager categories={categories} labels={labels} />
+      <TaxonomyManager categories={categories} />
       <BackupPanel taskCount={taskCount} />
     </div>
   );

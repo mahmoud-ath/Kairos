@@ -135,7 +135,7 @@ export function subtasksToReopen(): string[] {
   return [];
 }
 
-/** Only top-level tasks belong in the inbox / date views. */
+/** Only top-level tasks belong in the date-grouped views. */
 export function isTopLevelTask(task: { parentId: string | null }): boolean {
   return task.parentId === null;
 }

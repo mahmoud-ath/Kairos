@@ -16,6 +16,15 @@ export const SECTION_PREFIX = "section:";
 export const SUBTASK_LIST_PREFIX = "subtasks:";
 export const CATEGORY_PREFIX = "category:";
 
+/**
+ * Horizontal drag distance (in pixels) that changes the *meaning* of a drop:
+ * dragging right nests a task, dragging left pulls a subtask back out.
+ */
+export const NEST_DELTA = 28;
+export const UNNEST_DELTA = -28;
+
+export type DragIntent = "reorder" | "nest" | "unnest" | "category" | "invalid";
+
 export type DragItem = {
   task: TaskDTO;
   /** `null` when the dragged item is a top-level task. */
@@ -26,12 +35,7 @@ export function findDragItem(tasks: readonly TaskDTO[], id: string): DragItem | 
   for (const task of tasks) {
     if (task.id === id) return { task, parentId: null };
     const subtask = task.subtasks.find((candidate) => candidate.id === id);
-    if (subtask) {
-      return {
-        task: { ...task, subtasks: task.subtasks },
-        parentId: task.id,
-      };
-    }
+    if (subtask) return { task, parentId: task.id };
   }
   return null;
 }
@@ -40,9 +44,7 @@ export function sectionOf<T extends TaskDTO>(
   sections: readonly TaskSection<T>[],
   taskId: string,
 ): TaskSection<T> | null {
-  return (
-    sections.find((section) => section.tasks.some((task) => task.id === taskId)) ?? null
-  );
+  return sections.find((section) => section.tasks.some((task) => task.id === taskId)) ?? null;
 }
 
 export function sectionByKey<T extends TaskDTO>(
@@ -53,7 +55,7 @@ export function sectionByKey<T extends TaskDTO>(
 }
 
 /**
- * Which scheduled date a drop into this section implies.
+ * Which planned date a drop into this section implies.
  * `undefined` means "keep the current date" (pure reordering).
  */
 export function scheduledDateForSection(
@@ -66,6 +68,7 @@ export function scheduledDateForSection(
     case "unscheduled":
       return null;
     default:
+      // Past groups and undated lists: reorder without changing dates.
       return undefined;
   }
 }
@@ -91,4 +94,16 @@ export function dropIndex(
   if (!overId) return fallback;
   const index = list.findIndex((item) => item.id === overId);
   return index === -1 ? fallback : index;
+}
+
+/**
+ * Which task should become the parent when dropping on `over`.
+ *
+ * Dropping onto a subtask row nests under that subtask's parent (nesting is
+ * only one level deep).
+ */
+export function nestParentIdFor(activeId: string, over: DragItem): string | null {
+  const target = over.parentId ?? over.task.id;
+  if (target === activeId) return null;
+  return target;
 }

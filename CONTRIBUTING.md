@@ -32,7 +32,9 @@ bun run test:e2e      # builds the app, then runs Playwright
 The end-to-end suite (`tests/e2e`) shares one throw-away SQLite database per run,
 so specs must not depend on the workspace being empty. `task-workflow.spec.ts`
 resets all data through the settings UI before it starts; the other specs only
-touch tasks they created themselves.
+touch tasks they created themselves. Note that Playwright can see the previous
+route's (hidden) DOM for a moment after a client-side navigation — assert on
+counts or scope locators to the row you are working with.
 
 A few project conventions worth following:
 
@@ -50,8 +52,9 @@ A few project conventions worth following:
 - **Accessibility is part of the feature.** Interactive controls need names,
   focus must be visible, and every drag-and-drop action needs a keyboard
   equivalent.
-- **No decorative dashboard clutter.** One restrained accent colour, neutral
-  surfaces, no gradients or glass effects.
+- **Product scope.** Categories are the only grouping; there are no labels or
+  priorities. Subtasks are one level deep. Keep the UI quiet: one accent colour,
+  neutral surfaces, no gradients or glass effects.
 
 ## Database changes
 
@@ -62,6 +65,10 @@ A few project conventions worth following:
 
 Deletion behaviour must always be explicit (`Cascade`, `SetNull`, …). Deleting a
 category must never delete tasks.
+
+Because `schema.prisma` is pushed to existing databases on start, keep migrations
+small and additive where possible; if a migration drops data, say so in the pull
+request and mention it in the README.
 
 ## Reporting bugs
 
