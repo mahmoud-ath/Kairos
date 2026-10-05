@@ -33,13 +33,13 @@ export function AppShell({ data, children }: { data: AppData; children: ReactNod
       <AppDataProvider value={data}>
         <PanelProvider value={panelState}>
           <DragProvider>
-            <div className="flex min-h-screen w-full overflow-x-hidden">
-              <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:flex lg:flex-col">
+            <div className="flex min-h-screen w-full items-start overflow-x-clip">
+              <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:flex lg:flex-col">
                 <SidebarContent />
               </aside>
 
               <div className="flex min-w-0 flex-1 flex-col">
-                <header className="flex h-14 items-center gap-3 border-b border-border px-4 lg:hidden">
+                <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-background px-4 lg:hidden">
                   <Button
                     variant="ghost"
                     size="icon"

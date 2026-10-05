@@ -9,9 +9,9 @@ export default function UpcomingPage() {
     <WorkspacePage
       scope={{ kind: "upcoming" }}
       title="Upcoming"
-      subtitle="Everything planned after today, grouped by day."
+      subtitle="Today and everything planned after it, grouped by day."
       emptyTitle="Nothing scheduled yet"
-      emptyDescription="Give a task a planned or due date in the future and it will show up here."
+      emptyDescription="New tasks are planned for today; give one a later date and it moves here."
       showCategory
     />
   );

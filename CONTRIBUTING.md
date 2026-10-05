@@ -53,8 +53,9 @@ A few project conventions worth following:
   focus must be visible, and every drag-and-drop action needs a keyboard
   equivalent.
 - **Product scope.** Categories are the only grouping; there are no labels or
-  priorities. Subtasks are one level deep. Keep the UI quiet: one accent colour,
-  neutral surfaces, no gradients or glass effects.
+  priorities. Subtasks are one level deep. New tasks are dated today. Keep the UI
+  quiet: one accent colour (green), neutral surfaces, no gradients or glass
+  effects.
 
 ## Database changes
 

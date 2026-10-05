@@ -19,6 +19,18 @@ async function quickAdd(page: Page) {
   return input;
 }
 
+/**
+ * A `YYYY-MM-DD` date offset from today in the machine's timezone (the app
+ * resolves "today" with the timezone in Settings, not from a UTC timestamp).
+ */
+function localDate(offsetDays = 0): string {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 test.describe("task workflow", () => {
   test("reset to the first-run state, load examples, then work a task", async ({ page }) => {
     const title = "Write the Kairos release notes";
@@ -47,7 +59,7 @@ test.describe("task workflow", () => {
     await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Unscheduled", exact: true })).toBeVisible();
 
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const yesterday = localDate(-1);
     const overdueInput = await quickAdd(page);
     await overdueInput.fill("Left over from yesterday");
     const overdueDate = page.getByLabel("Planned date");
@@ -159,6 +171,52 @@ test.describe("task workflow", () => {
     await expect(
       page.getByRole("listitem").filter({ hasText: "Filed under a new category" }),
     ).toContainText(name);
+  });
+
+  test("a new task is dated the day it is created, in any view", async ({ page }) => {
+    const iso = localDate(0);
+
+    // Upcoming is where an undated task used to disappear: the field is
+    // pre-filled with today and the new task is listed under Today.
+    await page.goto("/upcoming");
+    const date = page.getByLabel("Planned date");
+    await expect(date).toHaveCount(1);
+    await expect(date).toHaveValue(iso);
+
+    const input = await quickAdd(page);
+    await input.fill("Created from the Upcoming view");
+    await input.press("Enter");
+
+    await expect(
+      page.getByRole("button", { name: "Open task Created from the Upcoming view" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
+  });
+
+  test("the sidebar and progress panel stay fixed while the list scrolls", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 500 });
+    await page.goto("/tasks");
+
+    const input = await quickAdd(page);
+    for (let index = 0; index < 6; index += 1) {
+      await input.fill(`Scroll filler ${index}`);
+      await input.press("Enter");
+    }
+
+    const sidebarLink = page.getByRole("link", { name: /Today/ }).first();
+    const panel = page.getByRole("complementary", { name: "Progress" });
+    await expect(panel).toBeVisible();
+
+    const beforeSidebar = await sidebarLink.boundingBox();
+    const beforePanel = await panel.boundingBox();
+
+    await page.mouse.wheel(0, 800);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    const afterSidebar = await sidebarLink.boundingBox();
+    const afterPanel = await panel.boundingBox();
+    expect(afterSidebar?.y).toBe(beforeSidebar?.y);
+    expect(afterPanel?.y).toBe(beforePanel?.y);
   });
 
   test("statistics, settings and the export endpoint work", async ({ page }) => {

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildSections,
   buildViewCounts,
+  defaultCategoryId,
+  defaultScheduledDate,
   isTaskOverdue,
   selectScopedTasks,
 } from "@/lib/views";
@@ -110,7 +112,7 @@ describe("today view", () => {
 });
 
 describe("upcoming view", () => {
-  it("groups future work by date and keeps overdue at the top", () => {
+  it("keeps overdue at the top, then today, then future days", () => {
     const sections = buildSections({
       scope: { kind: "upcoming" },
       tasks: allTasks,
@@ -120,6 +122,7 @@ describe("upcoming view", () => {
 
     expect(sections[0].key).toBe("overdue");
     expect(sections.slice(1).map((section) => [section.title, section.tasks.length])).toEqual([
+      ["Today", 1],
       ["Tomorrow", 2],
       ["Fri, Oct 9", 1],
     ]);
@@ -132,7 +135,8 @@ describe("upcoming view", () => {
       today: TODAY,
       includeCompleted: false,
     });
-    expect(sections[1].tasks.map((t) => t.id)).toEqual(["up-1", "up-2"]);
+    const tomorrow = sections.find((section) => section.title === "Tomorrow");
+    expect(tomorrow?.tasks.map((t) => t.id)).toEqual(["up-1", "up-2"]);
   });
 });
 
@@ -249,7 +253,7 @@ describe("view counts", () => {
   it("counts unfinished tasks only, and agrees with the views", () => {
     const counts = buildViewCounts(allTasks, TODAY);
     expect(counts.today).toBe(5); // 4 overdue + 1 planned for today
-    expect(counts.upcoming).toBe(7); // overdue + the three future tasks
+    expect(counts.upcoming).toBe(8); // overdue + today + the three future tasks
     expect(counts.overdue).toBe(4);
     expect(counts.all).toBe(10); // every unfinished task
     expect(counts.completed).toBe(1);
@@ -275,5 +279,20 @@ describe("view counts", () => {
     const ids = selectScopedTasks({ kind: "all" }, allTasks, TODAY).map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.length).toBe(allTasks.length);
+  });
+});
+
+describe("quick-add defaults", () => {
+  it("dates a new task to the day it is created in, in every view", () => {
+    expect(defaultScheduledDate({ kind: "today" }, TODAY)).toBe(TODAY);
+    expect(defaultScheduledDate({ kind: "upcoming" }, TODAY)).toBe(TODAY);
+    expect(defaultScheduledDate({ kind: "all" }, TODAY)).toBe(TODAY);
+    expect(defaultScheduledDate({ kind: "completed" }, TODAY)).toBe(TODAY);
+    expect(defaultScheduledDate({ kind: "category", categoryId: "cat-1" }, TODAY)).toBe(TODAY);
+  });
+
+  it("defaults a category view to that category", () => {
+    expect(defaultCategoryId({ kind: "category", categoryId: "cat-1" })).toBe("cat-1");
+    expect(defaultCategoryId({ kind: "today" })).toBeNull();
   });
 });

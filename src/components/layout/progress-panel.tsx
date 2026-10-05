@@ -126,7 +126,7 @@ export function ProgressPanel({
 
   if (collapsed) {
     return (
-      <div className="hidden w-10 shrink-0 border-l border-border xl:flex xl:flex-col xl:items-center xl:pt-4">
+      <div className="sticky top-0 hidden h-screen w-10 shrink-0 border-l border-border xl:flex xl:flex-col xl:items-center xl:pt-4">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -146,24 +146,27 @@ export function ProgressPanel({
   }
 
   return (
-    <aside aria-label="Progress" className="hidden w-72 shrink-0 border-l border-border xl:block">
-      <div className="sticky top-0 max-h-screen overflow-y-auto">
-        <div className="flex justify-end px-2 pt-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground"
-                aria-label="Hide progress panel"
-                onClick={toggle}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">Hide progress</TooltipContent>
-          </Tooltip>
-        </div>
+    <aside
+      aria-label="Progress"
+      className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-l border-border xl:flex"
+    >
+      <div className="flex justify-end px-2 py-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground"
+              aria-label="Hide progress panel"
+              onClick={toggle}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Hide progress</TooltipContent>
+        </Tooltip>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <ProgressPanelContent title={title} progress={progress} statisticsHref={statisticsHref} />
       </div>
     </aside>

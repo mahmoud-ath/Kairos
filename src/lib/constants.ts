@@ -7,14 +7,14 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 
 /** Colours offered when creating a category (and auto-assigned in order). */
 export const CATEGORY_COLORS = [
-  "#f97316",
-  "#ef4444",
-  "#eab308",
   "#22c55e",
-  "#14b8a6",
-  "#3b82f6",
+  "#0ea5e9",
   "#8b5cf6",
   "#ec4899",
+  "#f97316",
+  "#eab308",
+  "#14b8a6",
+  "#ef4444",
   "#64748b",
 ] as const;
 

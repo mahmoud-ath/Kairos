@@ -25,6 +25,20 @@ async function quickAdd(page: Page) {
   return input;
 }
 
+/**
+ * A `YYYY-MM-DD` date offset from today in the machine's timezone.
+ *
+ * The app resolves "today" with the timezone in Settings (the server's), so
+ * tests must not compute dates from a UTC timestamp.
+ */
+function localDate(offsetDays = 0): string {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 async function addTask(page: Page, title: string, plannedDate?: string) {
   const input = await quickAdd(page);
   await input.fill(title);
@@ -106,8 +120,8 @@ test("reorders tasks by dragging and persists the new order", async ({ page }) =
 test("dropping a task into a date group changes its planned date", async ({ page }) => {
   const moved = "Drag move me";
   const anchor = "Drag tomorrow anchor";
-  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const later = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const tomorrow = localDate(1);
+  const later = localDate(2);
 
   // Upcoming groups by planned date: one task creates a "Tomorrow" group for the
   // other one to be dropped into.

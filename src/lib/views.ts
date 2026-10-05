@@ -281,6 +281,11 @@ export function buildSections<T extends TaskLike>({
       if (buckets.overdue.length > 0) {
         sections.push(plainSection("overdue", "Overdue", "past", buckets.overdue));
       }
+      // Today is included so a task created here (which is dated today) stays
+      // visible instead of silently disappearing.
+      if (buckets.today.length > 0) {
+        sections.push(plainSection("today", "Today", "today", buckets.today, today));
+      }
       for (const date of buckets.upcomingDates) {
         sections.push(dateSection(date, today, buckets.upcoming.get(date) ?? []));
       }
@@ -387,9 +392,14 @@ export function buildViewCounts(tasks: readonly TaskLike[], today: string): View
   };
 }
 
-/** Default scheduled date applied by quick-add for a given view. */
-export function defaultScheduledDate(scope: ViewScope, today: string): string | null {
-  return scope.kind === "today" ? today : null;
+/**
+ * Default planned date applied by quick-add.
+ *
+ * Every new task is attached to the day it is created in, so nothing piles up
+ * in an undated list. The field stays editable before and after creating it.
+ */
+export function defaultScheduledDate(_scope: ViewScope, today: string): string | null {
+  return today;
 }
 
 /** Default category applied by quick-add for a given view. */

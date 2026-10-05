@@ -60,7 +60,10 @@ Accounts, sharing and collaboration are explicitly out of scope for v1.
 - Notes: click anywhere on a task (or its notes icon) to write plain-text notes
 - One optional **category**; create new categories inline from the sidebar, the
   quick-add field or the details panel
-- *Planned date* (when you intend to work on it) and *due date* (the deadline)
+- *Planned date* (when you intend to work on it) and *due date* (the deadline).
+  New tasks are planned for the **day they are created**, so nothing ends up in
+  an undated pile — the field is pre-filled and can be changed before or after
+  creating the task.
 - Subtasks with one visible nesting level, completion progress such as `2/4`
 - Manual ordering, drag and drop (including nesting), and keyboard-accessible
   alternatives for every drag action
@@ -69,7 +72,7 @@ Accounts, sharing and collaboration are explicitly out of scope for v1.
 **Views**
 
 - **Today** — what you planned for today, plus overdue work in its own section
-- **Upcoming** — everything planned later, grouped by day
+- **Upcoming** — today and everything planned after it, grouped by day
 - **All Tasks** — every task grouped by day, from the earliest past day
   (*Yesterday* and earlier) through today and the future, then *Unscheduled*
 - **Completed** — finished tasks, newest first
@@ -271,6 +274,8 @@ A few decisions worth knowing before reading the code:
 - **Ordering.** Positions are integers. When something moves, the server rebuilds
   the order for the whole sibling set inside a transaction, so the result is
   always consistent (`src/lib/ordering.ts`).
+- **App chrome.** The sidebar and the progress panel are sticky and never scroll
+  with the task list; the mobile header stays visible too.
 - **History.** Completed and reopened actions are recorded as `TaskEvent` rows.
   The activity charts read events, so reopening a task today does not erase the
   day it was finished. Each task counts at most once per day, no matter how often
