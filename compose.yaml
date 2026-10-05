@@ -1,0 +1,35 @@
+# ---------------------------------------------------------------------------
+# Kairos — Docker Compose
+#
+#   cp .env.example .env      # adjust the published port if needed
+#   docker compose up -d --build
+#
+# The app is published on 127.0.0.1 by default. Kairos has no authentication in
+# version 1: do NOT expose it to the public internet.
+#
+# Deployment model: one application instance with one SQLite database on a
+# persistent volume. Scale this service up and the containers will fight over
+# the same file.
+# ---------------------------------------------------------------------------
+
+services:
+  kairos:
+    build:
+      context: .
+    image: kairos:latest
+    container_name: kairos
+    restart: unless-stopped
+    ports:
+      - "${KAIROS_BIND_HOST:-127.0.0.1}:${KAIROS_PORT:-3000}:3000"
+    environment:
+      # The database lives on the volume below — never inside the image.
+      DATABASE_URL: "file:/data/kairos.db"
+      PORT: "3000"
+      NODE_ENV: production
+    volumes:
+      - kairos-data:/data
+    stop_grace_period: 15s
+
+volumes:
+  kairos-data:
+    name: kairos-data

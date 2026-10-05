@@ -1,0 +1,100 @@
+// Kairos database schema.
+//
+// SQLite does not support native enums through Prisma, so `status` and
+// `priority` are stored as short strings and validated at the application
+// boundary (see `src/lib/validation.ts`).
+//
+// Date-only values (`scheduledDate`, `dueDate`) are stored as UTC midnight so
+// that they are timezone independent. Event timestamps (`createdAt`,
+// `updatedAt`, `completedAt`, `TaskEvent.timestamp`) are real UTC instants.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Task {
+  id            String    @id @default(cuid())
+  title         String
+  notes         String?
+  status        String    @default("TODO") // TODO | DONE
+  priority      String    @default("NONE") // NONE | LOW | MEDIUM | HIGH
+  categoryId    String?
+  parentId      String?
+  scheduledDate DateTime?
+  dueDate       DateTime?
+  position      Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+
+  category Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  parent   Task?       @relation("TaskToSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks Task[]      @relation("TaskToSubtasks")
+  labels   TaskLabel[]
+  events   TaskEvent[]
+
+  @@index([parentId, position])
+  @@index([categoryId, parentId])
+  @@index([status])
+  @@index([scheduledDate])
+  @@index([dueDate])
+  @@index([completedAt])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   @default("#f97316")
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  tasks Task[]
+
+  @@index([position])
+}
+
+model Label {
+  id    String @id @default(cuid())
+  name  String @unique
+  color String @default("#64748b")
+
+  tasks TaskLabel[]
+}
+
+model TaskLabel {
+  taskId  String
+  labelId String
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@index([labelId])
+}
+
+model TaskEvent {
+  id        String   @id @default(cuid())
+  taskId    String?
+  action    String // created | completed | reopened | deleted | moved | updated
+  timestamp DateTime @default(now())
+  metadata  String? // JSON encoded string with minimal context
+
+  task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp])
+  @@index([action, timestamp])
+  @@index([taskId, action])
+}
+
+model Settings {
+  id           String   @id @default("singleton")
+  theme        String   @default("system") // light | dark | system
+  timezone     String   @default("UTC")
+  weekStartsOn Int      @default(1) // 0 = Sunday, 1 = Monday
+  updatedAt    DateTime @updatedAt
+}
