@@ -10,15 +10,16 @@
 | You want… | Use | Data layer | Cost |
 | --- | --- | --- | --- |
 | Least change, keep SQLite | **Docker** on a VPS / home server / Fly.io / Render | SQLite file on a volume | free (own hardware) → ~€4/mo (VPS) |
-| ✅ **CHOSEN** — Vercel (serverless) | **Vercel + Supabase Postgres** | Postgres | free tiers exist |
+| ✅ **CHOSEN** — Vercel (serverless) | **Vercel + Prisma Postgres** (or Supabase) | Postgres | free tiers exist |
 | Vercel but SQLite-compatible | **Vercel + Turso (libSQL)** | libSQL over HTTP | free tier exists |
 | Truly free + private | Home server / Raspberry Pi + Tailscale or Cloudflare Tunnel | SQLite file on local disk | free |
 
 **Key rule:** Vercel cannot run your Docker image, and it cannot host a SQLite file. Choose *either* container *or* serverless — not both.
 
-> **➡️ Decision: Vercel + Supabase.** The concrete, step-by-step runbook is
-> **[§10](#10-chosen-path--vercel--supabase-runbook)**. Sections 4–6 remain as
-> background and alternatives.
+> **➡️ Decision: Vercel + Postgres.** The integration in use is **Prisma Postgres**
+> — see **[§11](#11-prisma-postgres-on-vercel-roadmap)** for the roadmap and the
+> `DIRECT_URL` fix. §10 is the equivalent Supabase runbook; the application code is
+> identical for both, only the credentials differ.
 
 ---
 
@@ -633,3 +634,234 @@ The code side of this runbook is done; what remains is Supabase and Vercel.
 > by `docker compose up -d db`). It runs with `KAIROS_AUTH_DISABLED=true`, so no
 > Supabase session is required. `bun run test:e2e` still builds first, so
 > `DATABASE_URL` must be set for that build.
+
+---
+
+## 11. Prisma Postgres on Vercel (roadmap)
+
+The deployment uses Vercel's **Prisma Postgres** integration. The application code
+is identical to the Supabase path — both are PostgreSQL behind a connection string
+— so §10.4–§10.5 still apply. Only the credentials and the console differ.
+
+### 11.1 The cause: `DATABASE_URL` was the local value
+
+Prisma Postgres issues **two** connection strings for one database. In the
+[Prisma Console](https://console.prisma.io) open your database →
+**Connect to your database** → **Generate new connection string** → copy **both**.
+
+| Env var | Host | Used by |
+| --- | --- | --- |
+| `DATABASE_URL` | `pooled.db.prisma.io:5432` | application traffic (Server Components, Server Actions) |
+| `DIRECT_URL` | `db.prisma.io:5432` | `prisma migrate`, `db pull`, Studio, `pg_dump` |
+
+Both must end with `?sslmode=require`.
+
+Vercel's Prisma integration sets `DATABASE_URL` for you — but the first
+production deployment had it left at the **development** value from `.env`:
+
+```
+prisma:error Invalid `prisma.settings.count()` invocation:
+Can't reach database server at `localhost:5432`
+```
+
+There is no database on `localhost` inside a Vercel function, so every request
+failed and Next.js rendered `Application error … Digest: <hash>`.
+
+**The fix is to set `DATABASE_URL` to the pooled Prisma Postgres host and
+`DIRECT_URL` to the direct host** — see §11.4.
+
+> **Correction worth recording.** An earlier version of this section blamed a
+> missing `DIRECT_URL` for the digest. That is wrong. Prisma Client does **not**
+> validate `directUrl` when it is constructed:
+>
+> ```bash
+> env -u DIRECT_URL DATABASE_URL="postgresql://u:p@127.0.0.1:5432/db" \
+>   node -e "new (require('@prisma/client').PrismaClient)(); console.log('ok')"
+> # → ok
+> ```
+>
+> `directUrl` is read by the Prisma CLI only. A missing `DIRECT_URL` breaks
+> `prisma migrate`, not the running app.
+
+**Never swap the two strings.** Migrations over the pooled host fail with lock or
+prepared-statement errors, and application traffic over the direct host looks fine
+at low volume and then exhausts the much smaller direct connection limit.
+
+### 11.2 Roadmap
+
+```
+1. Read the real error in the Vercel runtime logs      ← confirms the cause
+2. Add DIRECT_URL (and verify DATABASE_URL) in Vercel
+3. Apply the migrations against Prisma Postgres
+4. Redeploy and check /api/health
+5. Decide about authentication — the site is public right now
+```
+
+### 11.3 Step 1 — read the real error
+
+The digest is only a correlation id; the message is in the runtime logs.
+
+- Dashboard: **Project → Deployments → latest → Runtime Logs**
+- CLI: `npx vercel logs https://kairos-zeta-ivory.vercel.app`
+
+Find the first `PrismaClientInitializationError` or `error:` line:
+
+| Log line | Meaning | Fix |
+| --- | --- | --- |
+| `Environment variable not found: DIRECT_URL.` | the variable is absent | Step 2 |
+| `Environment variable not found: DATABASE_URL.` | the integration is not installed on this project | Step 2 |
+| `The table \`public.Settings\` does not exist` (`P2021`) | migrations were never applied | Step 3 |
+| `Can't reach database server` / timeout | missing `sslmode=require`, or the wrong host | Step 2 |
+
+### 11.4 Step 2 — set the environment variables in Vercel
+
+**Project → Settings → Environment Variables.** Set each for **Production, Preview
+and Development** — a Production-only value breaks preview builds:
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | the **pooled** Prisma Postgres string |
+| `DIRECT_URL` | the **direct** Prisma Postgres string |
+| `NEXT_PUBLIC_APP_URL` | `https://kairos-zeta-ivory.vercel.app` |
+
+`NEXT_PUBLIC_*` values are inlined at build time, so they need a redeploy to take
+effect. `DATABASE_URL`/`DIRECT_URL` are read at runtime, but redeploying is the
+simplest way to be certain everything is fresh.
+
+> Click-by-click walkthrough, including the Prisma Console navigation, CLI
+> alternatives, the no-quotes paste trap and a per-error troubleshooting table:
+> **[VERCEL_ENV_SETUP.md](VERCEL_ENV_SETUP.md)**.
+
+### 11.5 Step 3 — apply the migrations
+
+Vercel never runs migrations, and the database starts empty. Run them once from
+your machine, over the **direct** host:
+
+```bash
+# .env for this one command — or export them in the shell
+DATABASE_URL="postgres://USER:PASSWORD@pooled.db.prisma.io:5432/postgres?sslmode=require"
+DIRECT_URL="postgres://USER:PASSWORD@db.prisma.io:5432/postgres?sslmode=require"
+
+bunx prisma migrate deploy
+```
+
+Confirm the tables are there:
+
+```bash
+psql "$DIRECT_URL" -c '\dt'
+```
+
+You should see `Task`, `Category`, `TaskEvent`, `Settings` and
+`_prisma_migrations`.
+
+### 11.6 Step 4 — redeploy and verify
+
+```bash
+npx vercel --prod
+curl -s https://kairos-zeta-ivory.vercel.app/api/health   # {"ok":true,"database":"ok"}
+```
+
+Then sign in / load `/today` and create a task. If `/api/health` is 200 but a page
+still fails, re-read the runtime logs — that is a second, different error.
+
+### 11.7 Step 5 — authentication (do not skip)
+
+With no Supabase variables set, **the sign-in gate is inert and your deployment is
+public**: anyone with that URL can read, change and delete every task.
+
+- Enable the gate you already have — §10.9 — by adding
+  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+  `KAIROS_ALLOWED_EMAILS`. Supabase Auth is free and independent of your database,
+  so you can keep Prisma Postgres for the data.
+- Or keep the URL private and rely on that alone.
+
+While it is unauthenticated, set `KAIROS_NO_INDEX=true` so crawlers stay away —
+that is a hint, not a lock.
+
+### 11.8 About `npx plugins add vercel/vercel-plugin`
+
+That is not needed to fix this error, and I could not verify it as an official
+step. The Vercel marketplace entry documents the CLI path as `vc i prisma`
+(Vercel CLI → `vercel integration add`), and the dashboard **Install** button does
+the same thing:
+
+```bash
+npx vercel integration add prisma
+```
+
+The integration's job is to provision the database and set `DATABASE_URL`. It does
+not set `DIRECT_URL`, which is what the Prisma CLI needs for migrations. The
+"Agent Skills" listed on the marketplace page are optional editor instructions for
+AI tooling, not a runtime requirement.
+
+---
+
+## 12. Prisma ORM 8 and the Prisma–GitHub deploy integration
+
+**Not required for a working deployment.** It matters only if you want Prisma's own
+deploy integration to run migrations for you on every push.
+
+### 12.1 The message you got
+
+Connecting the Prisma Postgres integration to a GitHub repository enables a
+migration-on-deploy feature that runs on **Prisma ORM 8**. This repository is on
+**Prisma ORM 6.19.3**, so the integration refuses to enable:
+
+> This repository uses prisma ^6.2.1, and deploys here run on Prisma 8.
+> Upgrade the repository to Prisma 8 first.
+
+### 12.2 Why this is not a version bump
+
+Prisma ORM 8 is a rewrite. The v7 guide and the v7→v8 PostgreSQL guide together
+change:
+
+| Area | Prisma 6 (today) | Prisma ORM 8 |
+| --- | --- | --- |
+| Schema | `prisma/schema.prisma` | a *contract* (`contract.prisma`, first line `// use prisma-8`) |
+| Client | `@prisma/client`, `new PrismaClient()` | `@prisma/orm-postgres`, `postgres<Contract>({ url, contractJson })` |
+| Query API | `prisma.task.findMany({ where })` | `db.orm.public.Task.where(...).all()` — chained, one step per method |
+| CLI config | datasource block in the schema | `prisma.config.ts` (`definePrismaConfig`) |
+| Migrations | `prisma migrate deploy` | `prisma contract emit` → `prisma migration plan` → `prisma db migrate` → `prisma db verify` |
+| Generator | `prisma-client-js`, client in `node_modules` | `prisma-client` with a **required** `output` path |
+| Engine | built-in query engine | required driver adapter (`@prisma/adapter-pg`) |
+| Modules | CommonJS or ESM | ESM-first, with new `tsconfig` `module`/`moduleResolution` rules |
+| Removed | — | client middleware, Metrics, `--skip-generate`, automatic seeding |
+
+Every call in `src/server/services/` is rewritten — effectively the whole data
+layer — and the migration workflow of §10.5/§11.5 is replaced. The v7→v8 guide
+itself is written against `8.0.0-rc.x` builds, which is worth weighing for a
+production application.
+
+### 12.3 Recommendation: keep Prisma 6, skip the integration
+
+- Migrations are already a single command (`bunx prisma migrate deploy`),
+  documented in §11.5.
+- The integration adds convenience, not capability. Nothing in Kairos needs it.
+- If you want migrations to run automatically, a two-line GitHub Action calling
+  `bunx prisma migrate deploy` achieves the same result with no rewrite.
+
+### 12.4 If you still want to upgrade — roadmap
+
+Follow the official guides, in order:
+
+1. **v6 → v7**: <https://www.prisma.io/docs/guides/upgrade-prisma-orm/v7>
+2. **v7 → v8 (PostgreSQL)**: <https://www.prisma.io/docs/guides/upgrade-prisma-orm/postgresql>
+
+The v8 guide is deliberately incremental — both versions run side by side against
+the same database and routes move one at a time:
+
+```
+Phase 1  Move Prisma 7 off the `prisma` name  → @prisma/prisma7, prisma7.config.ts
+Phase 2  Add Prisma 8                         → contract + generated/prisma8
+Phase 3  Migrate one route                    → both clients in src/server/db.ts
+Phase 4  Transfer migration ownership         → prisma db sign, migration plan
+Phase 5  Remove Prisma 7                      → only once nothing imports it
+```
+
+Prerequisites the guide states: Node 22.18+ (24 recommended), a working Prisma 7
+app (`prisma.config.ts`, the `prisma-client` generator, a driver adapter) and
+TypeScript 5.9+ with `strict`.
+
+For this repo that means upgrading 6 → 7 first (ESM, `prisma.config.ts`, generator
+output, driver adapters), then confirming `bun run typecheck`, `bun run test` and
+`bun run test:e2e` are green *before* starting the v8 phases. Do it on a branch.

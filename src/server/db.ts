@@ -15,9 +15,14 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createClient() {
+  // Only DATABASE_URL is checked. Verified: Prisma Client does not validate
+  // `directUrl` when it is constructed — that variable is read by the Prisma CLI
+  // alone, so requiring it here would break deployments that only set
+  // DATABASE_URL. See DEPLOYMENT.md §11.1.
   if (!process.env.DATABASE_URL) {
     throw new Error(
-      "DATABASE_URL is not set. Copy .env.example to .env (local development) or set DATABASE_URL to an absolute path under /data (Docker).",
+      "DATABASE_URL is not set. Copy .env.example to .env for local development, " +
+        "or set it in your host's environment variables (see DEPLOYMENT.md §11.1).",
     );
   }
 
