@@ -10,6 +10,21 @@ import type { NextConfig } from "next";
  */
 const isDev = process.env.NODE_ENV !== "production";
 
+/**
+ * Supabase Auth is talked to directly from the browser, so its origin (and its
+ * realtime websocket) has to be reachable. Empty when auth is not configured.
+ */
+const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, "") ?? "";
+const supabaseConnectSrc = supabaseOrigin
+  ? [supabaseOrigin, supabaseOrigin.replace(/^http/, "ws")]
+  : [];
+
+const connectSrc = [
+  "'self'",
+  ...(isDev ? ["ws:", "wss:"] : []),
+  ...supabaseConnectSrc,
+].join(" ");
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   isDev
@@ -18,7 +33,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  isDev ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
+  `connect-src ${connectSrc}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

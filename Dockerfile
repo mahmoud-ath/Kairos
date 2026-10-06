@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# Kairos runs as a single Next.js process with one SQLite database on a
-# persistent volume. One instance only — do not scale this service horizontally.
+# Kairos runs as a single Next.js process against a PostgreSQL database. The
+# database is external — Supabase on Vercel, or the `db` service in
+# compose.yaml — so nothing about the data lives inside this image.
 
 # ---------------------------------------------------------------------------
 # Build base: Node 22 + Bun (install/scripts) + openssl for the Prisma engines
@@ -34,8 +35,10 @@ FROM build-base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# The database is only needed at runtime; point the build at a throw-away path.
-ENV DATABASE_URL="file:/tmp/kairos-build.db"
+# No database is contacted during the build, but `@/server/db` is evaluated
+# while Next collects route data, so give it a valid-looking placeholder.
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build" \
+    DIRECT_URL="postgresql://build:build@127.0.0.1:5432/build"
 RUN bunx prisma generate && bunx next build
 
 # ---------------------------------------------------------------------------
@@ -44,8 +47,7 @@ RUN bunx prisma generate && bunx next build
 FROM node:22-bookworm-slim AS runner
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
-    DATABASE_URL="file:/data/kairos.db"
+    PORT=3000
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
@@ -60,15 +62,9 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/public ./public
 COPY docker/entrypoint.sh /usr/local/bin/kairos-entrypoint
 
-# /data holds the SQLite database and must be writable by the runtime user.
-RUN chmod +x /usr/local/bin/kairos-entrypoint \
-    && mkdir -p /data \
-    && chown -R node:node /data
+RUN chmod +x /usr/local/bin/kairos-entrypoint
 
 USER node
-
-# The SQLite database always lives on this volume.
-VOLUME ["/data"]
 
 EXPOSE 3000
 

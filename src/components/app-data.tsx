@@ -18,6 +18,8 @@ export type AppData = {
   today: string;
   categories: CategoryDTO[];
   counts: ViewCounts;
+  /** True when Supabase Auth is configured, i.e. there is a session to end. */
+  authEnabled: boolean;
 };
 
 const AppDataContext = createContext<AppData | null>(null);

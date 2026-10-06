@@ -1,14 +1,20 @@
 #!/bin/sh
 # Apply migrations, then start the server.
 #
-# Kairos keeps its SQLite database on a persistent volume (/data) and expects a
-# single running instance: the migration step below must never race with a
-# second container.
+# Kairos keeps its data in PostgreSQL. DATABASE_URL is what the app uses;
+# DIRECT_URL is the unpooled connection `prisma migrate` needs — on Supabase
+# they differ (pooler vs. direct), locally they are the same.
 set -e
 
 if [ -z "${DATABASE_URL}" ]; then
-  echo "[kairos] DATABASE_URL is not set; defaulting to file:/data/kairos.db"
-  export DATABASE_URL="file:/data/kairos.db"
+  echo "[kairos] DATABASE_URL is not set." >&2
+  echo "[kairos] Point it at PostgreSQL, e.g. postgresql://user:password@host:5432/kairos" >&2
+  exit 1
+fi
+
+if [ -z "${DIRECT_URL}" ]; then
+  echo "[kairos] DIRECT_URL is not set; using DATABASE_URL for migrations."
+  export DIRECT_URL="${DATABASE_URL}"
 fi
 
 echo "[kairos] database: ${DATABASE_URL}"

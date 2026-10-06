@@ -2,6 +2,7 @@
 
 import {
   ChartNoAxesColumn,
+  LogOut,
   Monitor,
   Moon,
   MoreHorizontal,
@@ -34,6 +35,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { NAME_MAX_LENGTH } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { CategoryDTO } from "@/types/kairos";
+import { signOutAction } from "@/server/actions/auth";
 import { createCategoryAction } from "@/server/actions/taxonomy";
 
 function CategoryRow({
@@ -239,7 +241,7 @@ function ThemeToggle() {
 }
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { categories, counts } = useAppData();
+  const { categories, counts, authEnabled } = useAppData();
   const pathname = usePathname();
 
   return (
@@ -340,6 +342,18 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <span className="text-[11px] text-muted-foreground">Theme</span>
           <ThemeToggle />
         </div>
+
+        {authEnabled ? (
+          <form action={signOutAction} className="mt-2">
+            <button
+              type="submit"
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </button>
+          </form>
+        ) : null}
       </div>
     </div>
   );

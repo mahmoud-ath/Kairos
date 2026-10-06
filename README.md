@@ -35,13 +35,14 @@ Desktop layout:
 
 ## ⚠️ Security: read this first
 
-Kairos **version 1 is a personal, single-user application with no authentication
-of any kind.**
+Kairos is a personal, single-user application. The only authentication it ships
+with is an **optional** Supabase sign-in gate (email + password), which stays off
+until `NEXT_PUBLIC_SUPABASE_URL` is set.
 
-- Run it on `localhost` or on a network you fully trust (a home server on a
-  private LAN, a VPN-only host, an SSH tunnel).
-- **Do not expose it to the public internet.** Anyone who can reach the port can
-  read, change and delete every task.
+- Without that gate, run it on `localhost` or on a network you fully trust (a home
+  server on a private LAN, a VPN-only host, an SSH tunnel).
+- **Do not expose it to the public internet without the gate.** Anyone who can
+  reach the port can read, change and delete every task.
 - The Docker setup publishes the port on `127.0.0.1` by default on purpose. If
   you change `KAIROS_BIND_HOST`, you are responsible for putting authentication
   in front of it (a reverse proxy with basic auth, Tailscale, WireGuard, …).
@@ -52,7 +53,8 @@ of any kind.**
   the internet. A private deployment can opt out completely with
   `KAIROS_NO_INDEX=true`, which serves `Disallow: /`.
 
-Accounts, sharing and collaboration are explicitly out of scope for v1.
+Accounts, sharing and collaboration are explicitly out of scope for v1: the
+gate decides who may enter, it does not give each person their own tasks.
 
 ---
 
@@ -136,9 +138,10 @@ Three views, always in the sidebar:
 - Manage categories
 - Versioned JSON export and import, plus “reset all data”
 
-**Everything local**
+**Your data, your database**
 
-- SQLite database on your own disk, no accounts, no telemetry, no external services
+- PostgreSQL you control — the `db` service in `compose.yaml` locally, Supabase
+  when deployed on Vercel. No telemetry, no third-party analytics.
 
 ---
 
@@ -148,7 +151,7 @@ Three views, always in the sidebar:
 | -------------- | ------------------------------------------------------------- |
 | Framework      | Next.js (App Router) + TypeScript, React Server Components     |
 | Styling        | Tailwind CSS + shadcn/ui, Lucide icons, Poppins (`next/font`)  |
-| Data           | SQLite via Prisma ORM with committed migrations                |
+| Data           | PostgreSQL (Supabase in production) via Prisma, committed migrations |
 | Mutations      | Server Actions with Zod validation and optimistic UI          |
 | Drag and drop  | dnd-kit (pointer **and** keyboard sensors)                     |
 | Charts         | Recharts                                                       |
@@ -163,17 +166,23 @@ TanStack Query — deliberately.
 
 ## Quick start (local development)
 
-Requirements: **Node.js 22+** and **[Bun](https://bun.sh)** (used for install,
-scripts and tests).
+Requirements: **Node.js 22+**, **[Bun](https://bun.sh)** (used for install,
+scripts and tests) and **PostgreSQL** — the `db` service in `compose.yaml` is the
+quickest one to get.
 
 ```bash
 git clone <your-fork-url> kairos
 cd kairos
-cp .env.example .env          # DATABASE_URL="file:./dev.db" by default
+cp .env.example .env          # PostgreSQL URLs; see DEPLOYMENT.md §10.3
 bun install
-bunx prisma migrate deploy    # create prisma/dev.db from the migrations
+docker compose up -d db       # PostgreSQL for local development
+bunx prisma migrate deploy    # create the schema from the committed migrations
 bun run dev
 ```
+
+> No Docker? Any PostgreSQL works. With a native server, create a `kairos` role
+> and database to match `.env.example` (or point `DATABASE_URL`/`DIRECT_URL` at
+> Supabase) — see [DEPLOYMENT.md](DEPLOYMENT.md) §10.6.
 
 Open <http://localhost:3000>. The workspace starts empty: use the quick-add
 field, or press **Load example tasks** on the first-run screen. Demo data is
@@ -191,7 +200,7 @@ no dates at all, one is already finished, and one is late on purpose so the
 | `bun run start`     | Serve the production build                              |
 | `bun run typecheck` | `tsc --noEmit`                                          |
 | `bun run lint`      | ESLint                                                  |
-| `bun test`          | Unit tests (Vitest)                                     |
+| `bun test`          | Unit tests (Vitest) — same as `bun run test`            |
 | `bun run test:e2e`  | End-to-end tests (Playwright; builds first)             |
 | `bun run db:migrate`| Create + apply a migration during development           |
 | `bun run db:studio` | Prisma Studio to inspect the database                   |
@@ -210,16 +219,16 @@ Open <http://127.0.0.1:3000>.
 
 What the container does and how it is configured:
 
-- The SQLite database lives at **`/data/kairos.db`** on the named volume
-  `kairos-data`. The image never contains a database, and `/data` is the only
-  place data is written.
+- The database is **external**: the `db` service in `compose.yaml` (PostgreSQL on
+  the `kairos-db` volume). The image never contains a database, and the volume is
+  the only place data is written.
 - `prisma migrate deploy` runs automatically on start (see
   `docker/entrypoint.sh`), so upgrading is a rebuild + restart.
 - The published port is bound to **`127.0.0.1`** by default
   (`KAIROS_BIND_HOST` / `KAIROS_PORT` in `.env`).
 - A `HEALTHCHECK` polls `/api/health`, which also verifies the database.
-- **One instance only.** SQLite plus a shared volume means a second container
-  would corrupt or lock the same file. Do not scale this service horizontally.
+- **One instance only.** One Next.js process against one PostgreSQL database. Do
+  not scale this service horizontally.
 - The container runs as the unprivileged `node` user.
 
 Stop, upgrade, and clean up:
@@ -235,8 +244,11 @@ docker compose down -v              # ⚠️ also deletes the volume and all dat
 
 ## Backup and restore
 
-Task data is a file on disk, so a copy of the database file is a complete
-backup. The application also exports an official, versioned JSON format.
+Task data lives in PostgreSQL, which can be dumped for a complete database-level
+copy. The application also exports an official, versioned JSON format.
+
+> Deploying to Vercel with Supabase? See **[DEPLOYMENT.md](DEPLOYMENT.md)** —
+> it covers the connection strings, the migration step and the sign-in gate.
 
 ### JSON export / import (recommended)
 
@@ -259,19 +271,15 @@ already excludes `*.kairos.json` and `backups/`).
 > earlier version are still importable: their labels and priorities are ignored,
 > and the import summary tells you so.
 
-### Copying the SQLite file
+### Dumping PostgreSQL
 
 ```bash
-# Docker: copy the database out of the volume
-docker compose stop kairos
-docker run --rm -v kairos-data:/data -v "$PWD:/backup" alpine \
-  cp /data/kairos.db "/backup/kairos-$(date +%F).db"
-docker compose start kairos
+# Works for Supabase and for the local Compose database alike.
+pg_dump "$DIRECT_URL" > "kairos-$(date +%F).sql"
 ```
 
-Restoring is the reverse: stop the app, put the file back at `/data/kairos.db`,
-start the app. Stop the application first — SQLite is not safe to copy while it
-is being written.
+Restoring is `psql "$DIRECT_URL" < kairos-2026-10-06.sql` against an empty
+database, then `docker compose up -d kairos` (or a Vercel redeploy).
 
 ---
 
@@ -374,9 +382,10 @@ tests/
 ```bash
 bun run typecheck   # tsc
 bun run lint        # eslint
-bun test            # 67 unit tests: date grouping, subtask rules, ordering,
-                    # backup validation (incl. v1 files), statistics, dates
-bun run test:e2e    # builds, then runs Playwright against a throw-away database
+bun run test        # unit tests: date grouping, subtask rules, ordering, backup
+                    # validation (incl. v1 files), statistics, dates, auth rules
+bun run test:e2e    # builds, then runs Playwright against a throw-away
+                    # PostgreSQL database (see DEPLOYMENT.md §10.15)
 ```
 
 Unit tests cover the pure rules in `src/lib`. The Playwright suite drives the
@@ -401,7 +410,7 @@ real application and covers:
 
 - Single user, no authentication, no accounts, no sharing — see the security
   notice above.
-- One instance with one SQLite database. Horizontal scaling is not supported.
+- One instance with one PostgreSQL database. Horizontal scaling is not supported.
 - One level of subtasks, and one category per task. Labels and priorities were
   removed from the product; a task is grouped by its category and dates.
 - No recurring tasks, reminders, notifications or calendar sync.

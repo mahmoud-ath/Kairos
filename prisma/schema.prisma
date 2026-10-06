@@ -1,8 +1,7 @@
 // Kairos database schema.
 //
-// SQLite does not support native enums through Prisma, so `status` and
-// `priority` are stored as short strings and validated at the application
-// boundary (see `src/lib/validation.ts`).
+// PostgreSQL (Supabase when deployed on Vercel). `status` is stored as a short
+// string and validated at the application boundary (see `src/lib/validation.ts`).
 //
 // Date-only values (`scheduledDate`, `dueDate`) are stored as UTC midnight so
 // that they are timezone independent. Event timestamps (`createdAt`,
@@ -13,11 +12,16 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Vercel's runtime image is Amazon Linux 2023; "native" keeps local dev working.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Supabase's pooler (port 6543) cannot run migrations: `directUrl` points at
+  // the session/direct connection (port 5432) used by `prisma migrate`.
+  directUrl = env("DIRECT_URL")
 }
 
 model Task {

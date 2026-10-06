@@ -1,35 +1,58 @@
 # ---------------------------------------------------------------------------
-# Kairos — Docker Compose
+# Kairos — Docker Compose (self-hosted / local use)
 #
 #   cp .env.example .env      # adjust the published port if needed
 #   docker compose up -d --build
 #
-# The app is published on 127.0.0.1 by default. Kairos has no authentication in
-# version 1: do NOT expose it to the public internet.
+# The app is published on 127.0.0.1 by default. Kairos is only protected by the
+# Supabase sign-in gate: with NEXT_PUBLIC_SUPABASE_URL unset there is NO
+# authentication, so do not expose it to the public internet.
 #
-# Deployment model: one application instance with one SQLite database on a
-# persistent volume. Scale this service up and the containers will fight over
-# the same file.
+# Data lives in PostgreSQL, not in the image. On Vercel you point DATABASE_URL
+# and DIRECT_URL at Supabase instead of this `db` service (see DEPLOYMENT.md).
 # ---------------------------------------------------------------------------
 
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: kairos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kairos
+      POSTGRES_PASSWORD: ${KAIROS_DB_PASSWORD:-kairos}
+      POSTGRES_DB: kairos
+    volumes:
+      - kairos-db:/var/lib/postgresql/data
+      # Creates the throw-away database the Playwright suite uses.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kairos -d kairos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Not published: only the app container needs to reach PostgreSQL.
+    expose:
+      - "5432"
+
   kairos:
     build:
       context: .
     image: kairos:latest
     container_name: kairos
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "${KAIROS_BIND_HOST:-127.0.0.1}:${KAIROS_PORT:-3000}:3000"
     environment:
-      # The database lives on the volume below — never inside the image.
-      DATABASE_URL: "file:/data/kairos.db"
+      # The database lives in the `db` service, never inside the image.
+      DATABASE_URL: "postgresql://kairos:${KAIROS_DB_PASSWORD:-kairos}@db:5432/kairos"
+      DIRECT_URL: "postgresql://kairos:${KAIROS_DB_PASSWORD:-kairos}@db:5432/kairos"
       PORT: "3000"
       NODE_ENV: production
-    volumes:
-      - kairos-data:/data
     stop_grace_period: 15s
 
 volumes:
-  kairos-data:
-    name: kairos-data
+  kairos-db:
+    name: kairos-db
