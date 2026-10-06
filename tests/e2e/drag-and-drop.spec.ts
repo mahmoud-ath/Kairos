@@ -40,6 +40,10 @@ function localDate(offsetDays = 0): string {
 }
 
 async function addTask(page: Page, title: string, plannedDate?: string) {
+  // Creating a task re-renders the view from the saved data. Wait for any
+  // in-flight round-trip to settle first, so the next title is never typed into
+  // a field the refresh is about to replace.
+  await page.waitForLoadState("networkidle");
   const input = await quickAdd(page);
   await input.fill(title);
   if (plannedDate) {
@@ -49,6 +53,10 @@ async function addTask(page: Page, title: string, plannedDate?: string) {
   }
   await input.press("Enter");
   await expect(page.getByRole("button", { name: `Open task ${title}` })).toBeVisible();
+  // The form only clears once the server accepted the task...
+  await expect(input).toHaveValue("");
+  // ...and the re-render that follows has to finish before the next create.
+  await page.waitForLoadState("networkidle");
 }
 
 /** Drag a row's handle to the given row, offset horizontally by `dx`. */

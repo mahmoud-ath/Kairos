@@ -81,16 +81,14 @@ Accounts, sharing and collaboration are explicitly out of scope for v1.
 **Finding things**
 
 - Search across titles and notes
-- Filters for category and completion status
 - Clear completed tasks (with confirmation)
 
 **Statistics**
 
-- Current completion counts and percentage for the selected scope
-- Separate subtask counts
-- Daily completion activity for the last 7 or 30 days
-- Category breakdown
-- Current status and historical activity are always shown separately
+- One condensed analytics page: current-state tiles, a completion donut with a
+  separate subtask bar, and daily completion history for the last 7 or 30 days
+- Category donut plus a per-category table (done/total, progress, still open)
+- Current status and historical activity are always labelled and shown separately
 
 **Settings**
 
@@ -109,7 +107,7 @@ Accounts, sharing and collaboration are explicitly out of scope for v1.
 | Concern        | Choice                                                        |
 | -------------- | ------------------------------------------------------------- |
 | Framework      | Next.js (App Router) + TypeScript, React Server Components     |
-| Styling        | Tailwind CSS + shadcn/ui, Lucide icons                         |
+| Styling        | Tailwind CSS + shadcn/ui, Lucide icons, Poppins (`next/font`)  |
 | Data           | SQLite via Prisma ORM with committed migrations                |
 | Mutations      | Server Actions with Zod validation and optimistic UI          |
 | Drag and drop  | dnd-kit (pointer **and** keyboard sensors)                     |

@@ -9,6 +9,7 @@ import {
 } from "@/lib/stats";
 import { lastNDays } from "@/lib/dates";
 import { selectScopedTasks, type ViewScope } from "@/lib/views";
+import { isTaskOverdue } from "@/lib/views";
 import { listEventsSince } from "@/server/services/events";
 import { listTasks } from "@/server/services/tasks";
 import { listCategories } from "@/server/services/taxonomy";
@@ -32,6 +33,8 @@ export type StatisticsPayload = {
   parents: ScopeCounts;
   /** Current state of their subtasks (counted separately, never merged). */
   subtasks: ScopeCounts;
+  /** Unfinished tasks in scope whose planned day or deadline has passed. */
+  overdue: number;
   /** Historical completion/reopen activity, newest last. */
   activity: ActivityPoint[];
   categoryBreakdown: CategoryBreakdown[];
@@ -77,6 +80,7 @@ export async function getStatistics(options: {
     today,
     parents: buildScopeCounts(scoped),
     subtasks: buildScopeCounts(subtasks),
+    overdue: scoped.filter((task) => isTaskOverdue(task, today)).length,
     activity,
     categoryBreakdown,
     activityTotals: {

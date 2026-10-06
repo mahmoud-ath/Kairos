@@ -3,6 +3,15 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Kairos is scaled up from the browser default (16px): every Tailwind size is
+   * expressed in rem, so raising the root size makes the whole interface — text,
+   * rows, controls and column widths — grow together.
+   */
+  html {
+    font-size: 112.5%;
+  }
+
   :root {
     --background: 0 0% 100%;
     --foreground: 20 14% 10%;

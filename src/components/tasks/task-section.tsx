@@ -42,7 +42,7 @@ export function TaskSectionView({
 
   return (
     <section aria-labelledby={`section-${section.key}`} className="flex flex-col gap-1">
-      <header className="flex items-baseline gap-2 px-2 pt-4">
+      <header className="flex items-baseline gap-2 px-2.5 pt-5">
         <h2
           id={`section-${section.key}`}
           className={cn(
@@ -60,7 +60,7 @@ export function TaskSectionView({
       <div
         ref={setNodeRef}
         className={cn(
-          "rounded-lg border border-transparent px-1 pb-1 transition-colors",
+          "rounded-lg border border-transparent px-1.5 pb-1.5 transition-colors",
           isOver && "border-primary/30 bg-primary/5",
         )}
       >

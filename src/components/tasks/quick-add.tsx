@@ -71,7 +71,7 @@ export function QuickAdd({
     <form
       onSubmit={handleSubmit}
       className={cn(
-        "flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-2 py-2 shadow-sm",
+        "flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2.5 shadow-sm",
         className,
       )}
     >
@@ -84,7 +84,7 @@ export function QuickAdd({
         aria-label="New task title"
         maxLength={TITLE_MAX_LENGTH}
         className={cn(
-          "h-8 min-w-40 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0",
+          "h-9 min-w-40 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0",
           saving && "opacity-60",
         )}
       />
@@ -96,7 +96,7 @@ export function QuickAdd({
           aria-label="Planned date"
           title="Planned date"
           onChange={(event) => setScheduledDate(event.target.value || null)}
-          className="h-8 w-36 text-xs"
+          className="h-9 w-40 text-xs"
         />
 
         <CategorySelect
@@ -105,7 +105,7 @@ export function QuickAdd({
           onChange={setCategoryId}
           categories={categories}
           onCreate={onCreateCategory}
-          className="max-w-40"
+          className="h-9 max-w-44"
         />
       </div>
 

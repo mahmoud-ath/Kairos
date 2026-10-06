@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef, useState, startTransition } from "react";
 import { toast } from "sonner";
 
 import { useAppData } from "@/components/app-data";
@@ -62,7 +62,7 @@ function CategoryRow({
       <Link
         href={`/categories/${category.id}`}
         onClick={onNavigate}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-sidebar-accent focus-visible:bg-sidebar-accent"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-sidebar-accent focus-visible:bg-sidebar-accent"
       >
         <span
           aria-hidden="true"
@@ -117,6 +117,7 @@ function QuickAddCategory() {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const router = useRouter();
   // Enter and blur both fire; only the first one may create the category.
   const submitted = useRef(false);
 
@@ -144,7 +145,13 @@ function QuickAddCategory() {
 
     if (!result.ok) {
       toast.error("Couldn't create the category", { description: result.error });
+      return;
     }
+
+    toast.success(`Category “${result.data?.name ?? trimmed}” created`);
+    // The category list lives in the app layout, so refresh the shell data too:
+    // the action's own revalidation can land after the sidebar has rendered.
+    startTransition(() => router.refresh());
   }
 
   if (!adding) {
@@ -152,7 +159,7 @@ function QuickAddCategory() {
       <button
         type="button"
         onClick={startAdding}
-        className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+        className="mt-1 flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
       >
         <Plus className="h-4 w-4" />
         Add category
@@ -255,7 +262,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
+                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
                 active && "bg-sidebar-accent font-medium text-foreground",
               )}
             >
@@ -303,7 +310,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             aria-current={pathname === "/statistics" ? "page" : undefined}
             className={cn(
-              "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
+              "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
               pathname === "/statistics" && "bg-sidebar-accent font-medium text-foreground",
             )}
           >
@@ -315,7 +322,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             aria-current={pathname === "/settings" ? "page" : undefined}
             className={cn(
-              "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
+              "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
               pathname === "/settings" && "bg-sidebar-accent font-medium text-foreground",
             )}
           >

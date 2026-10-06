@@ -199,8 +199,13 @@ test.describe("task workflow", () => {
 
     const input = await quickAdd(page);
     for (let index = 0; index < 6; index += 1) {
-      await input.fill(`Scroll filler ${index}`);
+      const title = `Scroll filler ${index}`;
+      await input.fill(title);
       await input.press("Enter");
+      // Each create is a server round-trip: wait for the row and for the form to
+      // reset before typing the next title.
+      await expect(page.getByRole("button", { name: `Open task ${title}` })).toBeVisible();
+      await expect(input).toHaveValue("");
     }
 
     const sidebarLink = page.getByRole("link", { name: /Today/ }).first();
@@ -221,10 +226,20 @@ test.describe("task workflow", () => {
 
   test("statistics, settings and the export endpoint work", async ({ page }) => {
     await page.goto("/statistics");
+    const stats = page.getByRole("main");
     await expect(page.getByRole("heading", { name: "Statistics", level: 1 })).toBeVisible();
-    await expect(page.getByText("Current status")).toBeVisible();
-    await expect(page.getByText("Completion activity")).toBeVisible();
-    await expect(page.getByText("Category breakdown")).toBeVisible();
+    // Current state...
+    await expect(stats.getByRole("heading", { name: "Right now" })).toBeVisible();
+    await expect(stats.getByText("In scope")).toBeVisible();
+    // ...and history are separate cards.
+    await expect(stats.getByRole("heading", { name: "Completion" })).toBeVisible();
+    await expect(stats.getByRole("heading", { name: "History" })).toBeVisible();
+    await expect(stats.getByRole("heading", { name: "Categories" })).toBeVisible();
+
+    // The activity window is a plain query parameter.
+    await stats.getByRole("link", { name: "30 days" }).click();
+    await expect(page).toHaveURL(/range=30/);
+    await expect(stats.getByRole("heading", { name: "History" })).toBeVisible();
 
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();

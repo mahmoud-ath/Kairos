@@ -36,6 +36,11 @@ touch tasks they created themselves. Note that Playwright can see the previous
 route's (hidden) DOM for a moment after a client-side navigation — assert on
 counts or scope locators to the row you are working with.
 
+Creating a task is a server round-trip followed by a re-render of the view, so
+the helpers wait for the quick-add field to clear (and for the network to go
+quiet) after pressing Enter. Do the same in new specs: typing the next title too
+early can land in the field the refresh is replacing.
+
 A few project conventions worth following:
 
 - **Keep business rules in `src/lib`.** Anything that decides *what* is overdue,

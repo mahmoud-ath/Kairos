@@ -15,51 +15,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { countActiveFilters, DEFAULT_FILTERS } from "@/lib/filters";
-import type { CategoryDTO, TaskFilters } from "@/types/kairos";
+import type { TaskFilters } from "@/types/kairos";
 
-const ALL = "all";
-
-function FilterSelect({
-  value,
-  onChange,
-  options,
-  ariaLabel,
-  className,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-  ariaLabel: string;
-  className?: string;
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger aria-label={ariaLabel} className={className}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
+/**
+ * The view header: search, a count, and "clear completed".
+ *
+ * Category and status filter dropdowns were removed — categories have their own
+ * views in the sidebar, and the status of a task is visible on the row.
+ */
 export function TaskToolbar({
   filters,
   onFiltersChange,
-  categories,
   resultCount,
   totalCount,
   completedCount,
@@ -69,7 +36,6 @@ export function TaskToolbar({
 }: {
   filters: TaskFilters;
   onFiltersChange: (filters: TaskFilters) => void;
-  categories: readonly CategoryDTO[];
   resultCount: number;
   totalCount: number;
   /** Completed tasks visible in this view (shown in the summary line). */
@@ -86,53 +52,27 @@ export function TaskToolbar({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-48 flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative min-w-56 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
             value={filters.query}
-            onChange={(event) => onFiltersChange({ ...filters, query: event.target.value })}
+            onChange={(event) => onFiltersChange({ query: event.target.value })}
             placeholder="Search titles and notes"
             aria-label="Search tasks"
-            className="h-9 pl-8"
+            className="h-10 pl-9"
           />
         </div>
-
-        <FilterSelect
-          ariaLabel="Filter by category"
-          value={filters.categoryId}
-          onChange={(value) => onFiltersChange({ ...filters, categoryId: value })}
-          className="h-9 w-auto min-w-32 text-xs"
-          options={[
-            { value: ALL, label: "All categories" },
-            { value: "none", label: "Uncategorized" },
-            ...categories.map((category) => ({ value: category.id, label: category.name })),
-          ]}
-        />
-
-        <FilterSelect
-          ariaLabel="Filter by status"
-          value={filters.status}
-          onChange={(value) =>
-            onFiltersChange({ ...filters, status: value as TaskFilters["status"] })
-          }
-          className="h-9 w-auto min-w-28 text-xs"
-          options={[
-            { value: ALL, label: "Any status" },
-            { value: "open", label: "Open only" },
-            { value: "done", label: "Completed only" },
-          ]}
-        />
 
         {active > 0 ? (
           <Button
             variant="ghost"
             size="sm"
-            className="h-9"
+            className="h-10"
             onClick={() => onFiltersChange(DEFAULT_FILTERS)}
           >
-            <X className="mr-1 h-3.5 w-3.5" />
-            Clear filters ({active})
+            <X className="mr-1 h-4 w-4" />
+            Clear search
           </Button>
         ) : null}
 
@@ -140,10 +80,10 @@ export function TaskToolbar({
           <Button
             variant="outline"
             size="sm"
-            className="h-9 text-muted-foreground hover:text-destructive"
+            className="h-10 text-muted-foreground hover:text-destructive"
             onClick={() => setConfirming(true)}
           >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            <Trash2 className="mr-1.5 h-4 w-4" />
             Clear completed
           </Button>
         ) : null}

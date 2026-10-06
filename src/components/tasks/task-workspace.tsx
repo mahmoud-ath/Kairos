@@ -2,6 +2,7 @@
 
 import type { DragEndEvent } from "@dnd-kit/core";
 import { ChartNoAxesColumn, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -37,7 +38,7 @@ import { TaskDetailsPanel } from "@/components/tasks/task-details";
 import { TaskSectionView } from "@/components/tasks/task-section";
 import { TaskToolbar } from "@/components/tasks/task-toolbar";
 import { Button } from "@/components/ui/button";
-import { DEFAULT_FILTERS, applyFilters, filtersIncludeCompleted } from "@/lib/filters";
+import { applyFilters, DEFAULT_FILTERS } from "@/lib/filters";
 import type { WorkspaceProgress } from "@/lib/stats";
 import {
   buildSections,
@@ -103,7 +104,9 @@ export function TaskWorkspace({
   const [optimisticTasks, applyOptimistic] = useOptimistic(tasks, optimisticReducer);
   const [, startTransition] = useTransition();
 
-  const includeCompleted = filtersIncludeCompleted(filters);
+  // Completed tasks are always part of the list (in their own section); the view
+  // itself is what decides which tasks exist here.
+  const includeCompleted = true;
 
   const scopedTasks = useMemo(
     () => selectScopedTasks(scope, optimisticTasks, today),
@@ -146,6 +149,7 @@ export function TaskWorkspace({
 
   const nestTargetId = dragState.intent === "nest" ? dragState.overId : null;
 
+  const router = useRouter();
   const quickAddRef = useRef<HTMLDivElement>(null);
 
   /* ---------------------------------------------------------------------- */
@@ -243,6 +247,8 @@ export function TaskWorkspace({
       return null;
     }
     toast.success(`Category “${result.data.name}” created`);
+    // The sidebar lists categories from the app layout — refresh it as well.
+    startTransition(() => router.refresh());
     return result.data;
   }
 
@@ -700,7 +706,6 @@ export function TaskWorkspace({
           <TaskToolbar
             filters={filters}
             onFiltersChange={setFilters}
-            categories={categories}
             resultCount={visibleCount}
             totalCount={scopedTasks.length}
             completedCount={completedInScope}

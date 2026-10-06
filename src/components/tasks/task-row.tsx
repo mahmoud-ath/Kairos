@@ -378,11 +378,11 @@ export function TaskRow({
     >
       <div
         onClick={() => callbacks.onOpen(task.id)}
-        className="flex cursor-pointer items-start gap-1.5 px-2 py-2"
+        className="flex cursor-pointer items-start gap-1.5 px-2 py-2.5"
       >
         <button
           type="button"
-          className="mt-0.5 grid h-6 w-5 shrink-0 cursor-grab place-items-center text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
+          className="mt-0.5 grid h-7 w-6 shrink-0 cursor-grab place-items-center text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
           aria-label={`Reorder task ${task.title}`}
           title="Drag to reorder · drag right onto a task to make it a subtask"
           onClick={(event) => event.stopPropagation()}

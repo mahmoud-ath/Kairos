@@ -32,6 +32,7 @@ export default async function StatisticsPage({
       data={{
         parents: statistics.parents,
         subtasks: statistics.subtasks,
+        overdue: statistics.overdue,
         activity: statistics.activity,
         activityTotals: statistics.activityTotals,
         categoryBreakdown: statistics.categoryBreakdown,

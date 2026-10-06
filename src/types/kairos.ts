@@ -64,10 +64,9 @@ export type TaskSummary = {
   completedAt: string | null;
 };
 
+/** The only narrowing control left is a text search. */
 export type TaskFilters = {
   query: string;
-  categoryId: string | "all";
-  status: "all" | "open" | "done";
 };
 
 export type ActionResult<T = undefined> =
