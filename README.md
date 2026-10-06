@@ -13,9 +13,9 @@ Desktop layout:
 │ Kairos        │  All Tasks                                 │  Progress       │
 │               │  [ search ]  [ category ]      Clear done  │  62%  12 of 19  │
 │  Today    7   │  ┌──────────────────────────────────────┐  │  ▓▓▓▓▓▓░░░░░░   │
-│  Upcoming 12  │  │ +  Add a task and press Enter…       │  │                 │
-│  All Tasks 19 │  └──────────────────────────────────────┘  │  Completed  12  │
-│  Completed 12 │  YESTERDAY  1                              │  Remaining   7  │
+│  All Tasks 19 │  │ +  Add a task and press Enter…       │  │                 │
+│  Completed 12 │  └──────────────────────────────────────┘  │  Completed  12  │
+│               │  YESTERDAY  1                              │  Remaining   7  │
 │               │  ⠿ ☐ Send the invoice         Due Oct 2    │                 │
 │  CATEGORIES   │  TODAY  5                                  │  Completed/day  │
 │  ● Work   4   │  ⠿ ☐ Draft the roadmap       2/4  Work     │  ▁▃▅▂▇▅▆        │
@@ -110,12 +110,13 @@ scores (Total Blocking Time especially) are not representative.
 
 **Views**
 
+Three views, always in the sidebar:
+
 - **Today** — what you planned for today, plus overdue work in its own section
-- **Upcoming** — today and everything planned after it, grouped by day
 - **All Tasks** — every task grouped by day, from the earliest past day
   (*Yesterday* and earlier) through today and the future, then *Unscheduled*
 - **Completed** — finished tasks, newest first
-- **Category views** — overdue / today / upcoming / unscheduled for one category
+- **Category views** — overdue / today / future days / unscheduled for one category
 
 **Finding things**
 
@@ -176,7 +177,10 @@ bun run dev
 
 Open <http://localhost:3000>. The workspace starts empty: use the quick-add
 field, or press **Load example tasks** on the first-run screen. Demo data is
-only ever created when you ask for it, and only into an empty database.
+only ever created when you ask for it, and only into an empty database. The
+set is three categories and eight tasks: two of them have subtasks, one has
+no dates at all, one is already finished, and one is late on purpose so the
+*Overdue* section is visible from the first screen.
 
 ### Useful scripts
 
@@ -334,7 +338,7 @@ A few decisions worth knowing before reading the code:
 src/
 ├── app/
 │   ├── (app)/                 # authenticated-free app shell routes
-│   │   ├── today/ upcoming/ tasks/ completed/
+│   │   ├── today/ tasks/ completed/
 │   │   ├── categories/[id]/ statistics/ settings/
 │   │   └── layout.tsx         # sidebar + shell, loaded once
 │   ├── api/backup/            # JSON export download

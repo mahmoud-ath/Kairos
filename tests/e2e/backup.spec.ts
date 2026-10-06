@@ -25,10 +25,10 @@ async function resetAllData(page: Page) {
 /** The counts and rows the example data should produce after a restore. */
 async function expectExampleDataRestored(page: Page) {
   await expect(
-    page.getByRole("button", { name: "Open task Draft the Q3 roadmap" }),
+    page.getByRole("button", { name: "Open task Draft the Q4 roadmap" }),
   ).toBeVisible();
   await expect(await expectSingle(page.getByLabel("0 of 3 subtasks completed"))).toBeVisible();
-  await expect(await expectSingle(page.getByRole("link", { name: "Today 3" }))).toBeVisible();
+  await expect(await expectSingle(page.getByRole("link", { name: "Today 4" }))).toBeVisible();
   await expect(await expectSingle(page.getByRole("link", { name: "Completed 1" }))).toBeVisible();
 }
 
@@ -52,7 +52,7 @@ test("JSON export and import round-trips tasks, subtasks and categories", async 
   // Wipe everything, so a successful import cannot be a coincidence.
   await resetAllData(page);
   await page.goto("/today");
-  await expect(page.getByRole("button", { name: "Open task Draft the Q3 roadmap" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Open task Draft the Q4 roadmap" })).toBeHidden();
   await expect(page.getByRole("button", { name: "Load example tasks" })).toBeVisible();
 
   // Import: validated, summarised, confirmed, then applied in one transaction.
@@ -68,7 +68,7 @@ test("JSON export and import round-trips tasks, subtasks and categories", async 
   await expectExampleDataRestored(page);
   await expect(page.getByRole("link", { name: /^Work/ }).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Open task Draft the Q3 roadmap" }).click();
+  await page.getByRole("button", { name: "Open task Draft the Q4 roadmap" }).click();
   const sheet = page.getByRole("dialog").first();
   await expect(sheet.getByLabel("Category")).toContainText("Work");
   await expect(sheet.getByLabel("Notes")).toHaveValue(/retention/);
@@ -93,6 +93,6 @@ test("import rejects an invalid file without touching the data", async ({ page }
   await page.goto("/today");
   await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Open task Draft the Q3 roadmap" }),
+    page.getByRole("button", { name: "Open task Draft the Q4 roadmap" }),
   ).toBeVisible();
 });

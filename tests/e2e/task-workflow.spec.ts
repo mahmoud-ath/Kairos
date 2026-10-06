@@ -50,7 +50,7 @@ test.describe("task workflow", () => {
     await expect(loadExamples).toBeVisible();
     await loadExamples.click();
     await expect(
-      page.getByRole("button", { name: "Open task Draft the Q3 roadmap" }),
+      page.getByRole("button", { name: "Open task Draft the Q4 roadmap" }),
     ).toBeVisible();
 
     // There is no Inbox, and All Tasks lists yesterday separately.
@@ -176,19 +176,19 @@ test.describe("task workflow", () => {
   test("a new task is dated the day it is created, in any view", async ({ page }) => {
     const iso = localDate(0);
 
-    // Upcoming is where an undated task used to disappear: the field is
+    // All Tasks is where an undated task used to disappear: the field is
     // pre-filled with today and the new task is listed under Today.
-    await page.goto("/upcoming");
+    await page.goto("/tasks");
     const date = page.getByLabel("Planned date");
     await expect(date).toHaveCount(1);
     await expect(date).toHaveValue(iso);
 
     const input = await quickAdd(page);
-    await input.fill("Created from the Upcoming view");
+    await input.fill("Created from All Tasks");
     await input.press("Enter");
 
     await expect(
-      page.getByRole("button", { name: "Open task Created from the Upcoming view" }),
+      page.getByRole("button", { name: "Open task Created from All Tasks" }),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
   });

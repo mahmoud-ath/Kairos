@@ -111,35 +111,6 @@ describe("today view", () => {
   });
 });
 
-describe("upcoming view", () => {
-  it("keeps overdue at the top, then today, then future days", () => {
-    const sections = buildSections({
-      scope: { kind: "upcoming" },
-      tasks: allTasks,
-      today: TODAY,
-      includeCompleted: false,
-    });
-
-    expect(sections[0].key).toBe("overdue");
-    expect(sections.slice(1).map((section) => [section.title, section.tasks.length])).toEqual([
-      ["Today", 1],
-      ["Tomorrow", 2],
-      ["Fri, Oct 9", 1],
-    ]);
-  });
-
-  it("orders tasks inside a day by position", () => {
-    const sections = buildSections({
-      scope: { kind: "upcoming" },
-      tasks: allTasks,
-      today: TODAY,
-      includeCompleted: false,
-    });
-    const tomorrow = sections.find((section) => section.title === "Tomorrow");
-    expect(tomorrow?.tasks.map((t) => t.id)).toEqual(["up-1", "up-2"]);
-  });
-});
-
 describe("all tasks view", () => {
   it("groups by day, including past days, then unscheduled and completed", () => {
     const sections = buildSections({
@@ -253,7 +224,6 @@ describe("view counts", () => {
   it("counts unfinished tasks only, and agrees with the views", () => {
     const counts = buildViewCounts(allTasks, TODAY);
     expect(counts.today).toBe(5); // 4 overdue + 1 planned for today
-    expect(counts.upcoming).toBe(8); // overdue + today + the three future tasks
     expect(counts.overdue).toBe(4);
     expect(counts.all).toBe(10); // every unfinished task
     expect(counts.completed).toBe(1);
@@ -285,7 +255,6 @@ describe("view counts", () => {
 describe("quick-add defaults", () => {
   it("dates a new task to the day it is created in, in every view", () => {
     expect(defaultScheduledDate({ kind: "today" }, TODAY)).toBe(TODAY);
-    expect(defaultScheduledDate({ kind: "upcoming" }, TODAY)).toBe(TODAY);
     expect(defaultScheduledDate({ kind: "all" }, TODAY)).toBe(TODAY);
     expect(defaultScheduledDate({ kind: "completed" }, TODAY)).toBe(TODAY);
     expect(defaultScheduledDate({ kind: "category", categoryId: "cat-1" }, TODAY)).toBe(TODAY);

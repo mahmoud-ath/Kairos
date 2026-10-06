@@ -131,9 +131,9 @@ test("dropping a task into a date group changes its planned date", async ({ page
   const tomorrow = localDate(1);
   const later = localDate(2);
 
-  // Upcoming groups by planned date: one task creates a "Tomorrow" group for the
-  // other one to be dropped into.
-  await page.goto("/upcoming");
+  // All Tasks groups by planned date: one task creates a "Tomorrow" group for
+  // the other one to be dropped into.
+  await page.goto("/tasks");
   await addTask(page, anchor, tomorrow);
   await addTask(page, moved, later);
 

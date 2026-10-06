@@ -10,7 +10,6 @@ import { siteUrl } from "@/lib/site";
  */
 const VIEWS: MetadataRoute.Sitemap = [
   { url: siteUrl("/today"), changeFrequency: "daily", priority: 1 },
-  { url: siteUrl("/upcoming"), changeFrequency: "daily", priority: 0.8 },
   { url: siteUrl("/tasks"), changeFrequency: "daily", priority: 0.8 },
   { url: siteUrl("/completed"), changeFrequency: "weekly", priority: 0.5 },
   { url: siteUrl("/statistics"), changeFrequency: "weekly", priority: 0.5 },

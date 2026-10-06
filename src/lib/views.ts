@@ -40,7 +40,6 @@ export type TaskSection<T extends TaskLike = TaskLike> = {
 
 export type ViewScope =
   | { kind: "today" }
-  | { kind: "upcoming" }
   | { kind: "all" }
   | { kind: "completed" }
   | { kind: "category"; categoryId: string };
@@ -217,10 +216,6 @@ function matchesDoneScope(scope: ViewScope, task: TaskLike, today: string): bool
       const anchor = taskAnchorDate(task);
       return anchor !== null && compareDateOnly(anchor, today) === 0;
     }
-    case "upcoming": {
-      const anchor = taskAnchorDate(task);
-      return anchor !== null && compareDateOnly(anchor, today) > 0;
-    }
     case "category":
       return task.categoryId === scope.categoryId;
     default:
@@ -271,24 +266,6 @@ export function buildSections<T extends TaskLike>({
         sections.push(plainSection("overdue", "Overdue", "past", overdue));
       }
       sections.push(plainSection("today", "Today", "today", dueToday, today));
-      if (done.length > 0) sections.push(completedSection(done));
-      return sections;
-    }
-
-    case "upcoming": {
-      const buckets = bucketByDate(visible, today);
-      const sections: TaskSection<T>[] = [];
-      if (buckets.overdue.length > 0) {
-        sections.push(plainSection("overdue", "Overdue", "past", buckets.overdue));
-      }
-      // Today is included so a task created here (which is dated today) stays
-      // visible instead of silently disappearing.
-      if (buckets.today.length > 0) {
-        sections.push(plainSection("today", "Today", "today", buckets.today, today));
-      }
-      for (const date of buckets.upcomingDates) {
-        sections.push(dateSection(date, today, buckets.upcoming.get(date) ?? []));
-      }
       if (done.length > 0) sections.push(completedSection(done));
       return sections;
     }
@@ -346,7 +323,6 @@ export function selectScopedTasks<T extends TaskLike>(
 
 export type ViewCounts = {
   today: number;
-  upcoming: number;
   overdue: number;
   all: number;
   completed: number;
@@ -382,7 +358,6 @@ export function buildViewCounts(tasks: readonly TaskLike[], today: string): View
 
   return {
     today: countOpen({ kind: "today" }),
-    upcoming: countOpen({ kind: "upcoming" }),
     overdue: open.filter((task) => isTaskOverdue(task, today)).length,
     all: open.length,
     completed: done.length,

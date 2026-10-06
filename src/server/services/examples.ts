@@ -10,6 +10,10 @@ import { getSettings } from "@/server/services/settings";
 /**
  * A small, deliberately explicit set of example tasks.
  *
+ * The set touches every feature the app ships: categories, planned and due
+ * dates, notes, one level of subtasks, one unscheduled task, one completed task
+ * and one task that is late on purpose so Today shows its Overdue group.
+ *
  * This never runs automatically: the first-run screen offers it as a button, and
  * only when the database is still completely empty, so a real workspace can
  * never be polluted with demo data.
@@ -38,7 +42,7 @@ export async function loadExampleTasks(): Promise<{ tasks: number; categories: n
 
   const plan = [
     {
-      title: "Draft the Q3 roadmap",
+      title: "Draft the Q4 roadmap",
       notes: "Three themes: retention, onboarding, and reporting.",
       categoryId: work.id,
       scheduledDate: day(0),
@@ -57,6 +61,15 @@ export async function loadExampleTasks(): Promise<{ tasks: number; categories: n
       categoryId: personal.id,
       scheduledDate: day(0),
       dueDate: day(1),
+      subtasks: [],
+    },
+    {
+      // Late on purpose, so Today shows its Overdue group.
+      title: "Send the Q3 invoice",
+      notes: "Numbers are in the shared sheet; attach last quarter's timesheet.",
+      categoryId: work.id,
+      scheduledDate: day(-2),
+      dueDate: null,
       subtasks: [],
     },
     {

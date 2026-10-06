@@ -22,7 +22,6 @@ export type CategoryBreakdownRow = {
 export type StatisticsViewData = {
   parents: ScopeCounts;
   subtasks: ScopeCounts;
-  overdue: number;
   activity: ActivityPoint[];
   activityTotals: { completed: number; reopened: number };
   categoryBreakdown: CategoryBreakdownRow[];
@@ -123,7 +122,7 @@ export function StatisticsView({
   scopeLabel: string;
   weekStartsOn: number;
 }) {
-  const { parents, subtasks, overdue, activity, activityTotals, categoryBreakdown } = data;
+  const { parents, subtasks, activity, activityTotals, categoryBreakdown } = data;
 
   // The configured week start is used for the "this week" figure.
   const weekStart = startOfWeek(today, weekStartsOn);
@@ -172,16 +171,10 @@ export function StatisticsView({
         <h2 id="now-heading" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Right now
         </h2>
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
           <Tile label="In scope" value={parents.total} />
           <Tile label="Completed" value={parents.completed} tone="primary" />
           <Tile label="Remaining" value={parents.remaining} />
-          <Tile
-            label="Overdue"
-            value={overdue}
-            tone={overdue > 0 ? "danger" : "default"}
-            hint={parents.total > 0 ? `${Math.round((overdue / parents.total) * 100)}% of scope` : undefined}
-          />
           <Tile label="Completion" value={`${parents.percentage}%`} hint="of top-level tasks" />
           <Tile
             label="This week"
