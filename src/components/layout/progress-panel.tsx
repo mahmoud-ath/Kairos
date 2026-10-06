@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import { useAppData, usePanelState } from "@/components/app-data";
-import { MiniActivityChart } from "@/components/statistics/activity-chart";
+import { MiniActivityChart } from "@/components/statistics/charts";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";

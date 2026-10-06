@@ -3,10 +3,16 @@ import type { Metadata } from "next";
 import { StatisticsView } from "@/components/statistics/statistics-view";
 import { isValidActivityWindow } from "@/lib/stats";
 import { todayDateOnly } from "@/lib/dates";
+import { viewMetadata } from "@/lib/site";
 import { getStatistics } from "@/server/services/statistics";
 import { getSettingsRecord } from "@/server/services/settings";
 
-export const metadata: Metadata = { title: "Statistics" };
+export const metadata: Metadata = viewMetadata({
+  title: "Statistics",
+  description:
+    "Completion analytics for your Kairos workspace: current counts, a completion donut and daily activity for the last 7 or 30 days.",
+  path: "/statistics",
+});
 
 export default async function StatisticsPage({
   searchParams,

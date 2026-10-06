@@ -6,8 +6,14 @@ import { TaxonomyManager } from "@/components/settings/taxonomy-manager";
 import { getSettingsRecord } from "@/server/services/settings";
 import { prisma } from "@/server/db";
 import { listCategories } from "@/server/services/taxonomy";
+import { viewMetadata } from "@/lib/site";
 
-export const metadata: Metadata = { title: "Settings" };
+export const metadata: Metadata = viewMetadata({
+  title: "Settings",
+  description:
+    "Kairos preferences: theme, timezone, first day of the week, categories, JSON backup export and import, and reset.",
+  path: "/settings",
+});
 
 export default async function SettingsPage() {
   const [settings, categories, taskCount] = await Promise.all([

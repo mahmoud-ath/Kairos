@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 
 import { WorkspacePage } from "@/components/tasks/workspace-page";
+import { viewMetadata } from "@/lib/site";
 
-export const metadata: Metadata = { title: "Today" };
+export const metadata: Metadata = viewMetadata({
+  title: "Today",
+  description:
+    "Today's planned tasks in Kairos, with anything overdue listed separately so nothing slips.",
+  path: "/today",
+});
 
 export default function TodayPage() {
   return (

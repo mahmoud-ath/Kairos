@@ -14,7 +14,7 @@ import {
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef, useState, startTransition } from "react";
+import { useEffect, useRef, useState, startTransition } from "react";
 import { toast } from "sonner";
 
 import { useAppData } from "@/components/app-data";
@@ -197,6 +197,12 @@ function QuickAddCategory() {
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  // next-themes resolves the stored theme in the browser, so it is unknown while
+  // the markup is rendered on the server. Keeping the pressed state empty until
+  // after mount avoids a hydration mismatch (and the console error that comes
+  // with it).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const options = [
     { value: "light", label: "Light", icon: Sun },
     { value: "dark", label: "Dark", icon: Moon },
@@ -207,7 +213,7 @@ function ThemeToggle() {
     <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
       {options.map((option) => {
         const Icon = option.icon;
-        const active = theme === option.value;
+        const active = mounted && theme === option.value;
         return (
           <Tooltip key={option.value}>
             <TooltipTrigger asChild>

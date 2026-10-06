@@ -1,0 +1,19 @@
+{
+  "name": "Kairos",
+  "short_name": "Kairos",
+  "description": "Self-hosted task manager: categories, dates, subtasks, statistics and JSON backups.",
+  "id": "/",
+  "scope": "/",
+  "start_url": "/today",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#15803d",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

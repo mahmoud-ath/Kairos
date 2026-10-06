@@ -57,6 +57,15 @@ A few project conventions worth following:
 - **Accessibility is part of the feature.** Interactive controls need names,
   focus must be visible, and every drag-and-drop action needs a keyboard
   equivalent.
+- **New routes state their metadata.** Build it with `viewMetadata()` from
+  `src/lib/site.ts` so the page gets a description, a canonical URL and social
+  tags; add the route to `src/app/sitemap.ts` only if it is a public view.
+- **Keep the first-load JavaScript small.** The charts are the heaviest client
+  dependency and are loaded on demand (`src/components/statistics/charts.tsx`):
+  import charts from there, not from the concrete modules, and give dynamic
+  imports a placeholder that reserves the final box so layout shift stays at
+  zero. When you check performance, audit `next build` + `next start`, never
+  `next dev`.
 - **Product scope.** Categories are the only grouping; there are no labels or
   priorities. Subtasks are one level deep. New tasks are dated today. Keep the UI
   quiet: one accent colour (green), neutral surfaces, no gradients or glass

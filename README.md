@@ -47,8 +47,47 @@ of any kind.**
   in front of it (a reverse proxy with basic auth, Tailscale, WireGuard, …).
 - Exported backups contain your full task history. Treat them as private data
   and never commit them to a repository.
+- **Search engines.** The views are indexable by default (`robots.txt` allows
+  crawling but never `/api/`), so anyone can find the app if it is reachable from
+  the internet. A private deployment can opt out completely with
+  `KAIROS_NO_INDEX=true`, which serves `Disallow: /`.
 
 Accounts, sharing and collaboration are explicitly out of scope for v1.
+
+---
+
+## SEO, metadata and response hardening
+
+- **One metadata helper.** `viewMetadata()` in `src/lib/site.ts` gives each view
+  its title, description, canonical URL (`alternates.canonical`) and Open
+  Graph/Twitter tags; the root layout holds the defaults, `metadataBase`,
+  keywords and `WebApplication` structured data.
+- **`robots.txt` and `sitemap.xml`** are generated from the route list
+  (`src/app/robots.ts`, `src/app/sitemap.ts`) using `NEXT_PUBLIC_APP_URL`. Only
+  the shared views are listed — category pages are your own data and are never
+  advertised. A category page that does not exist is `noindex`.
+- **A web app manifest** (`public/manifest.webmanifest`) describes the app name,
+  theme colours and start URL for browsers and install prompts.
+- **Security headers** (`next.config.ts`): a Content Security Policy that only
+  allows the app's own origin (plus `ws:` and `eval` in development), HSTS,
+  `X-Content-Type-Options`, `X-Frame-Options`/`frame-ancestors`, a
+  `Referrer-Policy`, COOP and a restrictive `Permissions-Policy`. The
+  `X-Powered-By` header is disabled.
+- **Client payload.** Recharts is by far the biggest client dependency, so the
+  charts are loaded on demand (`src/components/statistics/charts.tsx`). No task
+  view ships it, which takes each of them from ~311 kB to ~208 kB of first-load
+  JS; the statistics page drops from ~230 kB to ~120 kB. Barrel imports are
+  rewritten to the modules actually used (`optimizePackageImports`).
+
+When you measure, measure the **production build**:
+
+```bash
+bun run build && PORT=3000 bunx next start
+# then run Lighthouse against http://localhost:3000/today
+```
+
+`next dev` ships unminified bundles, source maps and the devtools overlay, so its
+scores (Total Blocking Time especially) are not representative.
 
 ---
 
@@ -236,12 +275,14 @@ is being written.
 
 All configuration is environment based; see `.env.example`.
 
-| Variable            | Default              | Purpose                                                    |
-| ------------------- | -------------------- | ---------------------------------------------------------- |
-| `DATABASE_URL`      | `file:./dev.db`      | SQLite location. Docker uses `file:/data/kairos.db`.        |
-| `PORT`              | `3000`               | Port the server listens on.                                 |
-| `KAIROS_BIND_HOST`  | `127.0.0.1`          | Compose: the host interface the port is published on.       |
-| `KAIROS_PORT`       | `3000`               | Compose: the host port.                                     |
+| Variable              | Default                  | Purpose                                                     |
+| --------------------- | ------------------------ | ----------------------------------------------------------- |
+| `DATABASE_URL`        | `file:./dev.db`          | SQLite location. Docker uses `file:/data/kairos.db`.         |
+| `PORT`                | `3000`                   | Port the server listens on.                                  |
+| `KAIROS_BIND_HOST`    | `127.0.0.1`              | Compose: the host interface the port is published on.        |
+| `KAIROS_PORT`         | `3000`                   | Compose: the host port.                                      |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000`  | Absolute origin used for canonical links, `sitemap.xml` and social metadata. Set it before serving a real domain. |
+| `KAIROS_NO_INDEX`     | `false`                  | `true` sends `Disallow: /` to every crawler (private deployment). |
 
 Theme, timezone and the first day of the week are stored **in the database**
 (Settings) so they apply to date grouping on the server, not just in the UI.

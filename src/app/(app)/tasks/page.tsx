@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 
 import { WorkspacePage } from "@/components/tasks/workspace-page";
+import { viewMetadata } from "@/lib/site";
 
-export const metadata: Metadata = { title: "All Tasks" };
+export const metadata: Metadata = viewMetadata({
+  title: "All Tasks",
+  description:
+    "Every task in Kairos grouped by its planned day — past days, today, the future, unscheduled work and completed items.",
+  path: "/tasks",
+});
 
 export default function AllTasksPage() {
   return (

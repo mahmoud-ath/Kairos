@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 
-import { ActivityBarChart } from "@/components/statistics/activity-chart";
-import { DonutChart, DonutLegend, type DonutSlice } from "@/components/statistics/donut-chart";
+import { ActivityBarChart, DonutChart, DonutLegend } from "@/components/statistics/charts";
+import type { DonutSlice } from "@/components/statistics/donut-chart";
 import { Progress } from "@/components/ui/progress";
 import { formatMonthDay, startOfWeek } from "@/lib/dates";
 import type { ActivityPoint, ScopeCounts } from "@/lib/stats";
@@ -253,7 +253,6 @@ export function StatisticsView({
                 centerValue={String(parents.remaining)}
                 centerLabel="open"
                 emptyLabel="Nothing open"
-                size={148}
               />
               <p className="text-center text-[11px] text-muted-foreground">
                 {parents.remaining === 0
