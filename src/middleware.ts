@@ -1,7 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isEmailAllowed } from "@/lib/auth-rules";
+import {
+  isAuthPath,
+  isEmailAllowed,
+  isPublicPath,
+  LANDING_PATH,
+} from "@/lib/auth-rules";
 
 /**
  * Session refresh + access gate.
@@ -13,19 +18,12 @@ import { isEmailAllowed } from "@/lib/auth-rules";
  * The gate is on by default. `KAIROS_AUTH_DISABLED=true` switches it off for
  * local development and the Playwright suite; a deployment that is neither
  * configured nor explicitly disabled gets an error instead of an open door.
+ *
+ * The one exception is the landing page: it is static marketing content, so it
+ * is served without touching Supabase at all — see `LANDING_PATH`.
  */
 
 const LOGIN_PATH = "/login";
-
-/**
- * Reachable without a session. `/auth/callback` is where Supabase returns the
- * browser after Google sign-in or an email confirmation, so it must never be
- * redirected away.
- */
-const PUBLIC_PATHS = ["/api/health", "/auth/callback"];
-
-/** Pages that only make sense while signed out. */
-const AUTH_PATHS = ["/login", "/register"];
 
 /**
  * Shown when the gate is on but the Supabase project is missing. This is a
@@ -51,6 +49,16 @@ function copyCookies(from: NextResponse, to: NextResponse): NextResponse {
 }
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // The landing page is served before anything else is considered: no session
+  // refresh, no cookies, and no Supabase configuration required. Its content is
+  // identical for signed-out and signed-in visitors, so there is nothing to
+  // resolve — and that keeps it statically renderable.
+  if (pathname === LANDING_PATH) {
+    return NextResponse.next();
+  }
+
   // Explicit opt-out, for local development and the Playwright suite only.
   if (process.env.KAIROS_AUTH_DISABLED === "true") {
     return NextResponse.next();
@@ -95,8 +103,6 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-
   function redirectTo(target: string, search = ""): NextResponse {
     const nextUrl = request.nextUrl.clone();
     nextUrl.pathname = target;
@@ -111,14 +117,14 @@ export async function middleware(request: NextRequest) {
   }
 
   // Already signed in: the sign-in and sign-up pages have nothing to offer.
-  if (user && AUTH_PATHS.includes(pathname)) {
+  if (user && isAuthPath(pathname)) {
     return redirectTo("/today");
   }
 
-  const isPublic =
-    PUBLIC_PATHS.some((path) => pathname === path) || AUTH_PATHS.includes(pathname);
-
-  if (!user && !isPublic) {
+  // Signed out: everything that is not explicitly public goes to the sign-in
+  // page, carrying where they were headed. This deliberately catches unknown
+  // paths too — a route that does not exist yet fails closed, not open.
+  if (!user && !isPublicPath(pathname)) {
     const next = `${pathname}${request.nextUrl.search}`;
     return redirectTo(LOGIN_PATH, `?next=${encodeURIComponent(next)}`);
   }
