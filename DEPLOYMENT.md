@@ -1,8 +1,8 @@
 # Deployment background and alternatives
 
 > ⚠️ **This is not the guide for a new user.** Start with
-> **[docs/deployment.md](docs/deployment.md)** — a complete, step-by-step
-> walkthrough from an empty GitHub repo to a running site.
+> **[docs/README.md](docs/README.md)** — the step-by-step guide from an empty
+> GitHub repo to a running, multi-user site (Vercel + PostgreSQL + Supabase Auth).
 >
 > This file is the *background*: why Vercel and Docker differ, what breaks on
 > serverless, alternative hosting and database providers, the Supabase-for-Postgres

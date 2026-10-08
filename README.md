@@ -40,6 +40,9 @@ workspace, and that separation is enforced in the query layer, not in the UI.
 
 - The sign-in gate is **on by default and fails closed**: a deployment that is not
   configured returns an error instead of serving one shared workspace.
+- **`/` is public.** The landing page is static marketing content — no session, no
+  database query, no workspace data — served identically to signed-out and
+  signed-in visitors. Everything else is behind the gate.
 - Configure Supabase Auth before sharing a URL — see
   **[docs/auth-setup.md](docs/auth-setup.md)**.
 - `KAIROS_AUTH_DISABLED=true` removes the gate entirely (local development and the
@@ -139,9 +142,10 @@ Three views, always in the sidebar:
 - Manage categories
 - Versioned JSON export and import, plus “reset all data”
 
-**Everything local**
+**Your data, your database**
 
-- SQLite database on your own disk, no accounts, no telemetry, no external services
+- PostgreSQL that you control, no telemetry and no third-party analytics
+- Per-account private workspaces — sign-in through Supabase, which never sees your tasks
 
 ---
 
@@ -151,7 +155,8 @@ Three views, always in the sidebar:
 | -------------- | ------------------------------------------------------------- |
 | Framework      | Next.js (App Router) + TypeScript, React Server Components     |
 | Styling        | Tailwind CSS + shadcn/ui, Lucide icons, Poppins (`next/font`)  |
-| Data           | SQLite via Prisma ORM with committed migrations                |
+| Data           | PostgreSQL via Prisma ORM with committed migrations            |
+| Auth           | Supabase Auth (email + Google), per-user data isolation in the query layer |
 | Mutations      | Server Actions with Zod validation and optimistic UI          |
 | Drag and drop  | dnd-kit (pointer **and** keyboard sensors)                     |
 | Charts         | Recharts                                                       |
@@ -172,11 +177,21 @@ scripts and tests).
 ```bash
 git clone <your-fork-url> kairos
 cd kairos
-cp .env.example .env          # DATABASE_URL="file:./dev.db" by default
+cp .env.example .env          # DATABASE_URL / DIRECT_URL point at your PostgreSQL
 bun install
-bunx prisma migrate deploy    # create prisma/dev.db from the migrations
+bunx prisma migrate deploy    # create the tables
 bun run dev
 ```
+
+Kairos needs a **PostgreSQL** database and a **Supabase** project, locally as well
+as in production. The sign-in gate is on by default and fails closed, so a missing
+configuration shows an error rather than quietly opening the app. Putting the two
+`NEXT_PUBLIC_SUPABASE_*` values in `.env.local` is the normal setup; to skip
+sign-in entirely for local work, set `KAIROS_AUTH_DISABLED=true`.
+
+> **Going live?** Follow **[docs/README.md](docs/README.md)** — the step-by-step
+guide for Vercel + PostgreSQL + Supabase Auth, including the checks for the
+failures that cost the most time.
 
 Open <http://localhost:3000>. The workspace starts empty: use the quick-add
 field, or press **Load example tasks** on the first-run screen. Demo data is
@@ -194,7 +209,8 @@ no dates at all, one is already finished, and one is late on purpose so the
 | `bun run start`     | Serve the production build                              |
 | `bun run typecheck` | `tsc --noEmit`                                          |
 | `bun run lint`      | ESLint                                                  |
-| `bun test`          | Unit tests (Vitest)                                     |
+| `bun run test`      | Unit tests (Vitest)                                     |
+| `bun run test:integration` | Isolation tests against a real PostgreSQL — refuses to run against a remote host |
 | `bun run test:e2e`  | End-to-end tests (Playwright; builds first)             |
 | `bun run db:migrate`| Create + apply a migration during development           |
 | `bun run db:studio` | Prisma Studio to inspect the database                   |
@@ -213,16 +229,18 @@ Open <http://127.0.0.1:3000>.
 
 What the container does and how it is configured:
 
-- The SQLite database lives at **`/data/kairos.db`** on the named volume
-  `kairos-data`. The image never contains a database, and `/data` is the only
-  place data is written.
+- The database is a **PostgreSQL service beside the app** (the `db` service in
+  `compose.yaml`), kept on the `kairos-db` volume — never inside the image.
 - `prisma migrate deploy` runs automatically on start (see
   `docker/entrypoint.sh`), so upgrading is a rebuild + restart.
 - The published port is bound to **`127.0.0.1`** by default
   (`KAIROS_BIND_HOST` / `KAIROS_PORT` in `.env`).
 - A `HEALTHCHECK` polls `/api/health`, which also verifies the database.
-- **One instance only.** SQLite plus a shared volume means a second container
-  would corrupt or lock the same file. Do not scale this service horizontally.
+- **Sign-in is on by default and fails closed.** The Supabase values are inlined
+  at *build* time, so set them in `.env` and rebuild — or set
+  `KAIROS_AUTH_DISABLED=true` to run without sign-in, and keep the port on
+  `127.0.0.1` if you do.
+- **One instance.** The app is not designed to be scaled horizontally.
 - The container runs as the unprivileged `node` user.
 
 Stop, upgrade, and clean up:
@@ -238,8 +256,8 @@ docker compose down -v              # ⚠️ also deletes the volume and all dat
 
 ## Backup and restore
 
-Task data is a file on disk, so a copy of the database file is a complete
-backup. The application also exports an official, versioned JSON format.
+Task data lives in PostgreSQL. The application also exports an official,
+versioned JSON format.
 
 ### JSON export / import (recommended)
 
@@ -262,19 +280,14 @@ already excludes `*.kairos.json` and `backups/`).
 > earlier version are still importable: their labels and priorities are ignored,
 > and the import summary tells you so.
 
-### Copying the SQLite file
+### Database-level snapshot
 
 ```bash
-# Docker: copy the database out of the volume
-docker compose stop kairos
-docker run --rm -v kairos-data:/data -v "$PWD:/backup" alpine \
-  cp /data/kairos.db "/backup/kairos-$(date +%F).db"
-docker compose start kairos
+# the DIRECT connection, not the pooled one
+pg_dump "$DIRECT_URL" > "kairos-$(date +%F).sql"
 ```
 
-Restoring is the reverse: stop the app, put the file back at `/data/kairos.db`,
-start the app. Stop the application first — SQLite is not safe to copy while it
-is being written.
+Restore with `psql "$DIRECT_URL" < kairos-2026-01-01.sql`.
 
 ---
 
@@ -284,7 +297,12 @@ All configuration is environment based; see `.env.example`.
 
 | Variable              | Default                  | Purpose                                                     |
 | --------------------- | ------------------------ | ----------------------------------------------------------- |
-| `DATABASE_URL`        | `file:./dev.db`          | SQLite location. Docker uses `file:/data/kairos.db`.         |
+| `DATABASE_URL`        | — (required)             | PostgreSQL connection the app uses. Use the **pooled** host in production. |
+| `DIRECT_URL`          | — (required for migrations) | direct connection, used by the Prisma CLI only             |
+| `NEXT_PUBLIC_SUPABASE_URL` | — (required)        | Supabase project URL — enables the sign-in gate             |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | — (required)  | the public anon / publishable key                           |
+| `KAIROS_AUTH_DISABLED` | `false`                 | `true` removes the sign-in gate — **local development only** |
+| `KAIROS_ALLOWED_EMAILS` | unset                  | allow-list for a *private* deployment; leave unset on a public app |
 | `PORT`                | `3000`                   | Port the server listens on.                                  |
 | `KAIROS_BIND_HOST`    | `127.0.0.1`              | Compose: the host interface the port is published on.        |
 | `KAIROS_PORT`         | `3000`                   | Compose: the host port.                                      |

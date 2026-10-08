@@ -6,7 +6,8 @@
 > email allow-list.
 >
 > **For a public app where anyone can sign up, use
-> [`auth-setup.md`](auth-setup.md) instead.** The settings on this page would
+> [`auth-setup.md`](auth-setup.md) instead** — part of the
+> [deployment guide](README.md). The settings on this page would
 > either lock everyone out (the allow-list) or hand every user the same shared
 > data (sign-ups on against a single-tenant database).
 >

@@ -1,7 +1,8 @@
 # Vercel environment variables — detailed setup
 
 > ⚠️ **Superseded.** For a new deployment use
-> **[docs/deployment.md](docs/deployment.md)** §6.
+> **[docs/README.md](docs/README.md)**, and
+> [docs/deployment.md](docs/deployment.md) §6 for this specific topic.
 >
 > Kept as a reference for the environment-variable form specifically: the
 > dashboard and CLI alternatives, the paste traps, and a per-error troubleshooting

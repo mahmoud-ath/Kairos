@@ -1,7 +1,7 @@
 # Deployment overview (historical)
 
 > ⚠️ **Superseded.** For a new deployment use
-> **[docs/deployment.md](docs/deployment.md)**.
+> **[docs/README.md](docs/README.md)**.
 >
 > This file was the working notebook while one specific deployment was being
 > debugged — it contains a "status board" tied to that single Vercel project. The

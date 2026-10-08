@@ -1,11 +1,18 @@
-# Letting people sign up (Supabase Auth)
+# Part 2 — Letting people sign up (Supabase Auth)
 
-> **Public model:** anyone can create an account with email or Google, and gets
-> their **own private workspace**. This replaces the older private single-user
-> gate.
+Part 1 ([deployment.md](deployment.md)) got the app running with a database.
+This part adds sign-in, so anyone can create an account with **email or Google**
+and get their **own private workspace**.
+
+> **Public model.** This replaces the older private single-user gate — see
+> [supabase-auth.md](supabase-auth.md) if you specifically want *that* instead.
 >
-> Background: [`multi-user.md`](multi-user.md) (design) · [`deployment.md`](deployment.md)
-> (hosting and the database).
+> **Done when** the [verification checklist](#11-verify) passes, including the
+> second-account isolation check in step 7. That check is the one that proves the
+> whole point of this part.
+>
+> Background: [`multi-user.md`](multi-user.md) (why it is built this way) ·
+> [`troubleshooting.md`](troubleshooting.md) (when it is not working).
 
 ---
 
@@ -13,18 +20,19 @@
 
 1. [What this gives you](#1-what-this-gives-you)
 2. [Create the Supabase project](#2-create-the-supabase-project)
-3. [Turn sign-ups on](#3-turn-sign-ups-on)
-4. [The email decision (read this)](#4-the-email-decision-read-this)
-5. [Enable Google](#5-enable-google)
-6. [Site URL and redirects](#6-site-url-and-redirects)
-7. [Where to find the two public values](#7-where-to-find-the-two-public-values)
-8. [Where to put them in Vercel](#8-where-to-put-them-in-vercel)
-9. [Deploy](#9-deploy)
-10. [Verify](#10-verify)
-11. [How sign-in works in the code](#11-how-sign-in-works-in-the-code)
-12. [Managing users](#12-managing-users)
-13. [Troubleshooting](#13-troubleshooting)
-14. [Before you go properly public](#14-before-you-go-properly-public)
+3. [Validate the project URL (do not skip this)](#3-validate-the-project-url-do-not-skip-this)
+4. [Turn sign-ups on](#4-turn-sign-ups-on)
+5. [The email decision (read this)](#5-the-email-decision-read-this)
+6. [Enable Google](#6-enable-google)
+7. [Site URL and redirects](#7-site-url-and-redirects)
+8. [Where to find the two public values](#8-where-to-find-the-two-public-values)
+9. [Where to put them in Vercel](#9-where-to-put-them-in-vercel)
+10. [Deploy](#10-deploy)
+11. [Verify](#11-verify)
+12. [How sign-in works in the code](#12-how-sign-in-works-in-the-code)
+13. [Managing users](#13-managing-users)
+14. [Troubleshooting](#14-troubleshooting)
+15. [Before you go properly public](#15-before-you-go-properly-public)
 
 ---
 
@@ -53,7 +61,50 @@ region matters little — only sign-in traffic touches it. The free tier covers
 
 ---
 
-## 3. Turn sign-ups on
+## 3. Validate the project URL (do not skip this)
+
+Before copying anything into Vercel, prove the URL and the key actually work.
+This takes ten seconds and prevents the single most confusing failure in the
+guide: **"Failed to fetch"** — which looks like a code bug, produces no server
+logs, and is nearly always a URL or key problem.
+
+Get both values from **Project Settings → API** (exactly where is
+[§8](#8-where-to-find-the-two-public-values)), then:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  "https://<ref>.supabase.co/auth/v1/settings" -H "apikey: <anon-key>"
+```
+
+| Result | Meaning | Do this |
+| --- | --- | --- |
+| `200` | host and key are both good | continue to §4 |
+| `Could not resolve host` | **the ref is wrong**, or the project was deleted or paused | re-copy the Project URL from the dashboard |
+| `401` | the host is right, the key is not | re-copy the anon key from the same page |
+
+### They must come from the same project
+
+The anon key is a JWT, and it names the project it belongs to:
+
+```bash
+echo "<anon-key>" | cut -d. -f2 | base64 -d 2>/dev/null; echo
+# {"iss":"supabase","ref":"jexeakhohftqqwfjeqkd","role":"anon","iat":…,"exp":…}
+```
+
+That `ref` **must** equal the subdomain of your Project URL. A key from one
+project with a URL from another is invisible in the dashboard — both values look
+perfectly valid — and fails on the first sign-in attempt. Run the command above
+once, on purpose, rather than assuming it matches.
+
+> **If the host does not resolve, nothing downstream can work.** No redeploy, no
+dashboard setting and no code change will fix it. Supabase pauses free-tier
+projects after a stretch of inactivity and removes the DNS record; the dashboard
+then offers a **Restore project** button. Full diagnosis:
+> [troubleshooting.md §1](troubleshooting.md#1-failed-to-fetch-on-the-sign-in-page).
+
+---
+
+## 4. Turn sign-ups on
 
 **Authentication → Sign In / Providers → User Signups**
 
@@ -68,7 +119,7 @@ region matters little — only sign-in traffic touches it. The free tier covers
 
 ---
 
-## 4. The email decision (read this)
+## 5. The email decision (read this)
 
 **Confirm email** decides whether a new account must click a link before it can
 sign in.
@@ -96,7 +147,7 @@ trade.
 
 ---
 
-## 5. Enable Google
+## 6. Enable Google
 
 Enabling the provider in Supabase is only half of it — Google also has to know
 about your Supabase project.
@@ -126,7 +177,7 @@ paste the Client ID and Client secret → **Save**.
 
 ---
 
-## 6. Site URL and redirects
+## 7. Site URL and redirects
 
 **Authentication → URL Configuration**. This is what stops Google from dropping
 people on `localhost`.
@@ -143,7 +194,7 @@ string.
 
 ---
 
-## 7. Where to find the two public values
+## 8. Where to find the two public values
 
 In the Supabase dashboard:
 
@@ -164,7 +215,7 @@ per-user filtering in the app.
 
 ---
 
-## 8. Where to put them in Vercel
+## 9. Where to put them in Vercel
 
 **Vercel → your project → Settings → Environment Variables.**
 
@@ -198,7 +249,7 @@ The Playwright suite sets that flag for itself.
 
 ---
 
-## 9. Deploy
+## 10. Deploy
 
 ```bash
 npx vercel login      # once, if the CLI is not authenticated
@@ -213,7 +264,7 @@ No CLI? **Deployments → ⋯ → Redeploy** in the dashboard does the same thin
 
 ---
 
-## 10. Verify
+## 11. Verify
 
 Use a **private/incognito window** so you are not already signed in.
 
@@ -236,7 +287,7 @@ Use a **private/incognito window** so you are not already signed in.
 
 ---
 
-## 11. How sign-in works in the code
+## 12. How sign-in works in the code
 
 | File | Role |
 | --- | --- |
@@ -261,7 +312,7 @@ deployment is visibly broken rather than silently public.
 
 ---
 
-## 12. Managing users
+## 13. Managing users
 
 | Task | Where |
 | --- | --- |
@@ -273,33 +324,34 @@ deployment is visibly broken rather than silently public.
 > **Deleting a Supabase user does not delete their tasks.** The rows are keyed by
 > the Supabase user id and nothing cascades across services. Recreate the same
 > account and the old data reappears — useful as an undo, but it means removal
-> needs a separate data cleanup. See §14.
+> needs a separate data cleanup. See §15.
 
 ---
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `/login` never appears; the app is still open | the deployment predates the variables, or they are not on this environment | confirm §8, then **redeploy** |
-| Every new user bounces to `/login?error=not_allowed` | `KAIROS_ALLOWED_EMAILS` is still set | delete it (§8) and redeploy |
-| `redirect_uri_mismatch` from Google | the redirect URI is not the Supabase callback | fix §5 step 4 |
-| Google sign-in returns, then bounces to `/login` | Redirect URLs do not include `…/**` | fix §6 |
-| Nobody receives a confirmation email | built-in SMTP rate limit | add your own SMTP or turn confirmation off (§4) |
+| `/login` never appears; the app is still open | the deployment predates the variables, or they are not on this environment | confirm §9, then **redeploy** |
+| Every new user bounces to `/login?error=not_allowed` | `KAIROS_ALLOWED_EMAILS` is still set | delete it (§9) and redeploy |
+| Sign-in shows a bare **Failed to fetch** | the browser could not reach Supabase at all | [troubleshooting.md §1](troubleshooting.md#1-failed-to-fetch-on-the-sign-in-page) — check the URL resolves, then the key's `ref` |
+| `redirect_uri_mismatch` from Google | the redirect URI is not the Supabase callback | fix §6 step 4 |
+| Google sign-in returns, then bounces to `/login` | Redirect URLs do not include `…/**` | fix §7 |
+| Nobody receives a confirmation email | built-in SMTP rate limit | add your own SMTP or turn confirmation off (§5) |
 | `Invalid login credentials` | wrong password, or the account was never confirmed | reset the password, or resend the confirmation |
-| Console: CSP blocks `https://<ref>.supabase.co` | the app was built before the variables existed | redeploy — the CSP reads the same variable |
+| Console: CSP blocks `https://<ref>.supabase.co` | the app was built before the variables existed, or with an old ref | redeploy — the CSP reads the same variable ([troubleshooting.md §2](troubleshooting.md#2-which-supabase-project-is-my-build-using)) |
 | Sign-in works but the app 500s | the database is missing the multi-user migration | [`deployment.md`](deployment.md) §7 |
 | Locked out while fixing something | — | set `KAIROS_AUTH_DISABLED=true` in Vercel, redeploy, fix, then remove it |
 
 ---
 
-## 14. Before you go properly public
+## 15. Before you go properly public
 
 The app is functional and isolated, but a few things a public service needs are
 not built yet:
 
 - **Account deletion.** A user cannot delete their account, and deleting them in
-  Supabase leaves their tasks behind (§12). Either build a "delete my data" flow
+  Supabase leaves their tasks behind (§13). Either build a "delete my data" flow
   or accept keeping a manual process.
 - **Rate limiting** on sign-up, so the endpoint cannot be scripted.
 - **A privacy policy and terms**, since you are collecting email addresses.

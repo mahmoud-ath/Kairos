@@ -1,10 +1,16 @@
-# Deploying Kairos
+# Part 1 — Database and hosting
 
-A complete, start-to-finish guide for putting Kairos on the internet.
+Prisma Postgres + Vercel. This is the first half of
+**[the deployment guide](README.md)**; Part 2 adds sign-in
+([auth-setup.md](auth-setup.md)).
 
 > **Target setup:** [Vercel](https://vercel.com) runs the app, [Prisma
 > Postgres](https://prisma.io/postgres) stores the data.
 > **Time:** about 20 minutes. **Cost:** free tiers on both.
+>
+> **Done when** `/api/health` answers `{"ok":true,"database":"ok"}`. Until then,
+> ignore anything about sign-in — fix this half first, because a wrong database
+> URL makes later steps fail in ways that look unrelated.
 
 ---
 
@@ -18,7 +24,7 @@ A complete, start-to-finish guide for putting Kairos on the internet.
 6. [Set the environment variables](#6-set-the-environment-variables)
 7. [Create the tables (migrations)](#7-create-the-tables-migrations)
 8. [Deploy and verify](#8-deploy-and-verify)
-9. [Secure it with sign-in](#9-secure-it-with-sign-in)
+9. [Let people sign in](#9-let-people-sign-in)
 10. [Reference: environment variables](#10-reference-environment-variables)
 11. [Reference: everyday operations](#11-reference-everyday-operations)
 12. [Troubleshooting](#12-troubleshooting)
@@ -157,15 +163,41 @@ Three rules that matter:
 3. **Tick Production, Preview *and* Development.** A Production-only value breaks
    preview deployments, which is confusing to debug later.
 
-Prefer the command line? The CLI prompts for the value, so it never lands in your
-shell history:
+### Doing this from the command line
+
+The CLI is quicker than the dashboard, and it keeps values out of your shell
+history — but it has one trap worth knowing before you use it.
+
+If a value *looks like a credential*, the CLI stops at an interactive prompt
+asking how to store it. If stdin closes at that point the variable is **silently
+not saved** — and if you removed the old one with `env rm` first, it is now gone
+entirely. That failure is easy to miss, because the command appears to succeed.
+
+Use the non-interactive form and set all three environments in one call:
 
 ```bash
-npx vercel env add DIRECT_URL production
+npx vercel env add DATABASE_URL production,preview,development \
+  --value "postgres://…pooled…" --no-sensitive --force --yes
+
+npx vercel env add DIRECT_URL production,preview,development \
+  --value "postgres://…direct…" --no-sensitive --force --yes
+
+npx vercel env add NEXT_PUBLIC_APP_URL production,preview,development \
+  --value "https://<your-project>.vercel.app" --no-sensitive --force --yes
+```
+
+`--no-sensitive` stores the value as **Config** so it stays readable later.
+
+Then read back what actually landed, rather than trusting the command's output:
+
+```bash
+npx vercel env pull /tmp/check.env --environment=production --yes
+grep -E "DATABASE_URL|DIRECT_URL|NEXT_PUBLIC_APP_URL" /tmp/check.env
 ```
 
 Either way, **environment variables are captured when a deployment is built.**
-Changing them does nothing until you deploy again.
+Changing them does nothing until you deploy again. See
+[troubleshooting.md §5](troubleshooting.md#5-setting-variables-from-the-vercel-cli).
 
 ---
 
@@ -324,6 +356,22 @@ bun run dev
 
 No Docker? See [Docker & self-hosting](#13-alternatives) below.
 
+Two traps worth knowing now, because both waste a lot of time later:
+
+- **`bun run dev` and `next start` read different files.** Dev loads `.env`; a
+  local production run (`bun run build && bun start`) *also* loads
+  `.env.production.local`, so it talks to the **remote** database. `/api/health`
+  can then answer `503 {"ok":false,"database":"error"}` — expected, not a bug.
+  Use `bun run dev` for local work.
+- **A real environment variable beats a `.env` file.** If you ever ran
+  `export DATABASE_URL=…` in a shell, that value wins over `.env.local` for as
+  long as the shell lives. The file on disk looks perfectly correct while the app
+  ignores it. Test config-dependent behaviour in a clean environment:
+
+  ```bash
+  env -u DATABASE_URL -u DIRECT_URL bun run dev
+  ```
+
 ### Checks before you push
 
 ```bash
@@ -352,7 +400,13 @@ npx vercel logs https://<your-project>.vercel.app
 | `prepared statement` or lock errors during a migration | the pooled string was used for `prisma migrate` | use the **direct** host for `DIRECT_URL` |
 | `Too many connections` | app traffic is on the direct host | `DATABASE_URL` must be the **pooled** host |
 | `Application error … Digest: 1234567890` | Next.js is hiding the message | read the runtime logs |
-| pages still show old behaviour after changing a variable | environment variables are captured at build time | redeploy |
+| pages still show old behaviour after changing a variable | environment variables are captured at build time | redeploy — see [troubleshooting.md §3](troubleshooting.md#3-i-changed-a-variable-and-nothing-happened) |
+| every route shows *"Kairos is misconfigured: authentication is enabled but Supabase is not set up"* | the sign-in variables are missing, and the gate fails closed on purpose | Part 2 — [`auth-setup.md`](auth-setup.md) §9 |
+| sign-in shows a bare **Failed to fetch** | the browser could not reach Supabase at all | [`troubleshooting.md` §1](troubleshooting.md#1-failed-to-fetch-on-the-sign-in-page) |
+
+When the log is empty, the request never reached your server — that is a browser
+problem, not a database one. Start at
+[troubleshooting.md](troubleshooting.md).
 
 ---
 

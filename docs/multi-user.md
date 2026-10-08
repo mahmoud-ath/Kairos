@@ -1,6 +1,8 @@
 # Multi-user: private workspaces
 
-> **Status:** design agreed, implementation not started.
+> **Status:** implemented. This page is the **design rationale**, not a how-to —
+> for the walkthrough see [auth-setup.md](auth-setup.md) and
+> [deployment.md](deployment.md).
 > **Goal:** anyone can sign up (email/password or Google) and gets their own
 > private set of tasks, categories and settings — free to use.
 >

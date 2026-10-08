@@ -25,11 +25,12 @@ Run the whole check suite — all four must pass:
 ```bash
 bun run typecheck
 bun run lint
-bun test
-bun run test:e2e      # builds the app, then runs Playwright
+bun run test
+bun run test:integration   # needs a local PostgreSQL; refuses to run against a remote host
+bun run test:e2e           # builds the app, then runs Playwright
 ```
 
-The end-to-end suite (`tests/e2e`) shares one throw-away SQLite database per run,
+The end-to-end suite (`tests/e2e`) shares one throw-away PostgreSQL database per run,
 so specs must not depend on the workspace being empty. `task-workflow.spec.ts`
 resets all data through the settings UI before it starts; the other specs only
 touch tasks they created themselves. Note that Playwright can see the previous
