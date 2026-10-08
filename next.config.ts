@@ -19,6 +19,18 @@ const supabaseConnectSrc = supabaseOrigin
   ? [supabaseOrigin, supabaseOrigin.replace(/^http/, "ws")]
   : [];
 
+// This policy is compiled from the value above, so a build that is missing it
+// blocks every call to Supabase — which the browser reports as a bare "Failed to
+// fetch", with nothing in the logs to explain it. Say so at build time instead.
+if (!supabaseOrigin && process.env.KAIROS_AUTH_DISABLED !== "true") {
+  console.warn(
+    "[kairos] NEXT_PUBLIC_SUPABASE_URL is not set for this build, so the Content " +
+      "Security Policy will not allow the Supabase origin. Sign-in will fail with " +
+      '"Failed to fetch". Set it before building (docs/auth-setup.md), or set ' +
+      "KAIROS_AUTH_DISABLED=true to run without sign-in.",
+  );
+}
+
 const connectSrc = [
   "'self'",
   ...(isDev ? ["ws:", "wss:"] : []),
