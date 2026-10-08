@@ -1,7 +1,7 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { buildViewCounts } from "@/lib/views";
 import { todayDateOnly } from "@/lib/dates";
-import { requireUser } from "@/server/auth";
+import { isAuthDisabled, requireUserId } from "@/server/auth";
 import { getSettingsRecord } from "@/server/services/settings";
 import { listTaskSummaries } from "@/server/services/tasks";
 import { listCategories } from "@/server/services/taxonomy";
@@ -12,14 +12,14 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // A signed-out visitor is redirected before any query runs below.
-  const user = await requireUser();
+  const userId = await requireUserId();
 
-  const settings = await getSettingsRecord();
+  const settings = await getSettingsRecord(userId);
   const today = todayDateOnly(settings.timezone);
 
   const [categories, summaries] = await Promise.all([
-    listCategories(),
-    listTaskSummaries(),
+    listCategories(userId),
+    listTaskSummaries(userId),
   ]);
 
   const data: AppData = {
@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     today,
     categories,
     counts: buildViewCounts(summaries, today),
-    authEnabled: Boolean(user),
+    authEnabled: !isAuthDisabled(),
   };
 
   return <AppShell data={data}>{children}</AppShell>;

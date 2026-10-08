@@ -2,7 +2,7 @@ import "server-only";
 
 import { addDays } from "@/lib/dates";
 import { dateOnlyToDate, todayDateOnly } from "@/lib/dates";
-import { prisma } from "@/server/db";
+import { scopedPrisma } from "@/server/db";
 import { recordTaskEvent } from "@/server/services/events";
 import { ServiceError } from "@/server/services/tasks";
 import { getSettings } from "@/server/services/settings";
@@ -18,7 +18,10 @@ import { getSettings } from "@/server/services/settings";
  * only when the database is still completely empty, so a real workspace can
  * never be polluted with demo data.
  */
-export async function loadExampleTasks(): Promise<{ tasks: number; categories: number }> {
+export async function loadExampleTasks(
+  userId: string,
+): Promise<{ tasks: number; categories: number }> {
+  const prisma = scopedPrisma(userId);
   const [taskCount, categoryCount] = await Promise.all([
     prisma.task.count(),
     prisma.category.count(),
@@ -30,14 +33,20 @@ export async function loadExampleTasks(): Promise<{ tasks: number; categories: n
     );
   }
 
-  const settings = await getSettings();
+  const settings = await getSettings(userId);
   const today = todayDateOnly(settings.timezone);
   const day = (offset: number) => dateOnlyToDate(addDays(today, offset));
 
   const [work, personal, learning] = await Promise.all([
-    prisma.category.create({ data: { name: "Work", color: "#3b82f6", position: 0 } }),
-    prisma.category.create({ data: { name: "Personal", color: "#22c55e", position: 1 } }),
-    prisma.category.create({ data: { name: "Learning", color: "#8b5cf6", position: 2 } }),
+    prisma.category.create({
+      data: { userId, name: "Work", color: "#3b82f6", position: 0 },
+    }),
+    prisma.category.create({
+      data: { userId, name: "Personal", color: "#22c55e", position: 1 },
+    }),
+    prisma.category.create({
+      data: { userId, name: "Learning", color: "#8b5cf6", position: 2 },
+    }),
   ]);
 
   const plan = [
@@ -111,6 +120,7 @@ export async function loadExampleTasks(): Promise<{ tasks: number; categories: n
     const completed = "completed" in item && item.completed === true;
     const task = await prisma.task.create({
       data: {
+        userId,
         title: item.title,
         notes: "notes" in item ? (item.notes as string) : null,
         categoryId: item.categoryId,
@@ -136,6 +146,7 @@ export async function loadExampleTasks(): Promise<{ tasks: number; categories: n
     for (const subtaskTitle of item.subtasks) {
       await prisma.task.create({
         data: {
+          userId,
           title: subtaskTitle,
           parentId: task.id,
           categoryId: item.categoryId,

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { allowedEmails, isEmailAllowed } from "@/lib/auth-rules";
+import { allowedEmails, isEmailAllowed, safeNextPath } from "@/lib/auth-rules";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -35,5 +35,24 @@ describe("isEmailAllowed", () => {
     expect(isEmailAllowed("intruder@example.com")).toBe(false);
     expect(isEmailAllowed(null)).toBe(false);
     expect(isEmailAllowed(undefined)).toBe(false);
+  });
+});
+
+describe("safeNextPath", () => {
+  it("keeps a path on this app", () => {
+    expect(safeNextPath("/today")).toBe("/today");
+    expect(safeNextPath("/categories/abc?x=1")).toBe("/categories/abc?x=1");
+  });
+
+  it("falls back to /today when nothing was asked for", () => {
+    expect(safeNextPath(undefined)).toBe("/today");
+    expect(safeNextPath(null)).toBe("/today");
+    expect(safeNextPath("")).toBe("/today");
+  });
+
+  it("refuses to become an open redirect", () => {
+    expect(safeNextPath("https://evil.example.com")).toBe("/today");
+    expect(safeNextPath("//evil.example.com")).toBe("/today");
+    expect(safeNextPath("javascript:alert(1)")).toBe("/today");
   });
 });

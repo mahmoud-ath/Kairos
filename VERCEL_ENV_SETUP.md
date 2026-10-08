@@ -1,7 +1,11 @@
 # Vercel environment variables — detailed setup
 
-> Step 2 of the roadmap in [`DEPLOYMENT.md`](DEPLOYMENT.md) §11.
-> Project: `mahmoud-aths-projects/kairos` · alias `kairos-zeta-ivory.vercel.app`
+> ⚠️ **Superseded.** For a new deployment use
+> **[docs/deployment.md](docs/deployment.md)** §6.
+>
+> Kept as a reference for the environment-variable form specifically: the
+> dashboard and CLI alternatives, the paste traps, and a per-error troubleshooting
+> table. The project name below refers to one particular deployment.
 
 ---
 
@@ -65,11 +69,16 @@ They look like this:
 
 ```bash
 # Pooled — application traffic
-postgres://USER:PASSWORD@pooled.db.prisma.io:5432/postgres?sslmode=require
+postgres://<your-user>:<your-password>@pooled.db.prisma.io:5432/postgres?sslmode=require
 
 # Direct — migrations and admin tooling
-postgres://USER:PASSWORD@db.prisma.io:5432/postgres?sslmode=require
+postgres://<your-user>:<your-password>@db.prisma.io:5432/postgres?sslmode=require
 ```
+
+> The angle brackets are placeholders. The real username is a long random hex
+> string and the password starts with `sk_` — copy them from the Console. A string
+> still containing `USER`, `PASSWORD` or `…` will fail with
+> `P1001 Can't reach database server`, which looks like a network error but is not.
 
 ### 1.3 How to tell them apart
 

@@ -1,4 +1,12 @@
-# Deploying Kairos — Docker vs Vercel, databases, and free options
+# Deployment background and alternatives
+
+> ⚠️ **This is not the guide for a new user.** Start with
+> **[docs/deployment.md](docs/deployment.md)** — a complete, step-by-step
+> walkthrough from an empty GitHub repo to a running site.
+>
+> This file is the *background*: why Vercel and Docker differ, what breaks on
+> serverless, alternative hosting and database providers, the Supabase-for-Postgres
+> runbook, and the Prisma ORM 8 analysis.
 
 > Scope: this document is about **where Kairos runs and where its data lives**.
 > It assumes v1 as shipped (SQLite + Prisma, single instance, **no authentication**).

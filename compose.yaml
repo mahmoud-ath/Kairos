@@ -4,9 +4,12 @@
 #   cp .env.example .env      # adjust the published port if needed
 #   docker compose up -d --build
 #
-# The app is published on 127.0.0.1 by default. Kairos is only protected by the
-# Supabase sign-in gate: with NEXT_PUBLIC_SUPABASE_URL unset there is NO
-# authentication, so do not expose it to the public internet.
+# The app is published on 127.0.0.1 by default. Supabase Auth is the only access
+# control, and the gate fails closed: with no NEXT_PUBLIC_SUPABASE_URL the app
+# refuses to serve requests. Those two values are inlined at BUILD time, so put
+# them in .env and rebuild — or set KAIROS_AUTH_DISABLED=true to run without
+# sign-in, and keep the port on 127.0.0.1 if you do, because every visitor then
+# shares one workspace.
 #
 # Data lives in PostgreSQL, not in the image. On Vercel you point DATABASE_URL
 # and DIRECT_URL at Supabase instead of this `db` service (see DEPLOYMENT.md).
@@ -51,6 +54,9 @@ services:
       DIRECT_URL: "postgresql://kairos:${KAIROS_DB_PASSWORD:-kairos}@db:5432/kairos"
       PORT: "3000"
       NODE_ENV: production
+      # Runtime knob: "true" runs this stack without sign-in. The NEXT_PUBLIC_*
+      # pair cannot be passed here — it is inlined into the build.
+      KAIROS_AUTH_DISABLED: "${KAIROS_AUTH_DISABLED:-false}"
     stop_grace_period: 15s
 
 volumes:

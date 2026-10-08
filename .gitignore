@@ -26,9 +26,18 @@ prisma/dev.db-journal
 backups/
 
 # Environment / secrets
+# `.env.*.local` covers .env.production.local, .env.vercel.local, …
+# The plain per-environment files are listed explicitly: they hold the same
+# secrets but are NOT matched by the *.local rule.
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+.env.staging
+.env.test
+# Keep the documented template tracked:
+!.env.example
 
 # Logs
 npm-debug.log*
@@ -49,3 +58,5 @@ blob-report/
 .vscode/*
 !.vscode/extensions.json
 *.tsbuildinfo
+.vercel
+.env*

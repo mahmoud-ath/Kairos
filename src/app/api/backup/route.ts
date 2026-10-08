@@ -1,6 +1,6 @@
 import { exportBackup } from "@/server/services/backup";
 import { todayDateOnly } from "@/lib/dates";
-import { getCurrentUser, isAuthDisabled } from "@/server/auth";
+import { getCurrentUser, isAuthDisabled, requireUserId } from "@/server/auth";
 import { getSettingsRecord } from "@/server/services/settings";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,11 @@ export async function GET() {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const [backup, settings] = await Promise.all([exportBackup(), getSettingsRecord()]);
+  const userId = await requireUserId();
+  const [backup, settings] = await Promise.all([
+    exportBackup(userId),
+    getSettingsRecord(userId),
+  ]);
   const filename = `kairos-backup-${todayDateOnly(settings.timezone)}.json`;
 
   return new Response(JSON.stringify(backup, null, 2), {

@@ -48,15 +48,21 @@ const UNCATEGORIZED = { id: null, name: "Uncategorized", color: "#94a3b8" };
  * immutable `TaskEvent` rows, so a task that is reopened today still counts as
  * completed on the day it was actually finished.
  */
-export async function getStatistics(options: {
-  scope: ViewScope;
-  today: string;
-  timeZone: string;
-  windowDays: number;
-}): Promise<StatisticsPayload> {
+export async function getStatistics(
+  userId: string,
+  options: {
+    scope: ViewScope;
+    today: string;
+    timeZone: string;
+    windowDays: number;
+  },
+): Promise<StatisticsPayload> {
   const { scope, today, timeZone, windowDays } = options;
 
-  const [tasks, categories] = await Promise.all([listTasks(), listCategories()]);
+  const [tasks, categories] = await Promise.all([
+    listTasks(userId),
+    listCategories(userId),
+  ]);
 
   const scoped = selectScopedTasks(scope, tasks, today);
   const subtasks = scoped.flatMap((task) =>
@@ -66,7 +72,7 @@ export async function getStatistics(options: {
   const days = lastNDays(today, windowDays);
   // Fetch a little more than the window so timezone offsets cannot clip a day.
   const since = dateOnlyToDate(addDays(today, -(windowDays + 2)));
-  const events = await listEventsSince(since);
+  const events = await listEventsSince(userId, since);
   const activity = buildActivitySeries(events, days, timeZone);
 
   const categoryBreakdown = buildCategoryBreakdown(tasks, categories);

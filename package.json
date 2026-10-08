@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "env -u DATABASE_URL -u DIRECT_URL vitest run --config vitest.integration.config.ts",
     "test:e2e": "bun run build && playwright test",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",

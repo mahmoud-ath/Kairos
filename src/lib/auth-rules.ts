@@ -21,3 +21,15 @@ export function isEmailAllowed(email: string | null | undefined): boolean {
   if (!email) return false;
   return allowed.includes(email.toLowerCase());
 }
+
+/**
+ * Where to send somebody after signing in.
+ *
+ * Only a path on this app is ever accepted — never an absolute URL, and never a
+ * protocol-relative `//host` — so a crafted `?next=` cannot turn the sign-in page
+ * into an open redirect.
+ */
+export function safeNextPath(value: string | null | undefined): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/today";
+  return value;
+}

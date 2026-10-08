@@ -7,14 +7,15 @@ import {
   type BackupSummary,
 } from "@/lib/backup";
 import { dateOnlyToDate } from "@/lib/dates";
-import { prisma } from "@/server/db";
+import { scopedPrisma } from "@/server/db";
 import { ServiceError } from "@/server/services/tasks";
-import { getSettings, SETTINGS_ID } from "@/server/services/settings";
+import { getSettings } from "@/server/services/settings";
 
-/** Build a complete, versioned export of the database. */
-export async function exportBackup(): Promise<BackupFile> {
+/** Build a complete, versioned export of one user's data. */
+export async function exportBackup(userId: string): Promise<BackupFile> {
+  const prisma = scopedPrisma(userId);
   const [settings, categories, tasks, events] = await Promise.all([
-    getSettings(),
+    getSettings(userId),
     prisma.category.findMany({ orderBy: { position: "asc" } }),
     prisma.task.findMany({ orderBy: [{ position: "asc" }, { id: "asc" }] }),
     prisma.taskEvent.findMany({ orderBy: { timestamp: "asc" } }),
@@ -33,14 +34,19 @@ export async function exportBackup(): Promise<BackupFile> {
 }
 
 /**
- * Replace the entire database with the contents of a backup file.
+ * Replace one user's data with the contents of a backup file.
  *
  * The file is fully validated (including cross-references) before this runs, and
  * everything is written inside one transaction: if any row fails, the existing
- * data stays exactly as it was. Version 1 files are accepted; their labels and
- * priorities are ignored because Kairos no longer has them.
+ * data stays exactly as it was. Only the calling user's rows are touched.
+ * Version 1 files are accepted; their labels and priorities are ignored because
+ * Kairos no longer has them.
  */
-export async function importBackup(raw: unknown): Promise<{ summary: BackupSummary }> {
+export async function importBackup(
+  userId: string,
+  raw: unknown,
+): Promise<{ summary: BackupSummary }> {
+  const prisma = scopedPrisma(userId);
   const validation = validateBackup(raw);
   if (!validation.ok) {
     throw new ServiceError(
@@ -62,6 +68,7 @@ export async function importBackup(raw: unknown): Promise<{ summary: BackupSumma
         await tx.category.create({
           data: {
             id: category.id,
+            userId,
             name: category.name,
             color: category.color,
             position: category.position,
@@ -82,6 +89,7 @@ export async function importBackup(raw: unknown): Promise<{ summary: BackupSumma
         await tx.task.create({
           data: {
             id: task.id,
+            userId,
             title: task.title,
             notes: task.notes ?? null,
             status: task.status,
@@ -112,6 +120,7 @@ export async function importBackup(raw: unknown): Promise<{ summary: BackupSumma
         await tx.taskEvent.create({
           data: {
             id: event.id,
+            userId,
             taskId: event.taskId && taskIds.has(event.taskId) ? event.taskId : null,
             action: event.action,
             timestamp: new Date(event.timestamp),
@@ -121,14 +130,14 @@ export async function importBackup(raw: unknown): Promise<{ summary: BackupSumma
       }
 
       await tx.settings.upsert({
-        where: { id: SETTINGS_ID },
+        where: { userId },
         update: {
           theme: data.settings.theme,
           timezone: data.settings.timezone,
           weekStartsOn: data.settings.weekStartsOn,
         },
         create: {
-          id: SETTINGS_ID,
+          userId,
           theme: data.settings.theme,
           timezone: data.settings.timezone,
           weekStartsOn: data.settings.weekStartsOn,
@@ -141,13 +150,14 @@ export async function importBackup(raw: unknown): Promise<{ summary: BackupSumma
   return { summary: validation.summary };
 }
 
-/** Delete everything and start over with default settings. */
-export async function resetAllData(): Promise<void> {
+/** Delete one user's data and start over with default settings. */
+export async function resetAllData(userId: string): Promise<void> {
+  const prisma = scopedPrisma(userId);
   await prisma.$transaction(async (tx) => {
     await tx.taskEvent.deleteMany();
     await tx.task.deleteMany();
     await tx.category.deleteMany();
     await tx.settings.deleteMany();
   });
-  await getSettings(); // recreate the singleton with defaults
+  await getSettings(userId); // recreate this user's row with defaults
 }

@@ -25,7 +25,7 @@ export async function createSupabaseServerClient() {
 
   if (!url || !anonKey) {
     throw new Error(
-      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (see DEPLOYMENT.md §10.9).",
+      "Authentication is enabled but Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (see docs/auth-setup.md), or set KAIROS_AUTH_DISABLED=true for local development.",
     );
   }
 

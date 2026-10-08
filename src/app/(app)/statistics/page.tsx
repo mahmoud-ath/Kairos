@@ -4,6 +4,7 @@ import { StatisticsView } from "@/components/statistics/statistics-view";
 import { isValidActivityWindow } from "@/lib/stats";
 import { todayDateOnly } from "@/lib/dates";
 import { viewMetadata } from "@/lib/site";
+import { requireUserId } from "@/server/auth";
 import { getStatistics } from "@/server/services/statistics";
 import { getSettingsRecord } from "@/server/services/settings";
 
@@ -23,10 +24,11 @@ export default async function StatisticsPage({
   const requested = Number(params.range ?? 7);
   const windowDays = isValidActivityWindow(requested) ? requested : 7;
 
-  const settings = await getSettingsRecord();
+  const userId = await requireUserId();
+  const settings = await getSettingsRecord(userId);
   const today = todayDateOnly(settings.timezone);
 
-  const statistics = await getStatistics({
+  const statistics = await getStatistics(userId, {
     scope: { kind: "all" },
     today,
     timeZone: settings.timezone,

@@ -9,6 +9,7 @@ import { siteUrl } from "@/lib/site";
  * user's own data, so they are not advertised in a public sitemap.
  */
 const VIEWS: MetadataRoute.Sitemap = [
+  { url: siteUrl("/register"), changeFrequency: "monthly", priority: 0.9 },
   { url: siteUrl("/today"), changeFrequency: "daily", priority: 1 },
   { url: siteUrl("/tasks"), changeFrequency: "daily", priority: 0.8 },
   { url: siteUrl("/completed"), changeFrequency: "weekly", priority: 0.5 },

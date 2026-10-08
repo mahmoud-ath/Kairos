@@ -5,7 +5,7 @@ import { isValidTimeZone } from "@/lib/dates";
 import type { ThemePreference } from "@/types/kairos";
 import { prisma, type Prisma } from "@/server/db";
 
-export const SETTINGS_ID = "singleton";
+// Settings are keyed by their owner; there is no fixed singleton id any more.
 
 export type SettingsRecord = {
   theme: ThemePreference;
@@ -24,24 +24,25 @@ function detectTimeZone(): string {
 }
 
 /**
- * Read the singleton settings row, creating it on first run.
- * The row is never deleted, so `Settings` always has exactly one record.
+ * Read one owner's settings, creating the row on first use.
+ * Every user has exactly one row, keyed by their id.
  */
 export async function getSettings(
+  userId: string,
   db: Prisma.TransactionClient | typeof prisma = prisma,
 ) {
-  const existing = await db.settings.findUnique({ where: { id: SETTINGS_ID } });
+  const existing = await db.settings.findUnique({ where: { userId } });
   if (existing) return existing;
 
   return db.settings.upsert({
-    where: { id: SETTINGS_ID },
+    where: { userId },
     update: {},
-    create: { id: SETTINGS_ID, timezone: detectTimeZone() },
+    create: { userId, timezone: detectTimeZone() },
   });
 }
 
-export async function getSettingsRecord(): Promise<SettingsRecord> {
-  const settings = await getSettings();
+export async function getSettingsRecord(userId: string): Promise<SettingsRecord> {
+  const settings = await getSettings(userId);
   return {
     theme: settings.theme as ThemePreference,
     timezone: settings.timezone,
@@ -49,16 +50,19 @@ export async function getSettingsRecord(): Promise<SettingsRecord> {
   };
 }
 
-export async function updateSettings(values: {
-  theme?: ThemePreference;
-  timezone?: string;
-  weekStartsOn?: number;
-}) {
-  await getSettings();
+export async function updateSettings(
+  userId: string,
+  values: {
+    theme?: ThemePreference;
+    timezone?: string;
+    weekStartsOn?: number;
+  },
+) {
+  await getSettings(userId);
   const data: Prisma.SettingsUpdateInput = {};
   if (values.theme !== undefined) data.theme = values.theme;
   if (values.timezone !== undefined) data.timezone = values.timezone;
   if (values.weekStartsOn !== undefined) data.weekStartsOn = values.weekStartsOn;
 
-  return prisma.settings.update({ where: { id: SETTINGS_ID }, data });
+  return prisma.settings.update({ where: { userId }, data });
 }

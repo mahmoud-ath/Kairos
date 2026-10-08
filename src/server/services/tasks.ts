@@ -9,7 +9,7 @@ import {
 } from "@/lib/task-rules";
 import type { TaskDTO, TaskSummary } from "@/types/kairos";
 import type { CreateTaskValues, UpdateTaskValues } from "@/lib/validation";
-import { prisma, type Prisma } from "@/server/db";
+import { scopedPrisma, type Prisma, type ScopedTx } from "@/server/db";
 import { recordTaskEvent } from "@/server/services/events";
 import {
   serializeTask,
@@ -45,7 +45,8 @@ const TASK_ORDER: Prisma.TaskOrderByWithRelationInput[] = [
  * groups it in the UI with the shared helpers in `src/lib/views.ts`. Statistics
  * and counters are still computed on the server, never sent from the client.
  */
-export async function listTasks(): Promise<TaskDTO[]> {
+export async function listTasks(userId: string): Promise<TaskDTO[]> {
+  const prisma = scopedPrisma(userId);
   const rows = await prisma.task.findMany({
     where: { parentId: null },
     include: TASK_INCLUDE,
@@ -55,7 +56,8 @@ export async function listTasks(): Promise<TaskDTO[]> {
 }
 
 /** Lightweight rows for counters (sidebar and progress panel). */
-export async function listTaskSummaries(): Promise<TaskSummary[]> {
+export async function listTaskSummaries(userId: string): Promise<TaskSummary[]> {
+  const prisma = scopedPrisma(userId);
   const rows = await prisma.task.findMany({
     where: { parentId: null },
     select: {
@@ -72,14 +74,15 @@ export async function listTaskSummaries(): Promise<TaskSummary[]> {
   return rows.map(serializeTaskSummary);
 }
 
-export async function getTask(id: string): Promise<TaskDTO | null> {
+export async function getTask(userId: string, id: string): Promise<TaskDTO | null> {
+  const prisma = scopedPrisma(userId);
   const row = await prisma.task.findUnique({ where: { id }, include: TASK_INCLUDE });
   return row ? serializeTask(row) : null;
 }
 
 /** Id/parent/title triples used by the subtask rule checks. */
 export async function loadTaskLinks(
-  db: Prisma.TransactionClient | typeof prisma = prisma,
+  db: ScopedTx,
 ): Promise<Map<string, TaskParentLink>> {
   const rows = await db.task.findMany({
     select: { id: true, parentId: true, title: true },
@@ -88,7 +91,7 @@ export async function loadTaskLinks(
 }
 
 async function assertCategoryExists(
-  db: Prisma.TransactionClient | typeof prisma,
+  db: ScopedTx,
   categoryId: string,
 ): Promise<void> {
   const category = await db.category.findUnique({
@@ -99,7 +102,7 @@ async function assertCategoryExists(
 }
 
 async function nextSiblingPosition(
-  db: Prisma.TransactionClient | typeof prisma,
+  db: ScopedTx,
   parentId: string | null,
 ): Promise<number> {
   const rows = await db.task.findMany({
@@ -113,7 +116,11 @@ async function nextSiblingPosition(
 /* Writes                                                                     */
 /* -------------------------------------------------------------------------- */
 
-export async function createTask(values: CreateTaskValues): Promise<TaskDTO> {
+export async function createTask(
+  userId: string,
+  values: CreateTaskValues,
+): Promise<TaskDTO> {
+  const prisma = scopedPrisma(userId);
   const parentId = values.parentId ?? null;
   let categoryId = values.categoryId ?? null;
 
@@ -146,6 +153,7 @@ export async function createTask(values: CreateTaskValues): Promise<TaskDTO> {
   const created = await prisma.task.create({
     data: {
       ...(values.id ? { id: values.id } : {}),
+      userId,
       title: values.title,
       notes: values.notes ?? null,
       categoryId,
@@ -166,7 +174,11 @@ export async function createTask(values: CreateTaskValues): Promise<TaskDTO> {
   return serializeTask(created);
 }
 
-export async function updateTask(values: UpdateTaskValues): Promise<TaskDTO> {
+export async function updateTask(
+  userId: string,
+  values: UpdateTaskValues,
+): Promise<TaskDTO> {
+  const prisma = scopedPrisma(userId);
   return prisma.$transaction(async (tx) => {
     const existing = await tx.task.findUnique({
       where: { id: values.id },
@@ -311,9 +323,11 @@ export async function updateTask(values: UpdateTaskValues): Promise<TaskDTO> {
  * state is a no-op, so history cannot be inflated by clicking twice.
  */
 export async function setTaskStatus(
+  userId: string,
   id: string,
   status: "TODO" | "DONE",
 ): Promise<{ changed: boolean; task: TaskDTO }> {
+  const prisma = scopedPrisma(userId);
   return prisma.$transaction(async (tx) => {
     const task = await tx.task.findUnique({
       where: { id },
@@ -365,9 +379,11 @@ export async function setTaskStatus(
 
 /** Toggle a subtask's own status (parents are never auto-completed). */
 export async function setSubtaskStatus(
+  userId: string,
   id: string,
   status: "TODO" | "DONE",
 ): Promise<{ changed: boolean; task: TaskDTO }> {
+  const prisma = scopedPrisma(userId);
   const subtask = await prisma.task.findUnique({
     where: { id },
     select: { id: true, parentId: true },
@@ -421,7 +437,8 @@ export async function setSubtaskStatus(
  * Delete a task. Deleting a parent removes its subtasks (database cascade).
  * The deleted task is returned so the UI can offer undo.
  */
-export async function deleteTask(id: string): Promise<TaskDTO> {
+export async function deleteTask(userId: string, id: string): Promise<TaskDTO> {
+  const prisma = scopedPrisma(userId);
   const task = await prisma.task.findUnique({ where: { id }, include: TASK_INCLUDE });
   if (!task) throw new ServiceError("Task not found.");
   const snapshot = serializeTask(task);
@@ -441,22 +458,26 @@ export async function deleteTask(id: string): Promise<TaskDTO> {
 }
 
 /** Recreate a previously deleted task (used by the undo action). */
-export async function restoreTask(values: {
-  id: string;
-  title: string;
-  notes?: string | null;
-  status?: "TODO" | "DONE";
-  categoryId?: string | null;
-  scheduledDate?: string | null;
-  dueDate?: string | null;
-  position?: number;
-  subtasks?: Array<{
+export async function restoreTask(
+  userId: string,
+  values: {
     id: string;
     title: string;
-    status: "TODO" | "DONE";
-    position: number;
-  }>;
-}): Promise<TaskDTO> {
+    notes?: string | null;
+    status?: "TODO" | "DONE";
+    categoryId?: string | null;
+    scheduledDate?: string | null;
+    dueDate?: string | null;
+    position?: number;
+    subtasks?: Array<{
+      id: string;
+      title: string;
+      status: "TODO" | "DONE";
+      position: number;
+    }>;
+  },
+): Promise<TaskDTO> {
+  const prisma = scopedPrisma(userId);
   const existing = await prisma.task.findUnique({
     where: { id: values.id },
     select: { id: true },
@@ -478,6 +499,7 @@ export async function restoreTask(values: {
     const task = await tx.task.create({
       data: {
         id: values.id,
+        userId,
         title: values.title,
         notes: values.notes ?? null,
         status: values.status ?? "TODO",
@@ -494,6 +516,7 @@ export async function restoreTask(values: {
       await tx.task.create({
         data: {
           id: subtask.id,
+          userId,
           title: subtask.title,
           status: subtask.status,
           position: subtask.position,
@@ -515,12 +538,16 @@ export async function restoreTask(values: {
  * Move a task to another group: a different category, or under (or out of) a
  * parent task. Both moves are validated server-side.
  */
-export async function moveTask(values: {
-  id: string;
-  parentId?: string | null;
-  categoryId?: string | null;
-  scheduledDate?: string | null;
-}): Promise<TaskDTO> {
+export async function moveTask(
+  userId: string,
+  values: {
+    id: string;
+    parentId?: string | null;
+    categoryId?: string | null;
+    scheduledDate?: string | null;
+  },
+): Promise<TaskDTO> {
+  const prisma = scopedPrisma(userId);
   return prisma.$transaction(async (tx) => {
     const existing = await tx.task.findUnique({
       where: { id: values.id },
@@ -613,12 +640,16 @@ export async function moveTask(values: {
  * scheduled-date group. Positions for the whole sibling set are rewritten in
  * one transaction so the order stays consistent.
  */
-export async function reorderTask(values: {
-  id: string;
-  parentId: string | null;
-  scheduledDate?: string | null;
-  targetIndex: number;
-}): Promise<void> {
+export async function reorderTask(
+  userId: string,
+  values: {
+    id: string;
+    parentId: string | null;
+    scheduledDate?: string | null;
+    targetIndex: number;
+  },
+): Promise<void> {
+  const prisma = scopedPrisma(userId);
   await prisma.$transaction(async (tx) => {
     const moved = await tx.task.findUnique({
       where: { id: values.id },
@@ -673,8 +704,10 @@ export async function reorderTask(values: {
 
 /** Delete every completed top-level task in scope, with its subtasks. */
 export async function clearCompletedTasks(
+  userId: string,
   scope: { kind: "all" } | { kind: "category"; categoryId: string },
 ): Promise<{ count: number }> {
+  const prisma = scopedPrisma(userId);
   const where: Prisma.TaskWhereInput = { parentId: null, status: "DONE" };
   if (scope.kind === "category") where.categoryId = scope.categoryId;
 

@@ -1,11 +1,12 @@
 import "server-only";
 
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
-import { prisma } from "@/server/db";
+import type { ScopedTx } from "@/server/db";
+import { scopedPrisma } from "@/server/db";
 
-/** Prisma client or an interactive transaction client. */
-export type Db = PrismaClient | Prisma.TransactionClient;
+/** A user-scoped Prisma client, or a transaction opened from one. */
+export type Db = ScopedTx;
 
 /**
  * Append-only progress history.
@@ -43,12 +44,16 @@ export async function recordTaskEvent(
       taskId: event.taskId ?? null,
       action: event.action,
       metadata: JSON.stringify(metadata),
-    },
+      // No `userId` here on purpose: the client the caller passed in is already
+      // scoped, so the owner is stamped for us. The assertion records that this
+      // omission is deliberate rather than a forgotten field.
+    } as Prisma.TaskEventUncheckedCreateInput,
   });
 }
 
-/** Events newer than `since`, used to build historical activity charts. */
-export async function listEventsSince(since: Date) {
+/** Events newer than `since` for one owner, used to build activity charts. */
+export async function listEventsSince(userId: string, since: Date) {
+  const prisma = scopedPrisma(userId);
   return prisma.taskEvent.findMany({
     where: { timestamp: { gte: since } },
     orderBy: { timestamp: "asc" },

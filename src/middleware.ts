@@ -10,15 +10,38 @@ import { isEmailAllowed } from "@/lib/auth-rules";
  * cookies, because Server Components cannot write them. The gate lives here for
  * the same reason: this is the only place that can clear an unwanted session.
  *
- * When Supabase is not configured — local development, Playwright, a private
- * self-hosted instance — the middleware does nothing and Kairos behaves exactly
- * as it did before auth existed.
+ * The gate is on by default. `KAIROS_AUTH_DISABLED=true` switches it off for
+ * local development and the Playwright suite; a deployment that is neither
+ * configured nor explicitly disabled gets an error instead of an open door.
  */
 
 const LOGIN_PATH = "/login";
 
-/** Reachable without a session. Everything else under the matcher is gated. */
-const PUBLIC_PATHS = ["/api/health"];
+/**
+ * Reachable without a session. `/auth/callback` is where Supabase returns the
+ * browser after Google sign-in or an email confirmation, so it must never be
+ * redirected away.
+ */
+const PUBLIC_PATHS = ["/api/health", "/auth/callback"];
+
+/** Pages that only make sense while signed out. */
+const AUTH_PATHS = ["/login", "/register"];
+
+/**
+ * Shown when the gate is on but the Supabase project is missing. This is a
+ * deployment error, so it is loud and it blocks every route — `/api/health`
+ * included, because a health check that passes on a broken deployment is worse
+ * than no health check at all.
+ */
+const CONFIGURATION_ERROR = [
+  "Kairos is misconfigured: authentication is enabled but Supabase is not set up.",
+  "",
+  "Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (docs/auth-setup.md),",
+  "or set KAIROS_AUTH_DISABLED=true to run without sign-in.",
+  "",
+  "That flag is for local development only. It removes the gate that keeps each",
+  "account's tasks separate from everybody else's.",
+].join("\n");
 
 function copyCookies(from: NextResponse, to: NextResponse): NextResponse {
   for (const cookie of from.cookies.getAll()) {
@@ -28,11 +51,24 @@ function copyCookies(from: NextResponse, to: NextResponse): NextResponse {
 }
 
 export async function middleware(request: NextRequest) {
+  // Explicit opt-out, for local development and the Playwright suite only.
+  if (process.env.KAIROS_AUTH_DISABLED === "true") {
+    return NextResponse.next();
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !anonKey || process.env.KAIROS_AUTH_DISABLED === "true") {
-    return NextResponse.next();
+  // Auth is on but the project is not configured: refuse the request. Going
+  // ahead would fall back to one shared workspace, readable by any visitor.
+  if (!url || !anonKey) {
+    return new NextResponse(CONFIGURATION_ERROR, {
+      status: 500,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+      },
+    });
   }
 
   let response = NextResponse.next({ request });
@@ -74,14 +110,15 @@ export async function middleware(request: NextRequest) {
     return redirectTo(LOGIN_PATH, "?error=not_allowed");
   }
 
-  // Already signed in: the sign-in page has nothing to offer.
-  if (user && pathname === LOGIN_PATH) {
+  // Already signed in: the sign-in and sign-up pages have nothing to offer.
+  if (user && AUTH_PATHS.includes(pathname)) {
     return redirectTo("/today");
   }
 
-  const isPublic = PUBLIC_PATHS.some((path) => pathname === path);
+  const isPublic =
+    PUBLIC_PATHS.some((path) => pathname === path) || AUTH_PATHS.includes(pathname);
 
-  if (!user && !isPublic && pathname !== LOGIN_PATH) {
+  if (!user && !isPublic) {
     const next = `${pathname}${request.nextUrl.search}`;
     return redirectTo(LOGIN_PATH, `?next=${encodeURIComponent(next)}`);
   }

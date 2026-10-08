@@ -2,6 +2,7 @@ import { TaskWorkspace } from "@/components/tasks/task-workspace";
 import { todayDateOnly } from "@/lib/dates";
 import type { WorkspaceProgress } from "@/lib/stats";
 import type { ViewScope } from "@/lib/views";
+import { requireUserId } from "@/server/auth";
 import { getStatistics } from "@/server/services/statistics";
 import { getSettingsRecord } from "@/server/services/settings";
 import { listTasks } from "@/server/services/tasks";
@@ -29,12 +30,13 @@ export async function WorkspacePage({
   showCategory?: boolean;
   windowDays?: number;
 }) {
-  const settings = await getSettingsRecord();
+  const userId = await requireUserId();
+  const settings = await getSettingsRecord(userId);
   const today = todayDateOnly(settings.timezone);
 
   const [tasks, statistics] = await Promise.all([
-    listTasks(),
-    getStatistics({ scope, today, timeZone: settings.timezone, windowDays }),
+    listTasks(userId),
+    getStatistics(userId, { scope, today, timeZone: settings.timezone, windowDays }),
   ]);
 
   const progress: WorkspaceProgress = {

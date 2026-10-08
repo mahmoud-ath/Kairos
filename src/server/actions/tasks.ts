@@ -11,7 +11,8 @@ import {
   updateTaskInputSchema,
 } from "@/lib/validation";
 import type { ActionResult, TaskDTO } from "@/types/kairos";
-import { prisma } from "@/server/db";
+import { scopedPrisma } from "@/server/db";
+import { requireUserId } from "@/server/auth";
 import { runAction } from "@/server/actions/helpers";
 import {
   clearCompletedTasks,
@@ -28,16 +29,18 @@ import {
 /** Create a task or a subtask (Enter in the quick-add input, or the details panel). */
 export async function createTaskAction(input: unknown): Promise<ActionResult<TaskDTO>> {
   return runAction(async () => {
+    const userId = await requireUserId();
     const values = createTaskInputSchema.parse(input);
-    return createTask(values);
+    return createTask(userId, values);
   });
 }
 
 /** Update any editable field of a task, including its category and parent. */
 export async function updateTaskAction(input: unknown): Promise<ActionResult<TaskDTO>> {
   return runAction(async () => {
+    const userId = await requireUserId();
     const values = updateTaskInputSchema.parse(input);
-    return updateTask(values);
+    return updateTask(userId, values);
   });
 }
 
@@ -49,21 +52,27 @@ export async function updateTaskAction(input: unknown): Promise<ActionResult<Tas
  */
 export async function setTaskStatusAction(input: unknown): Promise<ActionResult<TaskDTO>> {
   return runAction(async () => {
+    const userId = await requireUserId();
     const { id, status } = setTaskStatusSchema.parse(input);
-    const result = await setTaskStatus(id, status);
+    const result = await setTaskStatus(userId, id, status);
     return result.task;
   });
 }
 
 export async function toggleTaskAction(input: unknown): Promise<ActionResult<TaskDTO>> {
   return runAction(async () => {
+    const userId = await requireUserId();
     const { id } = taskIdSchema.parse(input);
-    const current = await prisma.task.findUnique({
+    const current = await scopedPrisma(userId).task.findUnique({
       where: { id },
       select: { status: true },
     });
     if (!current) throw new ServiceError("Task not found.");
-    const result = await setTaskStatus(id, current.status === "DONE" ? "TODO" : "DONE");
+    const result = await setTaskStatus(
+      userId,
+      id,
+      current.status === "DONE" ? "TODO" : "DONE",
+    );
     return result.task;
   });
 }
@@ -71,24 +80,27 @@ export async function toggleTaskAction(input: unknown): Promise<ActionResult<Tas
 /** Delete a task (and its subtasks). Returns a snapshot so the UI can undo. */
 export async function deleteTaskAction(input: unknown): Promise<ActionResult<TaskDTO>> {
   return runAction(async () => {
+    const userId = await requireUserId();
     const { id } = taskIdSchema.parse(input);
-    return deleteTask(id);
+    return deleteTask(userId, id);
   });
 }
 
 /** Recreate a deleted task with its subtasks. */
 export async function undoDeleteTaskAction(input: unknown): Promise<ActionResult<TaskDTO>> {
   return runAction(async () => {
+    const userId = await requireUserId();
     const values = restoreTaskSchema.parse(input);
-    return restoreTask(values);
+    return restoreTask(userId, values);
   });
 }
 
 /** Reorder a task inside its sibling group, optionally changing its planned day. */
 export async function reorderTaskAction(input: unknown): Promise<ActionResult<undefined>> {
   return runAction(async () => {
+    const userId = await requireUserId();
     const values = reorderTaskSchema.parse(input);
-    await reorderTask({
+    await reorderTask(userId, {
       id: values.id,
       parentId: values.parentId ?? null,
       scheduledDate: values.scheduledDate,
@@ -101,8 +113,9 @@ export async function reorderTaskAction(input: unknown): Promise<ActionResult<un
 /** Move a task to another category, under/out of a parent, or onto a day. */
 export async function moveTaskAction(input: unknown): Promise<ActionResult<TaskDTO>> {
   return runAction(async () => {
+    const userId = await requireUserId();
     const values = moveTaskSchema.parse(input);
-    return moveTask({
+    return moveTask(userId, {
       id: values.id,
       parentId: values.parentId !== undefined ? values.parentId : undefined,
       categoryId: values.categoryId !== undefined ? values.categoryId : undefined,
@@ -116,7 +129,8 @@ export async function clearCompletedAction(
   input: unknown,
 ): Promise<ActionResult<{ count: number }>> {
   return runAction(async () => {
+    const userId = await requireUserId();
     const { scope } = clearCompletedSchema.parse(input);
-    return clearCompletedTasks(scope);
+    return clearCompletedTasks(userId, scope);
   });
 }

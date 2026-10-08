@@ -26,6 +26,8 @@ datasource db {
 
 model Task {
   id            String    @id @default(cuid())
+  // Owner. Kairos is multi-user: every query is filtered by this.
+  userId        String
   title         String
   notes         String?
   status        String    @default("TODO") // TODO | DONE
@@ -43,28 +45,33 @@ model Task {
   subtasks Task[]      @relation("TaskToSubtasks")
   events   TaskEvent[]
 
-  @@index([parentId, position])
-  @@index([categoryId, parentId])
-  @@index([status])
-  @@index([scheduledDate])
-  @@index([dueDate])
-  @@index([completedAt])
+  // Every index leads with userId, because every query filters on it.
+  @@index([userId, parentId, position])
+  @@index([userId, categoryId, parentId])
+  @@index([userId, status])
+  @@index([userId, scheduledDate])
+  @@index([userId, dueDate])
+  @@index([userId, completedAt])
 }
 
 model Category {
   id        String   @id @default(cuid())
-  name      String   @unique
+  userId    String
+  name      String
   color     String   @default("#f97316")
   position  Int      @default(0)
   createdAt DateTime @default(now())
 
   tasks Task[]
 
-  @@index([position])
+  // Names are unique per user, not globally: two people may both have "Work".
+  @@unique([userId, name])
+  @@index([userId, position])
 }
 
 model TaskEvent {
   id        String   @id @default(cuid())
+  userId    String
   taskId    String?
   action    String // created | completed | reopened | deleted | moved | updated
   timestamp DateTime @default(now())
@@ -72,13 +79,14 @@ model TaskEvent {
 
   task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
-  @@index([timestamp])
-  @@index([action, timestamp])
-  @@index([taskId, action])
+  @@index([userId, timestamp])
+  @@index([userId, action, timestamp])
+  @@index([userId, taskId, action])
 }
 
+/// Per-user preferences. The row is keyed by the owner, not by a fixed id.
 model Settings {
-  id           String   @id @default("singleton")
+  userId       String   @id
   theme        String   @default("system") // light | dark | system
   timezone     String   @default("UTC")
   weekStartsOn Int      @default(1) // 0 = Sunday, 1 = Monday

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { WorkspacePage } from "@/components/tasks/workspace-page";
 import { viewMetadata } from "@/lib/site";
+import { requireUserId } from "@/server/auth";
 import { getCategory } from "@/server/services/taxonomy";
 
 export async function generateMetadata({
@@ -11,7 +12,8 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const category = await getCategory(id);
+  const userId = await requireUserId();
+  const category = await getCategory(userId, id);
   const name = category?.name ?? "Category";
   if (!category) return { title: name, robots: { index: false, follow: false } };
 
@@ -29,7 +31,8 @@ export default async function CategoryPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const category = await getCategory(id);
+  const userId = await requireUserId();
+  const category = await getCategory(userId, id);
   if (!category) notFound();
 
   return (

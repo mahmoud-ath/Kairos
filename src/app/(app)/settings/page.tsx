@@ -3,8 +3,9 @@ import type { Metadata } from "next";
 import { BackupPanel } from "@/components/settings/backup-panel";
 import { PreferencesForm } from "@/components/settings/preferences-form";
 import { TaxonomyManager } from "@/components/settings/taxonomy-manager";
+import { requireUserId } from "@/server/auth";
+import { scopedPrisma } from "@/server/db";
 import { getSettingsRecord } from "@/server/services/settings";
-import { prisma } from "@/server/db";
 import { listCategories } from "@/server/services/taxonomy";
 import { viewMetadata } from "@/lib/site";
 
@@ -16,10 +17,11 @@ export const metadata: Metadata = viewMetadata({
 });
 
 export default async function SettingsPage() {
+  const userId = await requireUserId();
   const [settings, categories, taskCount] = await Promise.all([
-    getSettingsRecord(),
-    listCategories(),
-    prisma.task.count({ where: { parentId: null } }),
+    getSettingsRecord(userId),
+    listCategories(userId),
+    scopedPrisma(userId).task.count({ where: { parentId: null } }),
   ]);
 
   return (

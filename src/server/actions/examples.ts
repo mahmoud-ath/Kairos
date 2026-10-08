@@ -1,6 +1,7 @@
 "use server";
 
 import type { ActionResult } from "@/types/kairos";
+import { requireUserId } from "@/server/auth";
 import { runAction } from "@/server/actions/helpers";
 import { loadExampleTasks } from "@/server/services/examples";
 
@@ -11,5 +12,8 @@ import { loadExampleTasks } from "@/server/services/examples";
 export async function loadExampleTasksAction(): Promise<
   ActionResult<{ tasks: number; categories: number }>
 > {
-  return runAction(async () => loadExampleTasks());
+  return runAction(async () => {
+    const userId = await requireUserId();
+    return loadExampleTasks(userId);
+  });
 }
