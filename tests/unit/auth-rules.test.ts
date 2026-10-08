@@ -65,6 +65,10 @@ describe("safeNextPath", () => {
     expect(safeNextPath("javascript:alert(1)")).toBe("/today");
   });
 
+  it("refuses the backslash form, which browsers normalise to //host", () => {
+    expect(safeNextPath("/\\evil.example.com")).toBe("/today");
+  });
+
   it("keeps a nested path on this app", () => {
     expect(safeNextPath("/categories/abc")).toBe("/categories/abc");
     expect(safeNextPath("/settings")).toBe("/settings");

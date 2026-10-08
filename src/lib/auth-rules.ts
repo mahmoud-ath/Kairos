@@ -30,7 +30,10 @@ export function isEmailAllowed(email: string | null | undefined): boolean {
  * into an open redirect.
  */
 export function safeNextPath(value: string | null | undefined): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/today";
+  if (!value || !value.startsWith("/")) return "/today";
+  // "//host" is protocol-relative, and browsers normalise a backslash to a
+  // forward slash, so "/\host" reaches the same place. Refuse both.
+  if (value.startsWith("//") || value.startsWith("/\\")) return "/today";
   return value;
 }
 
