@@ -3,18 +3,16 @@ import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/site";
 
 /**
- * The app views a crawler may index.
+ * The pages a crawler may index.
  *
- * Category pages are deliberately left out: their URLs and names come from the
- * user's own data, so they are not advertised in a public sitemap.
+ * Only the public site is listed. The workspace views are deliberately absent:
+ * they require a session, so a crawler following them would only collect a
+ * redirect to `/login`, and listing a private URL in a public sitemap invites
+ * exactly the indexing the `noindex` in `(app)/layout.tsx` prevents.
  */
 const VIEWS: MetadataRoute.Sitemap = [
+  { url: siteUrl("/"), changeFrequency: "weekly", priority: 1 },
   { url: siteUrl("/register"), changeFrequency: "monthly", priority: 0.9 },
-  { url: siteUrl("/today"), changeFrequency: "daily", priority: 1 },
-  { url: siteUrl("/tasks"), changeFrequency: "daily", priority: 0.8 },
-  { url: siteUrl("/completed"), changeFrequency: "weekly", priority: 0.5 },
-  { url: siteUrl("/statistics"), changeFrequency: "weekly", priority: 0.5 },
-  { url: siteUrl("/settings"), changeFrequency: "monthly", priority: 0.3 },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
