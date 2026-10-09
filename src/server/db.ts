@@ -64,8 +64,20 @@ const FILTERED_OPERATIONS = new Set([
   "upsert",
 ]);
 
-/** Operations that write new rows and therefore need an owner stamp. */
-const STAMPED_OPERATIONS = new Set(["create", "createMany", "upsert"]);
+/** Operations that write new rows through `data` and need an owner stamp. */
+const STAMPED_OPERATIONS = new Set(["create", "createMany"]);
+
+/**
+ * Add `userId` to a write payload, which is a single row or a batch.
+ *
+ * Used for `data` on create/createMany and for `create` on upsert. `update` is
+ * deliberately left alone: a row's owner is not something a write may change.
+ */
+function withOwner(payload: unknown, userId: string): unknown {
+  return Array.isArray(payload)
+    ? payload.map((row) => ({ ...(row as object), userId }))
+    : { ...(payload as object | undefined), userId };
+}
 
 /**
  * A Prisma client that can only see one user's rows.
@@ -114,9 +126,16 @@ export function scopedPrisma(userId: string) {
           }
 
           if (STAMPED_OPERATIONS.has(operation)) {
-            mutable.data = Array.isArray(mutable.data)
-              ? mutable.data.map((row) => ({ ...(row as object), userId }))
-              : { ...(mutable.data as object | undefined), userId };
+            mutable.data = withOwner(mutable.data, userId);
+          }
+
+          // `upsert` writes through `create`, not `data`. Stamping `data` here
+          // produces an argument Prisma rejects outright — `Unknown argument
+          // 'data'. Did you mean 'update'?` — which takes the call, and whatever
+          // transaction it was in, down with it.
+          if (operation === "upsert") {
+            const upsert = args as { create?: unknown };
+            upsert.create = withOwner(upsert.create, userId);
           }
 
           return query(args);

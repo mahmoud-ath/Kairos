@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { scopedPrisma } from "@/server/db";
-import { exportBackup } from "@/server/services/backup";
+import { exportBackup, importBackup, resetAllData } from "@/server/services/backup";
 import { getSettingsRecord, updateSettings } from "@/server/services/settings";
 import { createCategory, listCategories } from "@/server/services/taxonomy";
 import {
@@ -126,6 +126,41 @@ describe("multi-user isolation", () => {
 
     expect(JSON.stringify(await exportBackup(alice))).not.toContain(marker);
     expect(JSON.stringify(await exportBackup(bob))).toContain(marker);
+  });
+
+  /**
+   * The import path is the only place the scoped client *upserts* (it re-creates
+   * the settings row). A regression here is silent until someone restores a
+   * backup, so it is pinned explicitly.
+   */
+  it("round-trips a backup, including the settings upsert", async () => {
+    await createTask(alice, { title: `round-trip-${randomUUID()}` });
+    await updateSettings(alice, {
+      theme: "dark",
+      timezone: "Europe/Berlin",
+      weekStartsOn: 1,
+    });
+
+    const before = (await listTasks(alice)).map((task) => task.id).sort();
+    const file = await exportBackup(alice);
+
+    const { summary } = await importBackup(alice, file);
+
+    expect(summary.tasks).toBeGreaterThan(0);
+    expect((await listTasks(alice)).map((task) => task.id).sort()).toEqual(before);
+    expect((await getSettingsRecord(alice)).timezone).toBe("Europe/Berlin");
+    expect((await getSettingsRecord(alice)).theme).toBe("dark");
+  });
+
+  it("resets only the requesting user's data", async () => {
+    const bobTask = await createTask(bob, { title: `survives-${randomUUID()}` });
+
+    await resetAllData(alice);
+
+    expect(await listTasks(alice)).toEqual([]);
+    expect((await listTasks(bob)).map((task) => task.id)).toContain(bobTask.id);
+    // Resetting re-creates the row through the same upsert.
+    expect((await getSettingsRecord(alice)).timezone).toBeTruthy();
   });
 
   it("refuses to run without an owner", () => {
