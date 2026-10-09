@@ -9,7 +9,9 @@ playwright-report
 blob-report
 .playwright
 
-# Never copy a database, a backup or a secret into an image layer.
+# Never copy a database, a backup or a secret into an image layer. Public
+# configuration travels as build args instead (see compose.yaml); everything
+# else is supplied at runtime by Compose. `.env.example` is only documentation.
 *.db
 *.db-journal
 *.sqlite
@@ -21,6 +23,11 @@ backups
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+.env.staging
+.env.test
+.env.example
 
 .git
 .gitignore

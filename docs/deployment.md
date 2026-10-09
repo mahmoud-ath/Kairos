@@ -295,7 +295,10 @@ Setup takes about five minutes and lives in its own guide:
 
 `NEXT_PUBLIC_*` values are **inlined into the browser bundle at build time**, so
 changing them always requires a new deployment. Forgetting this is the usual
-reason "I set the variable but nothing changed".
+reason "I set the variable but nothing changed". Under `compose.yaml` that means
+`docker compose up -d --build` — Compose passes them as **build arguments** from
+`.env`, while a plain `docker compose up` reuses the image built with the old
+values.
 
 `DATABASE_URL` and `DIRECT_URL` are read at runtime, but a redeploy is still the
 simplest way to be sure.
@@ -419,6 +422,24 @@ it, for a home server, a VPS, or Oracle Cloud's free tier. The database is
 external to the image (`compose.yaml` starts a `db` service); `/data` is no longer
 used. Keep the published port on `127.0.0.1` and reach it over a VPN or an SSH
 tunnel unless the sign-in gate is enabled.
+
+```bash
+cp .env.example .env        # NEXT_PUBLIC_SUPABASE_URL + _ANON_KEY, or KAIROS_AUTH_DISABLED=true
+docker compose up -d --build
+
+docker compose ps                       # kairos should reach "healthy"
+curl -s localhost:3000/api/health       # {"ok":true,"database":"ok"}
+docker compose logs kairos              # migration output + the config warning, if any
+```
+
+The two `NEXT_PUBLIC_SUPABASE_*` values are **build arguments**: `next build`
+inlines them and compiles the CSP `connect-src` from the Supabase origin, so
+Compose forwards them from `.env` at build time and repeats them at runtime.
+Changing them therefore needs `--build`. A build that had none produces a
+failing-closed app — 500 on every route but `/`, the health probe included, which
+is why such a container reports `unhealthy` while its landing page still renders.
+`KAIROS_AUTH_DISABLED=true` is the escape hatch for a single-user box, and it is
+the only setting that makes such a build usable.
 
 ### Other databases
 

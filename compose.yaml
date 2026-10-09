@@ -1,18 +1,14 @@
 # ---------------------------------------------------------------------------
-# Kairos — Docker Compose (self-hosted / local use)
+# Kairos Local — Docker Compose (single-user, self-hosted, local-only)
 #
-#   cp .env.example .env      # adjust the published port if needed
 #   docker compose up -d --build
+#   open http://127.0.0.1:3000
 #
-# The app is published on 127.0.0.1 by default. Supabase Auth is the only access
-# control, and the gate fails closed: with no NEXT_PUBLIC_SUPABASE_URL the app
-# refuses to serve requests. Those two values are inlined at BUILD time, so put
-# them in .env and rebuild — or set KAIROS_AUTH_DISABLED=true to run without
-# sign-in, and keep the port on 127.0.0.1 if you do, because every visitor then
-# shares one workspace.
+# No Supabase. No accounts. No cloud. One workspace, one user, on your machine.
+# Data lives in the `kairos-db` volume and survives rebuilds.
 #
-# Data lives in PostgreSQL, not in the image. On Vercel you point DATABASE_URL
-# and DIRECT_URL at Supabase instead of this `db` service (see DEPLOYMENT.md).
+# Bound to 127.0.0.1 by default so it is never reachable from your LAN.
+# Change KAIROS_BIND_HOST only if you understand the trade-off (see README).
 # ---------------------------------------------------------------------------
 
 services:
@@ -26,21 +22,25 @@ services:
       POSTGRES_DB: kairos
     volumes:
       - kairos-db:/var/lib/postgresql/data
-      # Creates the throw-away database the Playwright suite uses.
       - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kairos -d kairos"]
       interval: 10s
       timeout: 5s
       retries: 5
-    # Not published: only the app container needs to reach PostgreSQL.
     expose:
       - "5432"
 
   kairos:
     build:
       context: .
-    image: kairos:latest
+      # NEXT_PUBLIC_* are inlined at build time. In local mode they are
+      # intentionally empty — the gate is disabled at runtime instead.
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ""
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+        NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000"
+    image: kairos-local:latest
     container_name: kairos
     restart: unless-stopped
     depends_on:
@@ -49,14 +49,17 @@ services:
     ports:
       - "${KAIROS_BIND_HOST:-127.0.0.1}:${KAIROS_PORT:-3000}:3000"
     environment:
-      # The database lives in the `db` service, never inside the image.
       DATABASE_URL: "postgresql://kairos:${KAIROS_DB_PASSWORD:-kairos}@db:5432/kairos"
       DIRECT_URL: "postgresql://kairos:${KAIROS_DB_PASSWORD:-kairos}@db:5432/kairos"
       PORT: "3000"
       NODE_ENV: production
-      # Runtime knob: "true" runs this stack without sign-in. The NEXT_PUBLIC_*
-      # pair cannot be passed here — it is inlined into the build.
-      KAIROS_AUTH_DISABLED: "${KAIROS_AUTH_DISABLED:-false}"
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000"
+      # The whole point of this mode:
+      KAIROS_AUTH_DISABLED: "true"
+      KAIROS_ALLOWED_EMAILS: ""
+      KAIROS_NO_INDEX: "true"
     stop_grace_period: 15s
 
 volumes:

@@ -3,6 +3,12 @@
 # Kairos runs as a single Next.js process against a PostgreSQL database. The
 # database is external — Supabase on Vercel, or the `db` service in
 # compose.yaml — so nothing about the data lives inside this image.
+#
+# Build arguments: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY and
+# NEXT_PUBLIC_APP_URL are consumed by `next build` (they are inlined into the
+# bundle and into the CSP), so they are `ARG`s here, not `ENV`s of the runtime
+# image. `docker build --build-arg …`, or `compose.yaml`, which maps them from
+# `.env`. Omitting them is a valid build: the sign-in gate then fails closed.
 
 # ---------------------------------------------------------------------------
 # Build base: Node 22 + Bun (install/scripts) + openssl for the Prisma engines
@@ -35,6 +41,16 @@ FROM build-base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Public configuration. `next build` inlines NEXT_PUBLIC_* into the client
+# bundle and the middleware, and next.config.ts compiles the CSP from the
+# Supabase origin, so the values must be present here. They stay in this stage:
+# the runtime image is configured through compose.yaml's `environment`.
+ARG NEXT_PUBLIC_SUPABASE_URL=""
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=""
+ARG NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ENV NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL} \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY} \
+    NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 # No database is contacted during the build, but `@/server/db` is evaluated
 # while Next collects route data, so give it a valid-looking placeholder.
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build" \
