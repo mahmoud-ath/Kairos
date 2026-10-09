@@ -15,7 +15,6 @@ export default function CompletedPage() {
     <WorkspacePage
       scope={{ kind: "completed" }}
       title="Completed"
-      subtitle="Finished tasks, most recently completed first."
       emptyTitle="Nothing completed yet"
       emptyDescription="Completed tasks move here so the active lists stay focused."
       showCategory

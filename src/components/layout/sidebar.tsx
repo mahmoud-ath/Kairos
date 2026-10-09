@@ -3,25 +3,23 @@
 import {
   ChartNoAxesColumn,
   LogOut,
-  Monitor,
-  Moon,
   MoreHorizontal,
   Pencil,
   Plus,
   Settings,
-  Sun,
   Trash2,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, startTransition } from "react";
+import { useRef, useState, startTransition } from "react";
 import { toast } from "sonner";
 
 import { useAppData } from "@/components/app-data";
 import { CategoryDeleteDialog } from "@/components/categories/category-delete-dialog";
 import { CategoryDialog } from "@/components/categories/category-dialog";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { ShortcutTrigger } from "@/components/layout/shortcut-provider";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -30,12 +28,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDroppable } from "@dnd-kit/core";
 import { NAME_MAX_LENGTH } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import type { CategoryDTO } from "@/types/kairos";
+import type { CategoryDTO, ThemePreference } from "@/types/kairos";
 import { signOutAction } from "@/server/actions/auth";
+import { updateSettingsAction } from "@/server/actions/settings";
 import { createCategoryAction } from "@/server/actions/taxonomy";
 
 function CategoryRow({
@@ -197,52 +195,20 @@ function QuickAddCategory() {
   );
 }
 
-function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
-  // next-themes resolves the stored theme in the browser, so it is unknown while
-  // the markup is rendered on the server. Keeping the pressed state empty until
-  // after mount avoids a hydration mismatch (and the console error that comes
-  // with it).
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const options = [
-    { value: "light", label: "Light", icon: Sun },
-    { value: "dark", label: "Dark", icon: Moon },
-    { value: "system", label: "System", icon: Monitor },
-  ] as const;
-
-  return (
-    <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
-      {options.map((option) => {
-        const Icon = option.icon;
-        const active = mounted && theme === option.value;
-        return (
-          <Tooltip key={option.value}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={`${option.label} theme`}
-                aria-pressed={active}
-                onClick={() => setTheme(option.value)}
-                className={cn(
-                  "grid h-7 w-7 place-items-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                  active && "bg-accent text-foreground",
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{option.label}</TooltipContent>
-          </Tooltip>
-        );
-      })}
-    </div>
-  );
-}
-
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { categories, counts, authEnabled } = useAppData();
   const pathname = usePathname();
+
+  /**
+   * The toggle already applied the theme; storing it means the choice follows
+   * the account into another browser instead of living only in this one.
+   */
+  async function persistTheme(next: ThemePreference) {
+    const result = await updateSettingsAction({ theme: next });
+    if (!result.ok) {
+      toast.error("Couldn't save the theme", { description: result.error });
+    }
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -250,12 +216,8 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
           K
         </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold leading-none tracking-tight">Kairos</p>
-          <p className="mt-0.5 text-[11px] leading-none text-muted-foreground">
-            Personal task manager
-          </p>
-        </div>
+        <p className="text-sm font-semibold tracking-tight">Kairos</p>
+        <ShortcutTrigger className="ml-auto" />
       </div>
 
       <nav aria-label="Views" className="flex flex-col gap-0.5 px-3 pb-2">
@@ -340,7 +302,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         <div className="mt-3 flex items-center justify-between px-1">
           <span className="text-[11px] text-muted-foreground">Theme</span>
-          <ThemeToggle />
+          <ThemeToggle onChange={(next) => void persistTheme(next)} />
         </div>
 
         {authEnabled ? (

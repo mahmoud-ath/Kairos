@@ -221,7 +221,7 @@ no dates at all, one is already finished, and one is late on purpose so the
 ## Docker
 
 ```bash
-cp .env.example .env          # optional: change the published port
+cp .env.example .env          # set the Supabase pair, or KAIROS_AUTH_DISABLED=true
 docker compose up -d --build
 ```
 
@@ -236,12 +236,24 @@ What the container does and how it is configured:
 - The published port is bound to **`127.0.0.1`** by default
   (`KAIROS_BIND_HOST` / `KAIROS_PORT` in `.env`).
 - A `HEALTHCHECK` polls `/api/health`, which also verifies the database.
-- **Sign-in is on by default and fails closed.** The Supabase values are inlined
-  at *build* time, so set them in `.env` and rebuild — or set
-  `KAIROS_AUTH_DISABLED=true` to run without sign-in, and keep the port on
-  `127.0.0.1` if you do.
+- **Sign-in is on by default and fails closed.** The `NEXT_PUBLIC_*` values are
+  inlined by `next build`, so Compose passes them from `.env` as **build
+  arguments** — change them and run `docker compose up -d --build`. A plain
+  `docker compose up -d` reuses the existing image and silently keeps the old
+  values. With none set, every route but `/` answers 500 and the health check
+  stays 503; set `KAIROS_AUTH_DISABLED=true` to run without sign-in (keep the
+  port on `127.0.0.1` if you do — everyone then shares one workspace).
 - **One instance.** The app is not designed to be scaled horizontally.
 - The container runs as the unprivileged `node` user.
+
+To confirm a stack is wired up correctly:
+
+```bash
+docker compose ps                       # db healthy, kairos "Up ... (healthy)"
+curl -s localhost:3000/api/health       # {"ok":true,"database":"ok"}
+docker compose logs kairos              # migrations + any config warning
+curl -sI localhost:3000/login | grep -io "connect-src[^;]*"   # CSP: the Supabase origin
+```
 
 Stop, upgrade, and clean up:
 
@@ -310,7 +322,36 @@ All configuration is environment based; see `.env.example`.
 | `KAIROS_NO_INDEX`     | `false`                  | `true` sends `Disallow: /` to every crawler (private deployment). |
 
 Theme, timezone and the first day of the week are stored **in the database**
-(Settings) so they apply to date grouping on the server, not just in the UI.
+(Settings) so they apply to date grouping on the server, not just in the UI. The
+theme is applied instantly and saved to the account, so it follows you into
+another browser; a browser that has never chosen one follows the operating
+system. `light`, `dark` and `system` are available from **Settings → Profile**,
+from the sidebar, and from the site header.
+
+### Keyboard shortcuts
+
+| Keys | Action |
+| --- | --- |
+| `g` `t` | Today |
+| `g` `a` | All Tasks |
+| `g` `c` | Completed |
+| `g` `s` | Statistics |
+| `g` `,` | Settings |
+| `/` | Focus the task search |
+| `n` | New task |
+| `t` | Switch between light and dark |
+| `?` | Show this list |
+
+A sequence waits about a second for its second key. Shortcuts are ignored while
+you are typing in a field or while a dialog is open; `Esc` leaves the field.
+Everything that moves honours `prefers-reduced-motion`.
+
+### Sessions
+
+The session lives in a cookie that the middleware refreshes on every request, so
+you stay signed in between visits. A visitor with a live session is sent straight
+to `/today` — from the landing page as well — instead of being shown the sign-in
+page again. **Sign out** is in Settings → Profile (and the sidebar foot).
 
 ---
 

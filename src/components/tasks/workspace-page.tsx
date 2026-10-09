@@ -16,7 +16,6 @@ import { listTasks } from "@/server/services/tasks";
 export async function WorkspacePage({
   scope,
   title,
-  subtitle,
   emptyTitle,
   emptyDescription,
   showCategory = false,
@@ -24,7 +23,6 @@ export async function WorkspacePage({
 }: {
   scope: ViewScope;
   title: string;
-  subtitle?: string;
   emptyTitle: string;
   emptyDescription: string;
   showCategory?: boolean;
@@ -50,7 +48,6 @@ export async function WorkspacePage({
     <TaskWorkspace
       scope={scope}
       title={title}
-      subtitle={subtitle}
       tasks={tasks}
       progress={progress}
       emptyTitle={emptyTitle}

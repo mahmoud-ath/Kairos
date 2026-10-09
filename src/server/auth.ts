@@ -86,6 +86,21 @@ export async function requireUser(): Promise<User | null> {
 export const LOCAL_USER_ID = "local";
 
 /**
+ * The signed-in account, as the UI needs to describe it: the tenant id every
+ * query filters by, plus the address used to label the profile.
+ *
+ * Built on `requireUser`, so the redirect and allow-list rules above are the
+ * only ones in play — there is no second copy to drift.
+ */
+export async function requireAuthProfile(): Promise<{
+  userId: string;
+  email: string | null;
+}> {
+  const user = await requireUser();
+  return { userId: user?.id ?? LOCAL_USER_ID, email: user?.email ?? null };
+}
+
+/**
  * The current owner's id — the value every service filters by.
  *
  * This is the **only** place a tenant is established, and it always comes from
@@ -93,17 +108,6 @@ export const LOCAL_USER_ID = "local";
  * Callers cannot supply their own id.
  */
 export async function requireUserId(): Promise<string> {
-  if (isAuthDisabled()) return LOCAL_USER_ID;
-
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  if (!isEmailAllowed(user.email)) {
-    redirect("/login?error=not_allowed");
-  }
-
-  return user.id;
+  const { userId } = await requireAuthProfile();
+  return userId;
 }

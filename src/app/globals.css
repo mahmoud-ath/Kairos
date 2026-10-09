@@ -50,43 +50,45 @@
   }
 
   /*
-   * Dark variant, using the surfaces from GitHub's dark theme:
-   * canvas #0d1117, subtle/overlay #161b22, muted #21262d, border #30363d,
-   * foreground #e6edf3, muted foreground #8b949e.
+   * Dark variant, using the neutral surfaces of VS Code's "Dark 2026"
+   * (Dark Modern) theme: editor #1f1f1f, side bar #181818, widget #2b2b2b,
+   * input #313131, border #3c3c3c, foreground #cccccc, muted #9d9d9d, error
+   * #f85149. The accent stays Kairos green — the brand does not change with the
+   * lights, only the surfaces do.
    */
   .dark {
-    --background: 216 28% 7%;
-    --foreground: 208 35% 93%;
+    --background: 0 0% 12%;
+    --foreground: 0 0% 80%;
 
-    --card: 215 21% 11%;
-    --card-foreground: 208 35% 93%;
+    --card: 0 0% 17%;
+    --card-foreground: 0 0% 80%;
 
-    --popover: 215 21% 11%;
-    --popover-foreground: 208 35% 93%;
+    --popover: 0 0% 18%;
+    --popover-foreground: 0 0% 88%;
 
     --primary: 142 65% 45%;
     --primary-foreground: 144 80% 8%;
 
-    --secondary: 215 15% 15%;
-    --secondary-foreground: 208 35% 93%;
+    --secondary: 0 0% 20%;
+    --secondary-foreground: 0 0% 88%;
 
-    --muted: 215 15% 15%;
-    --muted-foreground: 212 9% 58%;
+    --muted: 0 0% 17%;
+    --muted-foreground: 0 0% 62%;
 
-    --accent: 215 15% 15%;
-    --accent-foreground: 208 35% 93%;
+    --accent: 0 0% 20%;
+    --accent-foreground: 0 0% 93%;
 
-    --destructive: 358 75% 59%;
+    --destructive: 2 90% 62%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 212 12% 21%;
-    --input: 212 12% 24%;
+    --border: 0 0% 24%;
+    --input: 0 0% 19%;
     --ring: 142 65% 45%;
 
-    --sidebar: 216 30% 6%;
-    --sidebar-foreground: 208 35% 93%;
-    --sidebar-accent: 215 21% 11%;
-    --sidebar-border: 215 15% 15%;
+    --sidebar: 0 0% 9%;
+    --sidebar-foreground: 0 0% 80%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-border: 0 0% 17%;
   }
 }
 
@@ -116,5 +118,112 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /*
+   * Motion. Small, purposeful, and always interruptible: entrances only, never
+   * loops that compete with the task list. Everything is disabled below by the
+   * global `prefers-reduced-motion` rule.
+   */
+  .animate-fade-up {
+    animation: kairos-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-fade-in {
+    animation: kairos-fade-in 0.4s ease-out both;
+  }
+
+  .animate-pop-in {
+    animation: kairos-pop-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-drift {
+    animation: kairos-drift 18s ease-in-out infinite;
+  }
+
+  .animate-in-shake {
+    animation: kairos-shake 0.4s ease-in-out both;
+  }
+
+  /* Staggered entrances: pair with .animate-fade-up on siblings. */
+  .animate-delay-1 {
+    animation-delay: 70ms;
+  }
+
+  .animate-delay-2 {
+    animation-delay: 140ms;
+  }
+
+  .animate-delay-3 {
+    animation-delay: 210ms;
+  }
+}
+
+@keyframes kairos-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes kairos-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes kairos-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes kairos-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) scale(1.04);
+  }
+}
+
+@keyframes kairos-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+/*
+ * One global opt-out. Honour the OS setting instead of asking people to turn
+ * animations off one component at a time.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

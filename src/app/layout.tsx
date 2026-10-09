@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 
 import "./globals.css";
+import { Providers } from "@/components/providers";
 import { SITE_DESCRIPTION, SITE_INDEXABLE, SITE_NAME, SITE_URL } from "@/lib/site";
 
 // Self-hosted by Next at build time: no request to Google from the browser.
@@ -70,7 +71,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0d1117" },
+    // The dark canvas of the app: VS Code's "Dark 2026" editor surface.
+    { media: "(prefers-color-scheme: dark)", color: "#1f1f1f" },
   ],
 };
 
@@ -94,12 +96,19 @@ export default function RootLayout({
   return (
     <html lang="en" className={poppins.variable} suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">
-        {children}
-        <script
-          type="application/ld+json"
-          // Static, self-authored JSON: nothing user supplied is interpolated.
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
-        />
+        {/*
+          Theme, toasts and tooltips are provided here rather than in the app
+          shell, so the landing page and the sign-in pages are themed too — and
+          nobody sees a white flash before the workspace loads.
+        */}
+        <Providers>
+          {children}
+          <script
+            type="application/ld+json"
+            // Static, self-authored JSON: nothing user supplied is interpolated.
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
+          />
+        </Providers>
       </body>
     </html>
   );

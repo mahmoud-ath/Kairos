@@ -6,8 +6,9 @@ import { useState, type ReactNode } from "react";
 
 import { AppDataProvider, PanelProvider, type AppData } from "@/components/app-data";
 import { DragProvider } from "@/components/dnd/drag-provider";
+import { ShortcutProvider } from "@/components/layout/shortcut-provider";
 import { SidebarContent } from "@/components/layout/sidebar";
-import { Providers } from "@/components/providers";
+import { ThemeSync } from "@/components/layout/theme-sync";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
@@ -17,6 +18,9 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
  *
  * Below `lg` the sidebar becomes a drawer; the progress panel moves behind a
  * button in the page toolbar.
+ *
+ * This is also where the workspace-only providers live: the shortcut listener
+ * and the theme sync — neither belongs on the landing or sign-in pages.
  */
 export function AppShell({ data, children }: { data: AppData; children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -29,10 +33,13 @@ export function AppShell({ data, children }: { data: AppData; children: ReactNod
   };
 
   return (
-    <Providers initialTheme={data.settings.theme}>
+    <ShortcutProvider>
       <AppDataProvider value={data}>
         <PanelProvider value={panelState}>
           <DragProvider>
+            {/* The theme lives in the root provider; this applies the stored one. */}
+            <ThemeSync preferred={data.settings.theme} />
+
             <div className="flex min-h-screen w-full items-start overflow-x-clip">
               <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:flex lg:flex-col">
                 <SidebarContent />
@@ -71,6 +78,6 @@ export function AppShell({ data, children }: { data: AppData; children: ReactNod
           </DragProvider>
         </PanelProvider>
       </AppDataProvider>
-    </Providers>
+    </ShortcutProvider>
   );
 }

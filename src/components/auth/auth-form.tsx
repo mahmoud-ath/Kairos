@@ -1,5 +1,14 @@
 "use client";
 
+import {
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  Mail,
+  MailCheck,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -72,6 +81,7 @@ export function AuthForm({
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [reveal, setReveal] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
@@ -161,27 +171,32 @@ export function AuthForm({
   // ---- registered, now waiting for the confirmation email -----------------
   if (awaitingConfirmation) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="animate-fade-in flex flex-col gap-4">
         <div
           role="status"
-          className="rounded-md border border-primary/40 bg-primary/10 px-4 py-3"
+          className="flex items-start gap-3 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3.5"
         >
-          <p className="text-sm font-medium">Check your inbox</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            We sent a confirmation link to{" "}
-            <span className="font-medium text-foreground">{email}</span>. Open it,
-            then sign in.
-          </p>
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+            <MailCheck className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-sm font-medium">Check your inbox</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              We sent a confirmation link to{" "}
+              <span className="font-medium text-foreground">{email}</span>. Open it,
+              then sign in.
+            </p>
+          </div>
         </div>
 
-        <Button asChild>
+        <Button asChild size="lg" className="h-10">
           <Link href={`/login?next=${encodeURIComponent(next)}`}>Go to sign in</Link>
         </Button>
 
         <button
           type="button"
           onClick={() => setAwaitingConfirmation(false)}
-          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           Use a different email address
         </button>
@@ -194,45 +209,89 @@ export function AuthForm({
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            autoFocus
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
+          <div className="relative">
+            <Mail
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              autoFocus
+              placeholder="you@example.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="h-10 pl-9"
+            />
+          </div>
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete={isSignUp ? "new-password" : "current-password"}
-            required
-            minLength={isSignUp ? MIN_PASSWORD_LENGTH : undefined}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          {isSignUp ? (
-            <p className="text-xs text-muted-foreground">
-              At least {MIN_PASSWORD_LENGTH} characters.
+          <div className="flex items-baseline justify-between gap-2">
+            <Label htmlFor="password">Password</Label>
+            {isSignUp ? (
+              <span className="text-xs text-muted-foreground">
+                {MIN_PASSWORD_LENGTH}+ characters
+              </span>
+            ) : null}
+          </div>
+          <div className="relative">
+            <Lock
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              id="password"
+              name="password"
+              type={reveal ? "text" : "password"}
+              autoComplete={isSignUp ? "new-password" : "current-password"}
+              required
+              minLength={isSignUp ? MIN_PASSWORD_LENGTH : undefined}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="h-10 pl-9 pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setReveal((value) => !value)}
+              aria-label={reveal ? "Hide password" : "Show password"}
+              aria-pressed={reveal}
+              className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {reveal ? (
+                <EyeOff className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Eye className="h-4 w-4" aria-hidden="true" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Announced to screen readers whenever the message changes. */}
+        <div aria-live="polite" aria-atomic="true">
+          {error ? (
+            <p
+              role="alert"
+              className="animate-in-shake flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{error}</span>
             </p>
           ) : null}
         </div>
 
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
-
-        <Button type="submit" disabled={pending}>
-          {pending ? copy.pending : copy.submit}
+        <Button type="submit" size="lg" disabled={pending} aria-busy={pending} className="h-10">
+          {pending ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              {copy.pending}
+            </>
+          ) : (
+            copy.submit
+          )}
         </Button>
       </form>
 
@@ -242,7 +301,14 @@ export function AuthForm({
         <span className="h-px flex-1 bg-border" />
       </div>
 
-      <Button type="button" variant="outline" onClick={onGoogle} disabled={pending}>
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        className="h-10"
+        onClick={onGoogle}
+        disabled={pending}
+      >
         <GoogleMark />
         {copy.google}
       </Button>

@@ -80,7 +80,7 @@ export function QuickAdd({
         ref={inputRef}
         value={title}
         onChange={(event) => setTitle(event.target.value)}
-        placeholder="Add a task and press Enter…"
+        placeholder="Add a task…"
         aria-label="New task title"
         maxLength={TITLE_MAX_LENGTH}
         className={cn(

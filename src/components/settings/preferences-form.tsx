@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -14,35 +13,23 @@ import {
 } from "@/components/ui/select";
 import { WEEKDAY_LABELS } from "@/lib/constants";
 import { listTimeZones } from "@/lib/dates";
-import { cn } from "@/lib/utils";
-import type { SettingsDTO, ThemePreference } from "@/types/kairos";
+import type { SettingsDTO } from "@/types/kairos";
 import { updateSettingsAction } from "@/server/actions/settings";
 
-const THEMES: { value: ThemePreference; label: string; hint: string }[] = [
-  { value: "light", label: "Light", hint: "Always light" },
-  { value: "dark", label: "Dark", hint: "Always dark" },
-  { value: "system", label: "System", hint: "Match the OS" },
-];
-
 /**
- * Theme, timezone and week start.
+ * Timezone and week start.
  *
  * The timezone decides which calendar day "Today" means, so it is stored with
- * all date-only values rather than applied per request.
+ * all date-only values rather than applied per request. The appearance controls
+ * live in the profile panel above.
  */
 export function PreferencesForm({ settings }: { settings: SettingsDTO }) {
-  const { setTheme } = useTheme();
-  const [theme, setThemeValue] = useState<ThemePreference>(settings.theme);
   const [timezone, setTimezone] = useState(settings.timezone);
   const [weekStartsOn, setWeekStartsOn] = useState(settings.weekStartsOn);
   const [saving, setSaving] = useState(false);
   const timeZones = listTimeZones();
 
-  async function save(patch: {
-    theme?: ThemePreference;
-    timezone?: string;
-    weekStartsOn?: number;
-  }) {
+  async function save(patch: { timezone?: string; weekStartsOn?: number }) {
     setSaving(true);
     const result = await updateSettingsAction(patch);
     setSaving(false);
@@ -53,40 +40,13 @@ export function PreferencesForm({ settings }: { settings: SettingsDTO }) {
     toast.success("Settings saved");
   }
 
-  function chooseTheme(next: ThemePreference) {
-    setThemeValue(next);
-    setTheme(next);
-    void save({ theme: next });
-  }
-
   return (
     <section className="flex flex-col gap-5 rounded-lg border border-border bg-card px-4 py-4">
       <div>
-        <h2 className="text-sm font-semibold">Appearance &amp; dates</h2>
+        <h2 className="text-sm font-semibold">Dates</h2>
         <p className="text-xs text-muted-foreground">
-          Kairos uses your timezone to decide which tasks count as “today”.
+          Decides which tasks count as “today”.
         </p>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label>Theme</Label>
-        <div className="flex flex-wrap gap-2">
-          {THEMES.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={theme === option.value}
-              onClick={() => chooseTheme(option.value)}
-              className={cn(
-                "flex min-w-28 flex-col items-start rounded-md border border-border px-3 py-2 text-left transition-colors hover:bg-accent",
-                theme === option.value && "border-primary bg-accent",
-              )}
-            >
-              <span className="text-sm font-medium">{option.label}</span>
-              <span className="text-xs text-muted-foreground">{option.hint}</span>
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -141,7 +101,7 @@ export function PreferencesForm({ settings }: { settings: SettingsDTO }) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {saving ? "Saving…" : "Changes are saved to your database as you make them."}
+        {saving ? "Saving…" : "Saved automatically"}
       </p>
     </section>
   );

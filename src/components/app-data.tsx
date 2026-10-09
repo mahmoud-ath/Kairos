@@ -20,6 +20,8 @@ export type AppData = {
   counts: ViewCounts;
   /** True when Supabase Auth is configured, i.e. there is a session to end. */
   authEnabled: boolean;
+  /** The signed-in account's address, or `null` when the gate is switched off. */
+  email: string | null;
 };
 
 const AppDataContext = createContext<AppData | null>(null);

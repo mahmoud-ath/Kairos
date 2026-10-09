@@ -39,7 +39,6 @@ export default async function CategoryPage({
     <WorkspacePage
       scope={{ kind: "category", categoryId: category.id }}
       title={category.name}
-      subtitle="Overdue, today, upcoming and unscheduled work in this category."
       emptyTitle={`No tasks in ${category.name}`}
       emptyDescription="New tasks you add here are assigned to this category by default."
       showCategory={false}

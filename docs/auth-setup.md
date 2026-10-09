@@ -291,18 +291,30 @@ Use a **private/incognito window** so you are not already signed in.
 
 | File | Role |
 | --- | --- |
-| `src/app/register/page.tsx` | the create-account page |
-| `src/app/login/page.tsx` | the sign-in page |
-| `src/components/auth/auth-form.tsx` | the shared email/password form, the Google button, and the "check your inbox" state |
+| `src/app/(auth)/register/page.tsx` | the create-account page |
+| `src/app/(auth)/login/page.tsx` | the sign-in page |
+| `src/components/auth/auth-form.tsx` | the shared email/password form, the Google button, password reveal, and the "check your inbox" state |
 | `src/components/auth/auth-shell.tsx` | the frame both pages share |
 | `src/app/auth/callback/route.ts` | exchanges the OAuth or email `code` for a session |
 | `src/middleware.ts` | refreshes the session and redirects signed-out visitors to `/login` |
-| `src/server/auth.ts` | `requireUserId()` — the only place the current owner is established |
+| `src/server/auth.ts` | `requireAuthProfile()` / `requireUserId()` — the only place the current owner is established |
 | `src/lib/supabase/server.ts` · `client.ts` | Supabase clients for the server and the browser |
 | `src/server/db.ts` | `scopedPrisma(userId)` — makes every query belong to one user |
 
+The `(auth)` group is parenthesised, so the URLs stay `/login` and `/register`;
+the group only adds the shared frame (header, background, centring).
+
 `/register` is listed in `sitemap.xml` and is indexable; `/login` is marked
 `noindex`, since there is nothing for a search engine to gain from it.
+
+**Nobody signs in twice.** The session is a cookie that the middleware refreshes
+on every request, and three requests are shortcuts back into the workspace:
+
+| Request | Result |
+| --- | --- |
+| `/login` or `/register`, already signed in | `307` → `/today` |
+| `/` (the landing page), already signed in | `307` → `/today` — the marketing page is never shown to a signed-in visitor |
+| `/` (the landing page), no session cookie | served as normal, without contacting Supabase |
 
 The gate is **on by default and fails closed**. It only switches off when
 `KAIROS_AUTH_DISABLED=true`, which exists for local development and the Playwright

@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { Brand } from "@/components/marketing/brand";
 import { MARKETING_NAV } from "@/components/marketing/nav";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -26,17 +27,23 @@ export function SiteHeader() {
 
         <nav aria-label="Sections" className="hidden items-center gap-1 md:flex">
           {MARKETING_NAV.map((link) => (
-            <a
+            <Link
               key={link.href}
-              href={link.href}
+              // Root-relative, so the same header works on `/login` as well as
+              // on the landing page: `#features` alone would go nowhere there.
+              href={`/${link.href}`}
               className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               {link.label}
-            </a>
+            </Link>
           ))}
         </nav>
 
-        <div className="ml-auto hidden items-center gap-2 md:flex">
+        <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
+        </div>
+
+        <div className="hidden items-center gap-2 md:flex">
           <Button variant="ghost" asChild>
             <Link href="/login">Log in</Link>
           </Button>
@@ -48,7 +55,7 @@ export function SiteHeader() {
         <Button
           variant="ghost"
           size="icon"
-          className="ml-auto md:hidden"
+          className="md:hidden"
           aria-expanded={open}
           aria-controls="marketing-mobile-nav"
           aria-label={open ? "Close menu" : "Open menu"}
@@ -65,14 +72,14 @@ export function SiteHeader() {
             className="mx-auto flex w-full max-w-6xl flex-col px-4 py-3 sm:px-6"
           >
             {MARKETING_NAV.map((link) => (
-              <a
+              <Link
                 key={link.href}
-                href={link.href}
+                href={`/${link.href}`}
                 onClick={() => setOpen(false)}
                 className="rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
 
             <div className="mt-3 flex flex-col gap-2 border-t border-border pt-4">
@@ -82,6 +89,10 @@ export function SiteHeader() {
               <Button asChild>
                 <Link href="/register">Get started</Link>
               </Button>
+              <div className="flex items-center justify-between px-1 pt-2">
+                <span className="text-xs text-muted-foreground">Theme</span>
+                <ThemeToggle />
+              </div>
             </div>
           </nav>
         </div>

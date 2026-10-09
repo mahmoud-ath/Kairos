@@ -24,6 +24,15 @@ export const THEME_LABELS: Record<string, string> = {
   system: "System",
 };
 
+/**
+ * Where `next-themes` keeps the visitor's choice.
+ *
+ * Read in two places: the toggle writes it, and the workspace only applies the
+ * theme stored in the database when this browser has never expressed one — a
+ * choice made here is newer than a stored preference.
+ */
+export const THEME_STORAGE_KEY = "kairos-theme";
+
 export const WEEKDAY_LABELS = [
   "Sunday",
   "Monday",

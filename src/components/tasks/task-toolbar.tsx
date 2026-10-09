@@ -89,10 +89,27 @@ export function TaskToolbar({
         ) : null}
       </div>
 
-      <p className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
-        <ListFilter className="h-3.5 w-3.5" />
-        Showing {resultCount} of {totalCount} task{totalCount === 1 ? "" : "s"}
-        {completedCount > 0 ? ` · ${completedCount} completed` : ""}
+      <p className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+        {active > 0 ? (
+          <>
+            <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="tabular-nums">
+              {resultCount} of {totalCount}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="tabular-nums">
+              {totalCount} task{totalCount === 1 ? "" : "s"}
+            </span>
+            {completedCount > 0 ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="tabular-nums">{completedCount} done</span>
+              </>
+            ) : null}
+          </>
+        )}
       </p>
 
       <AlertDialog open={confirming} onOpenChange={setConfirming}>

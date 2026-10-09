@@ -69,7 +69,6 @@ import { createCategoryAction } from "@/server/actions/taxonomy";
 export type TaskWorkspaceProps = {
   scope: ViewScope;
   title: string;
-  subtitle?: string;
   /** Every top-level task; the workspace narrows it to the current view. */
   tasks: TaskDTO[];
   progress: WorkspaceProgress;
@@ -83,7 +82,6 @@ export type TaskWorkspaceProps = {
 export function TaskWorkspace({
   scope,
   title,
-  subtitle,
   tasks,
   progress,
   emptyTitle,
@@ -660,13 +658,8 @@ export function TaskWorkspace({
   return (
     <div className="flex min-h-full min-w-0 flex-1 items-stretch">
       <div className="min-w-0 flex-1 px-4 py-5 sm:px-6">
-        <header className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
-            {subtitle ? (
-              <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
-            ) : null}
-          </div>
+        <header className="flex items-center justify-between gap-3">
+          <h1 className="truncate text-base font-semibold tracking-tight">{title}</h1>
 
           <div className="flex shrink-0 items-center gap-1">
             <Button

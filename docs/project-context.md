@@ -286,6 +286,9 @@ public multi-user one. It was inverted. Now:
 - **`src/middleware.ts`** refreshes the session and redirects:
   - `PUBLIC_PATHS = ["/api/health", "/auth/callback"]`
   - `AUTH_PATHS = ["/login", "/register"]` — signed-in users are sent to `/today`
+  - `/` (landing) is served before the config check; **if** a Supabase session
+    cookie is present it is verified once and the visitor is sent to `/today`,
+    so a signed-in user never sees the marketing page or the sign-in form again
   - signed-out visitors go to `/login?next=…`, guarded by `safeNextPath()` in
     `src/lib/auth-rules.ts` against open redirects
 - `KAIROS_ALLOWED_EMAILS` is an **allow-list for a private deployment**. On a
@@ -332,6 +335,7 @@ the same rules and the matrix is testable without standing up Supabase.
 | Request | Result |
 | --- | --- |
 | `/` | served, always — signed in or out, configured or not |
+| `/` with a session cookie, Supabase configured | `307` → `/today` (verified once; a cookie that turns out to be invalid just renders the page) |
 | signed out → protected route | `307` → `/login?next=<path>` |
 | signed out → unknown path | `307` → `/login?next=…` — **fails closed**, not open |
 | signed in → `/login` or `/register` | `307` → `/today` |
@@ -357,18 +361,23 @@ src/
     api/              health, backup
     auth/callback/    OAuth + email code exchange
   components/
-    auth/             auth-form, auth-shell
-    marketing/        brand, nav, site-header, site-footer, hero, app-preview,
-                      features, how-it-works, faq, final-cta
+    auth/             auth-form (icons, password reveal, spinner), auth-shell
+    marketing/        brand, nav, site-header (+ theme toggle), site-footer,
+                      hero, app-preview, features, how-it-works, faq, final-cta
     tasks/            workspace, rows, sections, toolbar, quick-add, optimistic
-    categories/ dnd/ layout/ settings/ statistics/ taxonomy/ ui/
+    layout/           app-shell, sidebar, theme-toggle, theme-sync,
+                      shortcut-provider, shortcut-dialog, progress-panel
+    settings/         profile-panel (identity + theme), theme-picker,
+                      preferences-form (dates), taxonomy-manager, backup-panel
+    categories/ dnd/ statistics/ taxonomy/ ui/
   lib/
     auth-rules.ts     allowedEmails, isEmailAllowed, safeNextPath
+    shortcuts.ts      the key table + resolveShortcut() (pure, unit tested)
     task-rules.ts     subtask rules
     validation.ts     Zod schemas
     dates.ts filters.ts ordering.ts stats.ts views.ts constants.ts site.ts
   server/
-    auth.ts           the gate; requireUserId()
+    auth.ts           the gate; requireAuthProfile() → requireUserId()
     db.ts             prisma + scopedPrisma(userId)
     serializers.ts    DB rows -> client types
     actions/          Server Actions (tasks, taxonomy, settings, backup, auth, examples)
@@ -377,12 +386,12 @@ src/
   middleware.ts       session refresh + access gate
   types/kairos.ts     shared types
 tests/
-  unit/               8 files, 81 tests
+  unit/               9 files, 105 tests
   integration/        isolation.test.ts, 10 tests + setup guard
   e2e/                Playwright: task workflow, drag and drop, backup
 ```
 
-**105 source files**, 6 Server Action modules, 7 services, 2 API routes.
+**123 source files**, 6 Server Action modules, 7 services, 2 API routes.
 
 ---
 
@@ -502,6 +511,7 @@ recreated, every place the ref appears must be updated — see
 | 9 | **Auth gate inverted to fail closed** | The previous fail-open behaviour would expose one shared workspace if a variable went missing |
 | 10 | **Migration squashed at the Postgres switch** | The SQLite migrations were not valid Postgres DDL; the hosted database started empty |
 | 11 | **No Prisma ORM 8 upgrade** | Prisma's optional GitHub integration asks for it, but ORM 8 replaces the query API, schema format and migration workflow — a full data-layer rewrite for no benefit here |
+| 12 | **UI/UX round: theme at the root, shortcuts, minimal workspace** | `ThemeProvider` sat inside the app shell, so the landing and sign-in pages had no theme at all and ignored `prefers-color-scheme`; the dark palette moved to VS Code's "Dark 2026" surfaces (green accent kept), the workspace copy was cut to icons and counts, and a keyboard layer was added |
 
 ---
 
@@ -519,6 +529,7 @@ Every one of these cost real time. They are the reason the guide opens with
 | `P1001 Can't reach database server` | the URL still contained placeholders (`USER`, `PASSWORD`, `…`) | copy the real string; never retype it |
 | Vercel `500 Application error … Digest: 2414997240` | the real log said `Can't reach database server at localhost:5432` — Vercel still had the local dev URL | set the pooled string in Vercel |
 | `column "TaskEvent.userId" does not exist` | a migration was applied to production but not locally | apply migrations to both |
+| `Unknown argument 'data'. Did you mean 'update'?` on `prisma.settings.upsert()` | `scopedPrisma`'s extension stamped `userId` into `args.data` for **every** listed operation — but `upsert` has no `data` argument, so every scoped upsert threw and **JSON import and reset were both broken**. The old integration suite missed it because `getSettings` upserts through the *unscoped* client | stamp `create` for upsert, keep `data` for create/createMany, never touch `update`. Pinned by two integration tests (backup round-trip, reset isolation) |
 
 ### Process failures
 

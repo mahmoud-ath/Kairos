@@ -4,8 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function AppLoading() {
   return (
     <div className="px-4 py-5 sm:px-6">
-      <Skeleton className="h-6 w-40" />
-      <Skeleton className="mt-2 h-4 w-64" />
+      <Skeleton className="h-5 w-32" />
       <Skeleton className="mt-4 h-11 w-full" />
       <div className="mt-6 flex flex-col gap-2">
         {Array.from({ length: 6 }).map((_, index) => (

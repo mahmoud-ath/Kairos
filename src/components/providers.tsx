@@ -5,26 +5,33 @@ import type { ReactNode } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { THEME_STORAGE_KEY } from "@/lib/constants";
 import type { ThemePreference } from "@/types/kairos";
 
 /**
  * Theme + toast + tooltip providers.
  *
- * The theme stored in the database is only used as the initial value; switching
- * themes applies instantly through `next-themes` and is then persisted by the
- * settings form.
+ * Mounted at the root so the landing page and the sign-in pages get a theme
+ * too: without a `ThemeProvider` above them, `next-themes` never injects its
+ * pre-paint script, no `.dark` class is ever added, and a dark-mode preference
+ * is simply ignored outside the workspace.
+ *
+ * The theme stored in the database cannot be read here — the root layout does
+ * not know who is signed in — so the default follows the operating system and
+ * `ThemeSync` applies the stored preference inside the workspace.
  */
 export function Providers({
   children,
-  initialTheme,
+  initialTheme = "system",
 }: {
   children: ReactNode;
-  initialTheme: ThemePreference;
+  initialTheme?: ThemePreference;
 }) {
   return (
     <ThemeProvider
       attribute="class"
       defaultTheme={initialTheme}
+      storageKey={THEME_STORAGE_KEY}
       enableSystem
       disableTransitionOnChange
     >

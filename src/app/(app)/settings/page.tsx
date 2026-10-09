@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 
 import { BackupPanel } from "@/components/settings/backup-panel";
 import { PreferencesForm } from "@/components/settings/preferences-form";
+import { ProfilePanel } from "@/components/settings/profile-panel";
 import { TaxonomyManager } from "@/components/settings/taxonomy-manager";
-import { requireUserId } from "@/server/auth";
+import { isAuthDisabled, requireAuthProfile } from "@/server/auth";
 import { scopedPrisma } from "@/server/db";
 import { getSettingsRecord } from "@/server/services/settings";
 import { listCategories } from "@/server/services/taxonomy";
@@ -17,7 +18,7 @@ export const metadata: Metadata = viewMetadata({
 });
 
 export default async function SettingsPage() {
-  const userId = await requireUserId();
+  const { userId, email } = await requireAuthProfile();
   const [settings, categories, taskCount] = await Promise.all([
     getSettingsRecord(userId),
     listCategories(userId),
@@ -26,13 +27,9 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 sm:px-6 lg:py-10">
-      <header>
-        <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Preferences are stored in your local database.
-        </p>
-      </header>
+      <h1 className="text-base font-semibold tracking-tight">Settings</h1>
 
+      <ProfilePanel email={email} authEnabled={!isAuthDisabled()} />
       <PreferencesForm settings={settings} />
       <TaxonomyManager categories={categories} />
       <BackupPanel taskCount={taskCount} />

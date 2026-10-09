@@ -15,7 +15,6 @@ export default function TodayPage() {
     <WorkspacePage
       scope={{ kind: "today" }}
       title="Today"
-      subtitle="What you planned for today, plus anything overdue."
       emptyTitle="Nothing planned for today"
       emptyDescription="Add a task above — in this view it is scheduled for today automatically."
     />
