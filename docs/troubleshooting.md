@@ -185,6 +185,7 @@ full detail. The short version:
 | `Can't reach database server at localhost:5432` | `DATABASE_URL` is still your local development value |
 | `Can't reach database server` at `db.prisma.io` (`P1001`) | the URL still contains a placeholder — `USER`, `PASSWORD`, `…`, `<your-user>` |
 | ``The table `public.Settings` does not exist`` (`P2021`) | migrations were never applied **to this database** |
+| ``The column `Settings.nickname` does not exist`` (`P2022`) | the **same** cause — a migration added a column and was never applied to production |
 | `prepared statement` or lock errors during a migration | the **pooled** string was used for migrations |
 | `Too many connections` | app traffic is on the **direct** host |
 | `Authentication failed` | wrong password — or quotes/whitespace pasted into the Vercel form |
@@ -193,6 +194,31 @@ Two rules:
 
 - **`DATABASE_URL`** → the pooled host (`pooled.db.prisma.io`) — the running app
 - **`DIRECT_URL`** → the direct host (`db.prisma.io`) — migrations only
+
+### The migration trap (this has bitten twice)
+
+**Vercel never runs migrations.** The deploy ships the new code immediately while
+the database schema stays exactly as it was, so a release that adds a migration
+500s on every page — with a digest in the browser and the real message only in
+the function logs:
+
+```
+prisma:error
+Invalid `prisma.settings.findUnique()` invocation:
+The column `Settings.nickname` does not exist in the current database.
+```
+
+Applying the migration is a **required deploy step**, not an optional one:
+
+```bash
+set -a; . ./.env.production.local; set +a   # production URLs, unquoted
+bunx prisma migrate status                  # what is pending?
+bunx prisma migrate deploy                  # apply it
+```
+
+`/api/health` is the fast check: it reads the real columns (not `COUNT(*)`, which
+touches none), so a missing migration reports **503** instead of a misleading
+`ok`. A healthy deploy answers `{"ok":true,"database":"ok"}`.
 
 > A placeholder like `<your-user>` *looks* like a connection problem and is not
 > one. Real strings contain a 64-character random username and a password
