@@ -249,23 +249,19 @@ export function buildSections<T extends TaskLike>({
 
   switch (scope.kind) {
     case "today": {
-      // Exactly two groups: anything overdue, then what is planned for (or due)
-      // today. A task only ever appears in one of them.
-      const overdue: T[] = [];
-      const dueToday: T[] = [];
-      for (const task of visible) {
-        if (isTaskOverdue(task, today)) {
-          overdue.push(task);
-          continue;
-        }
+      // One group only: what is planned for (or due) today.
+      //
+      // Overdue work is deliberately NOT listed here. Today is a plan for the
+      // day, not a backlog: late tasks are surfaced in All Tasks, grouped under
+      // the day that makes them late, and counted in the progress panel. A task
+      // is still never listed twice.
+      const dueToday = visible.filter((task) => {
         const anchor = taskAnchorDate(task);
-        if (anchor && compareDateOnly(anchor, today) === 0) dueToday.push(task);
-      }
-      const sections: TaskSection<T>[] = [];
-      if (overdue.length > 0) {
-        sections.push(plainSection("overdue", "Overdue", "past", overdue));
-      }
-      sections.push(plainSection("today", "Today", "today", dueToday, today));
+        return anchor !== null && compareDateOnly(anchor, today) === 0;
+      });
+      const sections: TaskSection<T>[] = [
+        plainSection("today", "Today", "today", dueToday, today),
+      ];
       if (done.length > 0) sections.push(completedSection(done));
       return sections;
     }

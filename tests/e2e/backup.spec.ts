@@ -28,7 +28,7 @@ async function expectExampleDataRestored(page: Page) {
     page.getByRole("button", { name: "Open task Draft the Q4 roadmap" }),
   ).toBeVisible();
   await expect(await expectSingle(page.getByLabel("0 of 3 subtasks completed"))).toBeVisible();
-  await expect(await expectSingle(page.getByRole("link", { name: "Today 4" }))).toBeVisible();
+  await expect(await expectSingle(page.getByRole("link", { name: "Today 3" }))).toBeVisible();
   await expect(await expectSingle(page.getByRole("link", { name: "Completed 1" }))).toBeVisible();
 }
 

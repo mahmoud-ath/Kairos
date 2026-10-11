@@ -78,7 +78,7 @@ describe("overdue rule", () => {
 });
 
 describe("today view", () => {
-  it("separates overdue tasks from today's tasks and shows each once", () => {
+  it("shows only today's tasks and leaves overdue work out", () => {
     const sections = buildSections({
       scope: { kind: "today" },
       tasks: allTasks,
@@ -86,17 +86,19 @@ describe("today view", () => {
       includeCompleted: false,
     });
 
-    expect(sections.map((section) => section.key)).toEqual(["overdue", "today"]);
-    expect(sections[0].tasks.map((t) => t.id)).toEqual([
-      "yesterday",
-      "overdue-schedule",
-      "overdue-due",
-      "overdue-both",
-    ]);
-    expect(sections[1].tasks.map((t) => t.id)).toEqual(["today"]);
+    expect(sections.map((section) => section.key)).toEqual(["today"]);
+    expect(sections[0].tasks.map((t) => t.id)).toEqual(["today"]);
 
+    // Overdue work is a backlog concern: it lives in All Tasks, grouped under
+    // the day that makes it late, and never on the day's own page.
     const ids = sections.flatMap((section) => section.tasks.map((t) => t.id));
-    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).not.toContain("yesterday");
+    expect(ids).not.toContain("overdue-schedule");
+    expect(ids).not.toContain("overdue-due");
+    expect(ids).not.toContain("overdue-both");
+
+    const unique = new Set(ids);
+    expect(unique.size).toBe(ids.length);
   });
 
   it("can include completed tasks for today", () => {
@@ -223,7 +225,7 @@ describe("category view", () => {
 describe("view counts", () => {
   it("counts unfinished tasks only, and agrees with the views", () => {
     const counts = buildViewCounts(allTasks, TODAY);
-    expect(counts.today).toBe(5); // 4 overdue + 1 planned for today
+    expect(counts.today).toBe(1); // only what is planned for today
     expect(counts.overdue).toBe(4);
     expect(counts.all).toBe(10); // every unfinished task
     expect(counts.completed).toBe(1);
@@ -234,14 +236,7 @@ describe("view counts", () => {
 
   it("never shows a task twice in one view", () => {
     const scoped = selectScopedTasks({ kind: "today" }, allTasks, TODAY);
-    expect(scoped.map((t) => t.id)).toEqual([
-      "yesterday",
-      "overdue-schedule",
-      "overdue-due",
-      "overdue-both",
-      "today",
-      "done-today",
-    ]);
+    expect(scoped.map((t) => t.id)).toEqual(["today", "done-today"]);
     expect(new Set(scoped.map((t) => t.id)).size).toBe(scoped.length);
   });
 
