@@ -1,11 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Kairos">
-  <rect width="64" height="64" rx="14" fill="#15803d" />
-  <path
-    d="M20 17v30M20 33l14-16M24 30l16 17"
-    fill="none"
-    stroke="#fff"
-    stroke-width="6"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1280" role="img" aria-label="Kairos">
+  <!--
+    The official Kairos mark.
+
+    Next.js serves this file as the SVG favicon automatically (the `icon.svg`
+    file convention). The mark is flat, so the fill follows the browser's colour
+    scheme — otherwise a black glyph would vanish on a dark tab bar.
+  -->
+  <style>
+    g { fill: #171717; }
+    @media (prefers-color-scheme: dark) {
+      g { fill: #ffffff; }
+    }
+  </style>
+  <g>
+    <polygon points="283,277 460,397 460,559 282,729" />
+    <polygon points="282,778 778,312 1016,312 282,991" />
+    <polygon points="570,793 701,675 997,974 745,974" />
+  </g>
 </svg>

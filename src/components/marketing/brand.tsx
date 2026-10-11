@@ -1,23 +1,14 @@
 import Link from "next/link";
 
+import { KairosLogo } from "@/components/layout/kairos-logo";
 import { cn } from "@/lib/utils";
 
 /**
- * The Kairos mark — the same green "K" tile the app and the auth pages use, so
- * the marketing site reads as the same product rather than a separate one.
+ * The official Kairos mark, so the marketing site reads as the same product
+ * rather than a separate one.
  */
 export function BrandMark({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "grid h-8 w-8 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground",
-        className,
-      )}
-    >
-      K
-    </span>
-  );
+  return <KairosLogo className={cn("h-8 w-8", className)} label={null} />;
 }
 
 /** The mark plus the wordmark, linking back to the top of the landing page. */

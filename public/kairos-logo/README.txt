@@ -1,0 +1,1 @@
+SVG: real editable vector polygons approximating selected raster silhouette, uniform fills. PNG: transparent 512/1024/4096px, black and white. WebP: lossless 1024px. ICO:16/32/48/64px. App icons:192/512px. Apple:180px. Copy files into Next.js public/; configure metadata icons and manifest. 4096px PNGs are vector-geometry renders, not native 4096px AI output.

@@ -37,6 +37,21 @@ export const metadata: Metadata = {
   category: "productivity",
   alternates: { canonical: "/" },
   manifest: "/manifest.webmanifest",
+  // The official Kairos logo set provides the raster/ICO fallbacks and the iOS
+  // home-screen icon; the crisp SVG is served by the `src/app/icon.svg` file
+  // convention, which `metadata.icons` replaces once it is declared — so it is
+  // listed here too.
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml", sizes: "any" },
+      { url: "/kairos-logo/favicon.ico", sizes: "any" },
+      { url: "/kairos-logo/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/kairos-logo/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [
+      { url: "/kairos-logo/apple-touch-icon.png", type: "image/png", sizes: "180x180" },
+    ],
+  },
   // A private deployment can opt out with KAIROS_NO_INDEX=true.
   robots: SITE_INDEXABLE
     ? {

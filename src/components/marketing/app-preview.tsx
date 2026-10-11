@@ -8,6 +8,7 @@ import {
   Search,
 } from "lucide-react";
 
+import { KairosLogo } from "@/components/layout/kairos-logo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -75,9 +76,7 @@ export function AppPreview() {
         {/* Sidebar */}
         <div className="hidden w-52 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 lg:flex">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-              K
-            </span>
+            <KairosLogo className="h-6 w-6" label={null} />
             <span className="text-sm font-semibold tracking-tight">Kairos</span>
           </div>
 

@@ -2,6 +2,7 @@ import { ChartNoAxesColumn, ListTodo, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { KairosLogo } from "@/components/layout/kairos-logo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -41,9 +42,7 @@ export function AuthShell({
           href="/"
           className="flex w-fit items-center gap-2.5 rounded-md transition-opacity hover:opacity-80"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            K
-          </span>
+          <KairosLogo className="h-8 w-8" label={null} />
           <span className="text-sm font-semibold tracking-tight">
             Kairos
           </span>
@@ -75,9 +74,7 @@ export function AuthShell({
           href="/"
           className="flex w-fit items-center gap-2.5 rounded-md transition-opacity hover:opacity-80 lg:hidden"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            K
-          </span>
+          <KairosLogo className="h-8 w-8" label={null} />
           <span className="text-sm font-semibold tracking-tight">Kairos</span>
         </Link>
 
