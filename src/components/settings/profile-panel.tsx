@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 
+import { FontScalePicker } from "@/components/settings/font-scale-picker";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { ThemePicker } from "@/components/settings/theme-picker";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,14 @@ export function ProfilePanel({
           <p className="text-xs text-muted-foreground">Saved to your account</p>
         </div>
         <ThemePicker />
+
+        <div className="mt-4 flex flex-col gap-2">
+          <p className="text-xs font-medium">Text size</p>
+          <FontScalePicker value={settings.fontScale} />
+          <p className="text-xs text-muted-foreground">
+            Scales the whole interface, not just text.
+          </p>
+        </div>
 
       </div>
     </section>
