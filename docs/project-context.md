@@ -27,6 +27,7 @@ This is the **state of the project** document. For *how to deploy it*, read
 15. [Limitations and not-yet-built](#15-limitations-and-not-yet-built)
 16. [Open items](#16-open-items)
 17. [Command reference](#17-command-reference)
+18. [Profiles, avatars, category icons and text size](#18-profiles-avatars-category-icons-and-text-size)
 
 ---
 
@@ -663,6 +664,143 @@ npx vercel logs https://kairos-zeta-ivory.vercel.app
 npx vercel env ls
 npx vercel env pull /tmp/p.env --environment=production --yes
 ```
+
+---
+
+## 18. Profiles, avatars, category icons and text size
+
+Added 2026-10-11. Several additions across two additive migrations
+(`20261011120000_profile_and_category_icon`, `20261011130000_text_scale`), so no
+data had to be backfilled.
+
+### The top bar
+
+The workspace gained a **top bar** (`src/components/layout/app-topbar.tsx`)
+spanning the main column at every size. It is laid out as **three defined areas**
+— greeting, filter box, account controls — so the middle box cannot drift when
+the nickname changes length: the greeting has a fixed width and truncates, the
+filter box is centred and capped at `max-w-md` (28rem), and the controls are
+constant. It carries the greeting (“Welcome back, *name*”), the **filter box**,
+the keyboard-shortcut button and the **account menu** (avatar → Profile &
+settings, Sign out) — that avatar button has an “Account & settings” tooltip.
+Below `lg` it is also where the navigation drawer opens from, replacing the old
+mobile-only header.
+
+The filter box moved out of `TaskToolbar` and into a shared provider
+(`SearchProvider` in `src/components/app-data.tsx`, mounted by `AppShell`), so
+the same text narrows every task view and survives navigation. It is labelled
+**“Filter tasks on this page…”** rather than “Search tasks”, because that is
+literally what it does — it never looks outside the open view. Its id lives in
+`SEARCH_INPUT_ID` (`lib/constants.ts`) and the `/` shortcut focuses it by that
+id, so rewording can never silently break the shortcut.
+
+**Filter feedback.** `TaskToolbar` reports “*N* matching tasks” plus a **Clear
+filter** action while a filter is active, and the empty state switches to *“No
+tasks on this page match “…””* with the same clear action. There is exactly one
+shortcut button now (the header one) — the sidebar header duplicate was removed.
+
+### Greeting name
+
+`Settings.nickname` (nullable) holds the chosen name, capped at
+`NICKNAME_MAX_LENGTH` (**24** characters) — the settings input has `maxLength`,
+a live `n/24` counter that turns destructive at the cap, and the Zod schema
+enforces the same bound server-side. `displayName()` in `src/lib/profile.ts`
+falls back to a name derived from the email address and then to
+`DEFAULT_NICKNAME` (`Chief`). The top bar greeting sits in a fixed-width,
+truncating area, so a long name cannot shift the filter box.
+
+### Avatars
+
+`Settings.avatarId` stores an id from the catalogue in `src/lib/avatars.ts`:
+**34 avatars in two tiers** — the `Standard` set (11) and the `Vip` set (23) — one
+sub-folder each under `public/avatars/`.
+
+`SEEDS` is the single list of them (`{ name, tier }` per line). Everything else
+is derived: the id *is* the file name, the label is title-cased from it
+(`"01-athena-wisdom"` → “Athena Wisdom”), plus fallback initials and a
+deterministic gradient backdrop. **Adding an avatar is one line in `SEEDS` plus
+the artwork file.**
+
+**Unlock rule.** The first `FREE_AVATAR_COUNT` (2) avatars are free; the rest
+unlock in groups of `UNLOCK_GROUP_SIZE` (3) that **share one milestone**,
+`UNLOCK_STEP` (10) completions apart — so the first group opens at 10, the next
+at 20, and so on (110 for the last, partial group). `unlockAt(index)` assigns
+this while the catalogue is built, so the rule cannot drift from the list.
+
+The count is a lifetime total read from the append-only `TaskEvent` log
+(`countCompletions` in `src/server/services/profile.ts`), so clearing completed
+tasks never takes an unlock away. It counts hand-ticked `completed` events (tasks
+*and* subtasks); subtasks finished by a parent's cascade are recorded as
+`subtask_completed`, so one cascade cannot inflate the number.
+
+The rule is pure (`isAvatarUnlocked`, `unlockedAvatarIds`, `AVATAR_MILESTONES`),
+unit tested, and **enforced again server-side** in `updateProfileAction` — a
+locked id sent directly to the action is refused.
+
+**Artwork.** Every `src` is `/avatars/<folder>/<name>.<ARTWORK_EXTENSION>`. These
+`.svg` files wrap embedded raster images, so they are **not** vector art and the
+Next.js optimiser cannot shrink them (it refuses SVG). Several are 150–450 kB and
+three are ~3.3 MB — see the size note in `public/avatars/README.md`. The initials
+badge on a gradient stays as the fallback for a file that is missing or fails to
+load, so a bad upload degrades instead of breaking; `AVATAR_ARTWORK_READY =
+false` switches to initials only.
+
+### Profile settings
+
+Settings → **Profile** (`src/components/settings/profile-panel.tsx`, a Server
+Component wrapping `profile-form.tsx`): a **large preview** of the current
+choice (96 px, with the greeting name and unlock progress), then the avatar grid
+**grouped by tier** with a per-tier `n/m unlocked` count, then nickname, the
+read-only email, **Change password** and **Save changes**. Tiles are 56 px with
+their label underneath; locked ones are greyed with a lock veil and their
+tooltip/aria-label carries the requirement. Avatar and nickname go through
+`updateProfileAction`; the password is changed through Supabase from the browser
+(`change-password-dialog.tsx`), because Supabase is the only holder of the
+credential.
+
+### The brand mark
+
+The official Kairos logo lives in `public/kairos-logo/` (SVG, PNG 512/1024/4096,
+WebP, ICO, 192/512 app icons, 180 apple icon). `src/components/layout/kairos-logo.tsx`
+renders the black and white variants together and lets CSS pick the one that
+contrasts with the theme; it replaced the green “K” tile in the sidebar, the auth
+shell (both places) and the marketing brand mark, and the landing page’s
+*illustrative* app preview was updated to match so the mock still looks like the
+product. `src/app/icon.svg` now holds the same mark with a
+`prefers-color-scheme` fill so the favicon works on a dark tab bar, and the root
+layout’s `metadata.icons` declares the SVG, ICO, 192, 512 and apple icons
+(`public/manifest.webmanifest` gained the 192/512 + maskable entries).
+
+### Category icons
+
+`Category.icon` stores a **Lucide icon name**; the name → component map is
+`src/lib/category-icons.ts` (~58 icons). Unknown names fall back to `Folder`, so
+old backups stay importable. The icon is picked in the category dialog
+(`src/components/taxonomy/icon-picker.tsx`) and rendered by `CategoryGlyph`,
+tinted with the category colour, in the sidebar, the task row’s category chip,
+the category picker and the settings list.
+
+### Text size
+
+`Settings.fontScale` (`compact` | `default` | `large` | `larger`, i.e. 100 / 112.5
+/ 125 / 137.5 percent) is a **root font size**. Every Tailwind size is in rem, so
+writing it on `<html>` scales the whole interface — text, rows, controls and
+column widths — not just type. `FontScaleSync` (in `AppShell`, next to
+`ThemeSync`) applies the stored value; `FontScalePicker` in Settings →
+Appearance applies a change immediately and saves it to the account. The
+percentages live in `FONT_SCALES` (`lib/constants.ts`), which is the single
+source of truth; `default` matches the value `globals.css` already set, so the
+setting is a no-op until someone changes it.
+
+### Today is a plan, not a backlog
+
+`buildSections` no longer emits an Overdue group for `scope.kind === "today"` —
+Today shows only what is planned for (or due) that day. Late tasks are still in
+All Tasks, grouped under the day that makes them late (`groupedAnchorDate`), and
+still counted in the progress panel’s “Overall” line and in `counts.overdue`, so
+nothing becomes invisible. Category views keep their Overdue group. Consequence:
+the sidebar’s **Today** badge counts only today (the example data went from
+`Today 4` to `Today 3`, which `backup.spec.ts` asserts).
 
 ---
 
