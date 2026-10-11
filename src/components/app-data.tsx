@@ -70,3 +70,35 @@ export function usePanelState(): PanelState {
   }
   return context;
 }
+
+/**
+ * The one search box for the whole workspace.
+ *
+ * It lives in the top bar rather than in each page's toolbar, so the query
+ * survives navigating between views and every view filters by the same text.
+ */
+type SearchState = {
+  query: string;
+  setQuery: (query: string) => void;
+  clear: () => void;
+};
+
+const SearchContext = createContext<SearchState | null>(null);
+
+export function SearchProvider({
+  value,
+  children,
+}: {
+  value: SearchState;
+  children: ReactNode;
+}) {
+  return <SearchContext.Provider value={value}>{children}</SearchContext.Provider>;
+}
+
+export function useSearch(): SearchState {
+  const context = useContext(SearchContext);
+  if (!context) {
+    throw new Error("useSearch must be used inside the app shell.");
+  }
+  return context;
+}

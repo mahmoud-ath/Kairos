@@ -16,6 +16,7 @@ import { toast } from "sonner";
 
 import { ShortcutDialog } from "@/components/layout/shortcut-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { SEARCH_INPUT_ID } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import {
   normalizeKey,
@@ -104,8 +105,8 @@ export function ShortcutProvider({ children }: { children: ReactNode }) {
         router.push("/settings");
         break;
       case "search":
-        // The toolbar only exists in the workspace; anywhere else, go there.
-        if (!focusFirst('[aria-label="Search tasks"]')) router.push("/today");
+        // The filter box only exists in the workspace; anywhere else, go there.
+        if (!focusFirst(`#${SEARCH_INPUT_ID}`)) router.push("/today");
         break;
       case "new-task":
         if (!focusFirst('[aria-label="New task title"]')) router.push("/today");

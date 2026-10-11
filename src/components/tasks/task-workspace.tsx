@@ -14,7 +14,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import { useAppData, usePanelState } from "@/components/app-data";
+import { useAppData, usePanelState, useSearch } from "@/components/app-data";
 import { useDragRegistry, useDragState } from "@/components/dnd/drag-provider";
 import { ProgressPanel, ProgressPanelSheet } from "@/components/layout/progress-panel";
 import { EmptyState } from "@/components/tasks/empty-state";
@@ -38,7 +38,7 @@ import { TaskDetailsPanel } from "@/components/tasks/task-details";
 import { TaskSectionView } from "@/components/tasks/task-section";
 import { TaskToolbar } from "@/components/tasks/task-toolbar";
 import { Button } from "@/components/ui/button";
-import { applyFilters, DEFAULT_FILTERS } from "@/lib/filters";
+import { applyFilters } from "@/lib/filters";
 import type { WorkspaceProgress } from "@/lib/stats";
 import {
   buildSections,
@@ -52,7 +52,6 @@ import type {
   CategoryDTO,
   SubtaskDTO,
   TaskDTO,
-  TaskFilters,
 } from "@/types/kairos";
 import {
   clearCompletedAction,
@@ -94,7 +93,10 @@ export function TaskWorkspace({
   const dragState = useDragState();
   const panel = usePanelState();
 
-  const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
+  // The filter box lives in the top bar; every view is narrowed by the same text.
+  const { query, clear: clearFilter } = useSearch();
+  const filters = useMemo(() => ({ query }), [query]);
+  const searching = query.trim().length > 0;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [focusTarget, setFocusTarget] = useState<"notes" | null>(null);
@@ -697,8 +699,8 @@ export function TaskWorkspace({
           />
 
           <TaskToolbar
-            filters={filters}
-            onFiltersChange={setFilters}
+            searching={searching}
+            onClearFilter={clearFilter}
             resultCount={visibleCount}
             totalCount={scopedTasks.length}
             completedCount={completedInScope}
@@ -727,10 +729,21 @@ export function TaskWorkspace({
           {visibleTasks.length === 0 ? (
             <div className="mt-6">
               <EmptyState
-                title={emptyTitle}
-                description={emptyDescription}
-                workspaceIsEmpty={workspaceIsEmpty}
-                onFocusQuickAdd={() => quickAddRef.current?.querySelector("input")?.focus()}
+                title={
+                  searching ? `No tasks on this page match “${query.trim()}”` : emptyTitle
+                }
+                description={
+                  searching
+                    ? "The filter only looks at the tasks in this view. Clear it to see them all."
+                    : emptyDescription
+                }
+                workspaceIsEmpty={workspaceIsEmpty && !searching}
+                onClearFilter={searching ? clearFilter : undefined}
+                onFocusQuickAdd={
+                  searching
+                    ? undefined
+                    : () => quickAddRef.current?.querySelector("input")?.focus()
+                }
               />
             </div>
           ) : null}

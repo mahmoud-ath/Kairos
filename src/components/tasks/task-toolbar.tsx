@@ -1,6 +1,6 @@
 "use client";
 
-import { ListFilter, Search, Trash2, X } from "lucide-react";
+import { ListFilter, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -14,19 +14,20 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { countActiveFilters, DEFAULT_FILTERS } from "@/lib/filters";
-import type { TaskFilters } from "@/types/kairos";
 
 /**
- * The view header: search, a count, and "clear completed".
+ * The view header: a summary line and "clear completed".
  *
- * Category and status filter dropdowns were removed — categories have their own
+ * The filter box itself lives in the app top bar, because it narrows whatever
+ * page is open — this component reports how many tasks matched it and offers a
+ * way to clear it.
+ *
+ * Category and status filter dropdowns were removed: categories have their own
  * views in the sidebar, and the status of a task is visible on the row.
  */
 export function TaskToolbar({
-  filters,
-  onFiltersChange,
+  searching,
+  onClearFilter,
   resultCount,
   totalCount,
   completedCount,
@@ -34,8 +35,10 @@ export function TaskToolbar({
   clearCompletedScope,
   onClearCompleted,
 }: {
-  filters: TaskFilters;
-  onFiltersChange: (filters: TaskFilters) => void;
+  /** True while a filter is narrowing the list. */
+  searching: boolean;
+  /** Clears the top bar's filter box. */
+  onClearFilter: () => void;
   resultCount: number;
   totalCount: number;
   /** Completed tasks visible in this view (shown in the summary line). */
@@ -47,70 +50,55 @@ export function TaskToolbar({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const active = countActiveFilters(filters);
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-56 flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            value={filters.query}
-            onChange={(event) => onFiltersChange({ query: event.target.value })}
-            placeholder="Search titles and notes"
-            aria-label="Search tasks"
-            className="h-10 pl-9"
-          />
-        </div>
-
-        {active > 0 ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-10"
-            onClick={() => onFiltersChange(DEFAULT_FILTERS)}
-          >
-            <X className="mr-1 h-4 w-4" />
-            Clear search
-          </Button>
-        ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+          {searching ? (
+            <>
+              <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="tabular-nums">
+                {resultCount} matching task{resultCount === 1 ? "" : "s"}
+              </span>
+              <span aria-hidden="true">·</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={onClearFilter}
+              >
+                <X className="mr-1 h-3 w-3" />
+                Clear filter
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="tabular-nums">
+                {totalCount} task{totalCount === 1 ? "" : "s"}
+              </span>
+              {completedCount > 0 ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="tabular-nums">{completedCount} done</span>
+                </>
+              ) : null}
+            </>
+          )}
+        </p>
 
         {clearCompletedCount > 0 ? (
           <Button
             variant="outline"
             size="sm"
-            className="h-10 text-muted-foreground hover:text-destructive"
+            className="h-8 text-muted-foreground hover:text-destructive"
             onClick={() => setConfirming(true)}
           >
-            <Trash2 className="mr-1.5 h-4 w-4" />
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
             Clear completed
           </Button>
         ) : null}
       </div>
-
-      <p className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
-        {active > 0 ? (
-          <>
-            <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="tabular-nums">
-              {resultCount} of {totalCount}
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="tabular-nums">
-              {totalCount} task{totalCount === 1 ? "" : "s"}
-            </span>
-            {completedCount > 0 ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="tabular-nums">{completedCount} done</span>
-              </>
-            ) : null}
-          </>
-        )}
-      </p>
 
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>

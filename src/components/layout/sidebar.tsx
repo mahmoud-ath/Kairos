@@ -17,9 +17,10 @@ import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
 import { CategoryDeleteDialog } from "@/components/categories/category-delete-dialog";
 import { CategoryDialog } from "@/components/categories/category-dialog";
+import { KairosLogo } from "@/components/layout/kairos-logo";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
-import { ShortcutTrigger } from "@/components/layout/shortcut-provider";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { CategoryGlyph } from "@/components/taxonomy/category-glyph";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -64,11 +65,7 @@ function CategoryRow({
         onClick={onNavigate}
         className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-sidebar-accent focus-visible:bg-sidebar-accent"
       >
-        <span
-          aria-hidden="true"
-          className="h-2.5 w-2.5 shrink-0 rounded-full"
-          style={{ backgroundColor: category.color }}
-        />
+        <CategoryGlyph icon={category.icon} color={category.color} className="h-3.5 w-3.5" />
         <span className="truncate">{category.name}</span>
         {category.openTaskCount > 0 ? (
           <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -213,11 +210,8 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2.5 px-4 py-4">
-        <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-          K
-        </span>
+        <KairosLogo className="h-6 w-6" label={null} />
         <p className="text-sm font-semibold tracking-tight">Kairos</p>
-        <ShortcutTrigger className="ml-auto" />
       </div>
 
       <nav aria-label="Views" className="flex flex-col gap-0.5 px-3 pb-2">

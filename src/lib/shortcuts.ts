@@ -8,7 +8,6 @@
  * sequence ("g") is held for `SEQUENCE_TIMEOUT_MS`, which is what makes `g t`
  * work without breaking `t`.
  */
-
 export type ShortcutId =
   | "go-today"
   | "go-tasks"
@@ -36,7 +35,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "go-completed", keys: ["g", "c"], label: "Completed", group: "Go to" },
   { id: "go-statistics", keys: ["g", "s"], label: "Statistics", group: "Go to" },
   { id: "go-settings", keys: ["g", ","], label: "Settings", group: "Go to" },
-  { id: "search", keys: ["/"], label: "Search tasks", group: "Actions" },
+  { id: "search", keys: ["/"], label: "Filter tasks on this page", group: "Actions" },
   { id: "new-task", keys: ["n"], label: "New task", group: "Actions" },
   { id: "toggle-theme", keys: ["t"], label: "Switch theme", group: "Actions" },
   { id: "help", keys: ["?"], label: "Keyboard shortcuts", group: "Actions" },

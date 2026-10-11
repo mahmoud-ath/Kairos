@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpenCheck, ListChecks, Sparkles } from "lucide-react";
+import { BookOpenCheck, ListChecks, Search, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -10,20 +10,25 @@ import { loadExampleTasksAction } from "@/server/actions/examples";
 /**
  * Empty state with a way forward.
  *
- * When the whole workspace is empty (nothing has ever been created) the user can
- * load a small set of example tasks. This is always an explicit choice — Kairos
- * never seeds a database silently.
+ * Three situations, in priority order:
+ *  - the filter matched nothing → say so, and offer to clear it
+ *  - nothing has ever been created → offer the example data (an explicit choice;
+ *    Kairos never seeds a database silently)
+ *  - this view happens to be empty → offer the quick-add field
  */
 export function EmptyState({
   title,
   description,
   workspaceIsEmpty,
   onFocusQuickAdd,
+  onClearFilter,
 }: {
   title: string;
   description: string;
   workspaceIsEmpty: boolean;
   onFocusQuickAdd?: () => void;
+  /** Set when the list is empty because of the current filter. */
+  onClearFilter?: () => void;
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -43,7 +48,9 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-6 py-12 text-center">
       <span className="grid h-10 w-10 place-items-center rounded-full bg-muted text-muted-foreground">
-        {workspaceIsEmpty ? (
+        {onClearFilter ? (
+          <Search className="h-5 w-5" />
+        ) : workspaceIsEmpty ? (
           <Sparkles className="h-5 w-5" />
         ) : (
           <ListChecks className="h-5 w-5" />
@@ -55,6 +62,12 @@ export function EmptyState({
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-2">
+        {onClearFilter ? (
+          <Button size="sm" onClick={onClearFilter}>
+            <X className="mr-1.5 h-3.5 w-3.5" />
+            Clear filter
+          </Button>
+        ) : null}
         {onFocusQuickAdd ? (
           <Button variant="outline" size="sm" onClick={onFocusQuickAdd}>
             Add your first task
