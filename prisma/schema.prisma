@@ -59,6 +59,9 @@ model Category {
   userId    String
   name      String
   color     String   @default("#f97316")
+  // Lucide icon name (see `src/lib/category-icons.ts`). Stored as a plain
+  // string so the catalogue can grow without a database enum.
+  icon      String   @default("Folder")
   position  Int      @default(0)
   createdAt DateTime @default(now())
 
@@ -90,5 +93,14 @@ model Settings {
   theme        String   @default("system") // light | dark | system
   timezone     String   @default("UTC")
   weekStartsOn Int      @default(1) // 0 = Sunday, 1 = Monday
+  // How the person is greeted. `null` means "not chosen yet" — the UI falls
+  // back to a friendly default (see `displayName`).
+  nickname     String?
+  // Chosen avatar id (see `src/lib/avatars.ts`). Avatars beyond the free two
+  // are earned by completing tasks; the server refuses locked ids.
+  avatarId     String   @default("spark")
+  // Root font size, applied to <html>. Every Tailwind size is in rem, so this
+  // scales the whole interface together (see FONT_SCALES in lib/constants).
+  fontScale    String   @default("default") // compact | default | large | larger
   updatedAt    DateTime @updatedAt
 }
