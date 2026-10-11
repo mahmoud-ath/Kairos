@@ -39,6 +39,8 @@ export type CategoryDTO = {
   id: string;
   name: string;
   color: string;
+  /** Lucide icon name (see `src/lib/category-icons.ts`). */
+  icon: string;
   position: number;
   /** Unfinished top-level tasks in this category. */
   openTaskCount: number;

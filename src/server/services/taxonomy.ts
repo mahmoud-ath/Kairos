@@ -1,6 +1,7 @@
 import "server-only";
 
 import { CATEGORY_COLORS } from "@/lib/constants";
+import { DEFAULT_CATEGORY_ICON } from "@/lib/category-icons";
 import type { CategoryDTO } from "@/types/kairos";
 import { scopedPrisma, type Prisma } from "@/server/db";
 
@@ -33,6 +34,7 @@ export async function listCategories(userId: string): Promise<CategoryDTO[]> {
     id: category.id,
     name: category.name,
     color: category.color,
+    icon: category.icon,
     position: category.position,
     openTaskCount: countByCategory.get(category.id) ?? 0,
   }));
@@ -51,7 +53,7 @@ export async function getCategoryByName(userId: string, name: string) {
 /** Create a category, appending it to the end of the sidebar order. */
 export async function createCategory(
   userId: string,
-  values: { name: string; color?: string },
+  values: { name: string; color?: string; icon?: string },
 ) {
   const prisma = scopedPrisma(userId);
   const last = await prisma.category.findFirst({ orderBy: { position: "desc" } });
@@ -60,7 +62,13 @@ export async function createCategory(
     values.color ?? CATEGORY_COLORS[position % CATEGORY_COLORS.length];
 
   return prisma.category.create({
-    data: { userId, name: values.name, color, position },
+    data: {
+      userId,
+      name: values.name,
+      color,
+      icon: values.icon ?? DEFAULT_CATEGORY_ICON,
+      position,
+    },
   });
 }
 
@@ -70,6 +78,7 @@ export async function updateCategory(
     id: string;
     name?: string;
     color?: string;
+    icon?: string;
     position?: number;
   },
 ) {
@@ -77,6 +86,7 @@ export async function updateCategory(
   const data: Prisma.CategoryUpdateInput = {};
   if (values.name !== undefined) data.name = values.name;
   if (values.color !== undefined) data.color = values.color;
+  if (values.icon !== undefined) data.icon = values.icon;
   if (values.position !== undefined) data.position = values.position;
 
   return prisma.category.update({ where: { id: values.id }, data });

@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { CategoryDeleteDialog } from "@/components/categories/category-delete-dialog";
 import { CategoryDialog } from "@/components/categories/category-dialog";
+import { CategoryGlyph } from "@/components/taxonomy/category-glyph";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -44,11 +45,7 @@ export function TaxonomyManager({ categories }: { categories: readonly CategoryD
         <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
           {categories.map((category) => (
             <li key={category.id} className="flex items-center gap-3 px-3 py-2">
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: category.color }}
-              />
+              <CategoryGlyph icon={category.icon} color={category.color} />
               <span className="min-w-0 flex-1 truncate text-sm">{category.name}</span>
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                 {category.openTaskCount} open

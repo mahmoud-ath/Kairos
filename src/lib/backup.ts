@@ -37,6 +37,9 @@ export const backupCategorySchema = z.object({
   id: z.string().min(1).max(64),
   name: z.string().min(1).max(NAME_MAX_LENGTH),
   color: z.string().min(1).max(32),
+  // Optional: files written before category icons existed simply omit it and
+  // fall back to the schema default on import.
+  icon: z.string().min(1).max(40).optional(),
   position: z.number().int(),
   createdAt: timestamp.optional(),
 });
@@ -260,6 +263,7 @@ export function buildBackupFile(input: {
     id: string;
     name: string;
     color: string;
+    icon?: string;
     position: number;
     createdAt: Date;
   }>;
@@ -302,6 +306,7 @@ export function buildBackupFile(input: {
         id: category.id,
         name: category.name,
         color: category.color,
+        icon: category.icon,
         position: category.position,
         createdAt: category.createdAt.toISOString(),
       })),

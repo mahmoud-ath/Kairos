@@ -8,6 +8,7 @@
 
 import { z } from "zod";
 
+import { isCategoryIconName } from "@/lib/category-icons";
 import { NAME_MAX_LENGTH, NOTES_MAX_LENGTH, TITLE_MAX_LENGTH } from "@/lib/constants";
 import { DATE_ONLY_PATTERN, isValidDateOnly, isValidTimeZone } from "@/lib/dates";
 import type { TaskStatus } from "@/types/kairos";
@@ -66,6 +67,9 @@ export const colorSchema = z
   .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Colors must be hex values like #f97316.");
 
 export const positionSchema = z.number().int().min(0).max(100000);
+
+/** Only names from the category icon catalogue are accepted. */
+export const categoryIconSchema = z.string().refine(isCategoryIconName, "Unknown icon.");
 
 /* -------------------------------------------------------------------------- */
 /* Tasks                                                                      */
@@ -173,12 +177,14 @@ export const clearCompletedSchema = z.object({
 export const createCategorySchema = z.object({
   name: nameSchema,
   color: colorSchema.optional(),
+  icon: categoryIconSchema.optional(),
 });
 
 export const updateCategorySchema = z.object({
   id: idSchema,
   name: nameSchema.optional(),
   color: colorSchema.optional(),
+  icon: categoryIconSchema.optional(),
   position: positionSchema.optional(),
 });
 

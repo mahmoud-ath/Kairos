@@ -39,13 +39,13 @@ export async function loadExampleTasks(
 
   const [work, personal, learning] = await Promise.all([
     prisma.category.create({
-      data: { userId, name: "Work", color: "#3b82f6", position: 0 },
+      data: { userId, name: "Work", color: "#3b82f6", icon: "Briefcase", position: 0 },
     }),
     prisma.category.create({
-      data: { userId, name: "Personal", color: "#22c55e", position: 1 },
+      data: { userId, name: "Personal", color: "#22c55e", icon: "Home", position: 1 },
     }),
     prisma.category.create({
-      data: { userId, name: "Learning", color: "#8b5cf6", position: 2 },
+      data: { userId, name: "Learning", color: "#8b5cf6", icon: "GraduationCap", position: 2 },
     }),
   ]);
 

@@ -7,6 +7,7 @@ import {
   type BackupSummary,
 } from "@/lib/backup";
 import { dateOnlyToDate } from "@/lib/dates";
+import { DEFAULT_CATEGORY_ICON, isCategoryIconName } from "@/lib/category-icons";
 import { scopedPrisma } from "@/server/db";
 import { ServiceError } from "@/server/services/tasks";
 import { getSettings } from "@/server/services/settings";
@@ -71,6 +72,10 @@ export async function importBackup(
             userId,
             name: category.name,
             color: category.color,
+            icon:
+              category.icon && isCategoryIconName(category.icon)
+                ? category.icon
+                : DEFAULT_CATEGORY_ICON,
             position: category.position,
           },
         });

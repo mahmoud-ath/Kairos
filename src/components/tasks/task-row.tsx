@@ -19,6 +19,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { DateChip, NotesButton, SubtaskProgressLabel } from "@/components/tasks/task-bits";
+import { CategoryGlyph } from "@/components/taxonomy/category-glyph";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -358,6 +359,7 @@ export function TaskRow({
     useSortable({ id: task.id, data: { type: "task", parentId: null } });
 
   const done = task.status === "DONE";
+  const category = categories.find((item) => item.id === task.categoryId) ?? null;
   const doneSubtasks = task.subtasks.filter((subtask) => subtask.status === "DONE").length;
   const overdue =
     !done &&
@@ -442,10 +444,18 @@ export function TaskRow({
             ) : null}
             {categoryName ? (
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40"
-                />
+                {category ? (
+                  <CategoryGlyph
+                    icon={category.icon}
+                    color={category.color}
+                    className="h-3 w-3"
+                  />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40"
+                  />
+                )}
                 {categoryName}
               </span>
             ) : null}

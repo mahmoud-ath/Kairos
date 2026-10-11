@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ColorPicker } from "@/components/taxonomy/color-picker";
+import { CategoryGlyph } from "@/components/taxonomy/category-glyph";
+import { IconPicker } from "@/components/taxonomy/icon-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,10 +18,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CATEGORY_COLORS } from "@/lib/constants";
+import { DEFAULT_CATEGORY_ICON } from "@/lib/category-icons";
 import type { CategoryDTO } from "@/types/kairos";
 import { createCategoryAction, updateCategoryAction } from "@/server/actions/taxonomy";
 
-/** Create or rename a category (and pick its color). */
+/** Create or rename a category (and pick its colour and icon). */
 export function CategoryDialog({
   open,
   onOpenChange,
@@ -32,6 +35,7 @@ export function CategoryDialog({
   const isEdit = Boolean(category);
   const [name, setName] = useState(category?.name ?? "");
   const [color, setColor] = useState(category?.color ?? CATEGORY_COLORS[0]);
+  const [icon, setIcon] = useState(category?.icon ?? DEFAULT_CATEGORY_ICON);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -39,6 +43,7 @@ export function CategoryDialog({
     if (!open) return;
     setName(category?.name ?? "");
     setColor(category?.color ?? CATEGORY_COLORS[0]);
+    setIcon(category?.icon ?? DEFAULT_CATEGORY_ICON);
     setError(null);
   }, [open, category]);
 
@@ -48,8 +53,8 @@ export function CategoryDialog({
     setError(null);
 
     const result = isEdit
-      ? await updateCategoryAction({ id: category!.id, name, color })
-      : await createCategoryAction({ name, color });
+      ? await updateCategoryAction({ id: category!.id, name, color, icon })
+      : await createCategoryAction({ name, color, icon });
 
     setSaving(false);
     if (!result.ok) {
@@ -86,7 +91,20 @@ export function CategoryDialog({
 
           <div className="flex flex-col gap-2">
             <Label>Color</Label>
-            <ColorPicker value={color} onChange={setColor} />
+            <div className="flex items-center gap-3">
+              <ColorPicker value={color} onChange={setColor} />
+              <span
+                aria-hidden="true"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-muted"
+              >
+                <CategoryGlyph icon={icon} color={color} />
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label>Icon</Label>
+            <IconPicker value={icon} onChange={setIcon} />
           </div>
 
           {error ? (

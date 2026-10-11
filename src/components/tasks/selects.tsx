@@ -4,6 +4,7 @@ import { Check, Plus } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { CategoryGlyph } from "@/components/taxonomy/category-glyph";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -96,10 +97,10 @@ export function CategorySelect({
           )}
         >
           {selected ? (
-            <span
-              aria-hidden="true"
-              className="mr-2 h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: selected.color }}
+            <CategoryGlyph
+              icon={selected.icon}
+              color={selected.color}
+              className="mr-2 h-3.5 w-3.5"
             />
           ) : (
             <span aria-hidden="true" className="mr-2 h-2.5 w-2.5 shrink-0 rounded-full border border-muted-foreground/40" />
@@ -141,10 +142,10 @@ export function CategorySelect({
                 }}
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
               >
-                <span
-                  aria-hidden="true"
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: category.color }}
+                <CategoryGlyph
+                  icon={category.icon}
+                  color={category.color}
+                  className="h-4 w-4"
                 />
                 <span className="flex-1 truncate">{category.name}</span>
                 {category.id === value ? <Check className="h-4 w-4 text-primary" /> : null}

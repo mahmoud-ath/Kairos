@@ -53,13 +53,14 @@ export function serializeSubtask(task: {
 }
 
 export function serializeCategory(
-  category: { id: string; name: string; color: string; position: number },
+  category: { id: string; name: string; color: string; icon: string; position: number },
   openTaskCount: number,
 ): CategoryDTO {
   return {
     id: category.id,
     name: category.name,
     color: category.color,
+    icon: category.icon,
     position: category.position,
     openTaskCount,
   };
