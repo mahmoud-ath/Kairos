@@ -8,13 +8,21 @@
 
 import { z } from "zod";
 
+import { isAvatarId } from "@/lib/avatars";
 import { isCategoryIconName } from "@/lib/category-icons";
-import { NAME_MAX_LENGTH, NOTES_MAX_LENGTH, TITLE_MAX_LENGTH } from "@/lib/constants";
+import {
+  NAME_MAX_LENGTH,
+  NICKNAME_MAX_LENGTH,
+  NOTES_MAX_LENGTH,
+  TITLE_MAX_LENGTH,
+} from "@/lib/constants";
 import { DATE_ONLY_PATTERN, isValidDateOnly, isValidTimeZone } from "@/lib/dates";
 import type { TaskStatus } from "@/types/kairos";
 
 export const taskStatusSchema = z.enum(["TODO", "DONE"]);
 export const themeSchema = z.enum(["light", "dark", "system"]);
+// Mirrors the `FontScale` union; the percentages live in FONT_SCALES.
+export const fontScaleSchema = z.enum(["compact", "default", "large", "larger"]);
 
 export const idSchema = z
   .string()
@@ -67,6 +75,23 @@ export const colorSchema = z
   .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Colors must be hex values like #f97316.");
 
 export const positionSchema = z.number().int().min(0).max(100000);
+
+/** `""` and `null` both mean "no nickname" — the UI then derives one. */
+export const nicknameSchema = z
+  .union([
+    z
+      .string()
+      .trim()
+      .max(
+        NICKNAME_MAX_LENGTH,
+        `Nicknames are limited to ${NICKNAME_MAX_LENGTH} characters.`,
+      ),
+    z.null(),
+  ])
+  .transform((value) => (value && value.length > 0 ? value : null));
+
+/** Only ids from the avatar catalogue are accepted. */
+export const avatarIdSchema = z.string().refine(isAvatarId, "Unknown avatar.");
 
 /** Only names from the category icon catalogue are accepted. */
 export const categoryIconSchema = z.string().refine(isCategoryIconName, "Unknown icon.");
@@ -201,7 +226,19 @@ export const updateSettingsSchema = z.object({
     .refine(isValidTimeZone, "Unknown timezone.")
     .optional(),
   weekStartsOn: z.number().int().min(0).max(6).optional(),
+  fontScale: fontScaleSchema.optional(),
 });
+
+/** Nickname and avatar. Locked-avatar rules are enforced in the service/action. */
+export const updateProfileSchema = z
+  .object({
+    nickname: nicknameSchema.optional(),
+    avatarId: avatarIdSchema.optional(),
+  })
+  .refine(
+    (value) => value.nickname !== undefined || value.avatarId !== undefined,
+    "Nothing to update.",
+  );
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */

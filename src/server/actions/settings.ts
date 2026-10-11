@@ -2,13 +2,16 @@
 
 import { z } from "zod";
 
+import { avatarById, isAvatarUnlocked } from "@/lib/avatars";
 import type { BackupSummary } from "@/lib/backup";
-import { updateSettingsSchema } from "@/lib/validation";
-import type { ActionResult, SettingsDTO } from "@/types/kairos";
+import { updateProfileSchema, updateSettingsSchema } from "@/lib/validation";
+import type { ActionResult, ProfileDTO, SettingsDTO } from "@/types/kairos";
 import { requireUserId } from "@/server/auth";
 import { runAction } from "@/server/actions/helpers";
 import { exportBackup, importBackup, resetAllData } from "@/server/services/backup";
+import { countCompletions } from "@/server/services/profile";
 import { updateSettings } from "@/server/services/settings";
+import { ServiceError } from "@/server/services/tasks";
 
 const importInputSchema = z.object({
   json: z.string().min(2, "The file is empty.").max(50_000_000),
@@ -29,7 +32,40 @@ export async function updateSettingsAction(input: unknown): Promise<ActionResult
       theme: settings.theme as SettingsDTO["theme"],
       timezone: settings.timezone,
       weekStartsOn: settings.weekStartsOn,
+      nickname: settings.nickname ?? null,
+      avatarId: settings.avatarId,
+      fontScale: settings.fontScale as SettingsDTO["fontScale"],
     };
+  });
+}
+
+/**
+ * Save the nickname and/or avatar.
+ *
+ * The unlock rule is checked here, on the server, against the same pure
+ * catalogue the UI uses — a locked id sent straight to the action is refused.
+ */
+export async function updateProfileAction(input: unknown): Promise<ActionResult<ProfileDTO>> {
+  return runAction(async () => {
+    const userId = await requireUserId();
+    const values = updateProfileSchema.parse(input);
+
+    if (values.avatarId !== undefined) {
+      const completed = await countCompletions(userId);
+      const avatar = avatarById(values.avatarId);
+      if (!isAvatarUnlocked(avatar, completed)) {
+        const needed =
+          avatar.unlock.kind === "completed" ? avatar.unlock.count - completed : 0;
+        throw new ServiceError(
+          `“${avatar.label}” is still locked — complete ${needed} more task${
+            needed === 1 ? "" : "s"
+          } to unlock it.`,
+        );
+      }
+    }
+
+    const settings = await updateSettings(userId, values);
+    return { nickname: settings.nickname ?? null, avatarId: settings.avatarId };
   });
 }
 

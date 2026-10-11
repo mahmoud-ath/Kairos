@@ -2,7 +2,7 @@ import "server-only";
 
 import { DEFAULT_TIMEZONE } from "@/lib/constants";
 import { isValidTimeZone } from "@/lib/dates";
-import type { ThemePreference } from "@/types/kairos";
+import type { FontScale, ThemePreference } from "@/types/kairos";
 import { prisma, type Prisma } from "@/server/db";
 
 // Settings are keyed by their owner; there is no fixed singleton id any more.
@@ -11,6 +11,9 @@ export type SettingsRecord = {
   theme: ThemePreference;
   timezone: string;
   weekStartsOn: number;
+  nickname: string | null;
+  avatarId: string;
+  fontScale: FontScale;
 };
 
 /** Best-effort guess of the server's timezone, used only for first-run setup. */
@@ -47,6 +50,9 @@ export async function getSettingsRecord(userId: string): Promise<SettingsRecord>
     theme: settings.theme as ThemePreference,
     timezone: settings.timezone,
     weekStartsOn: settings.weekStartsOn,
+    nickname: settings.nickname ?? null,
+    avatarId: settings.avatarId,
+    fontScale: settings.fontScale as FontScale,
   };
 }
 
@@ -56,6 +62,9 @@ export async function updateSettings(
     theme?: ThemePreference;
     timezone?: string;
     weekStartsOn?: number;
+    nickname?: string | null;
+    avatarId?: string;
+    fontScale?: FontScale;
   },
 ) {
   await getSettings(userId);
@@ -63,6 +72,9 @@ export async function updateSettings(
   if (values.theme !== undefined) data.theme = values.theme;
   if (values.timezone !== undefined) data.timezone = values.timezone;
   if (values.weekStartsOn !== undefined) data.weekStartsOn = values.weekStartsOn;
+  if (values.nickname !== undefined) data.nickname = values.nickname;
+  if (values.avatarId !== undefined) data.avatarId = values.avatarId;
+  if (values.fontScale !== undefined) data.fontScale = values.fontScale;
 
   return prisma.settings.update({ where: { userId }, data });
 }

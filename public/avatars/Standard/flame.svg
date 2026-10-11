@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Flame avatar">
+  <defs>
+    <linearGradient id="a" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" fill="url(#a)"/>
+  <path fill="#fff" fill-opacity=".92" d="M50 16c8 16 20 24 20 40a22 22 0 11-44 0c0-9 5-16 11-23 0 7 3 12 8 12-4-9-1-20 5-29z"/>
+</svg>

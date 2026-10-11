@@ -10,6 +10,9 @@
 export type TaskStatus = "TODO" | "DONE";
 export type ThemePreference = "light" | "dark" | "system";
 
+/** Root font-size scale for the whole app (see FONT_SCALES in lib/constants). */
+export type FontScale = "compact" | "default" | "large" | "larger";
+
 export type SubtaskDTO = {
   id: string;
   title: string;
@@ -50,6 +53,18 @@ export type SettingsDTO = {
   theme: ThemePreference;
   timezone: string;
   weekStartsOn: number;
+  /** How the account is greeted; `null` falls back to an email-derived name. */
+  nickname: string | null;
+  /** Chosen avatar id (see `src/lib/avatars.ts`). */
+  avatarId: string;
+  /** Root font-size scale for the whole interface. */
+  fontScale: FontScale;
+};
+
+/** The parts of the profile a person can change themselves. */
+export type ProfileDTO = {
+  nickname: string | null;
+  avatarId: string;
 };
 
 /**
