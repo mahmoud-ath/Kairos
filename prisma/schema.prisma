@@ -39,19 +39,60 @@ model Task {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   completedAt   DateTime?
+  // Set when this task is one day's generated instance of a habit. Such a task
+  // is configured on the Habits page, only ever appears in Today, and its
+  // completion is what "the habit was done that day" means.
+  habitId       String?
+  // Date-only (UTC midnight) of the day this instance belongs to. Kept apart
+  // from `scheduledDate` so a habit day is stable no matter how a later edit
+  // moves the task.
+  habitDate     DateTime?
 
   category Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   parent   Task?       @relation("TaskToSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
   subtasks Task[]      @relation("TaskToSubtasks")
   events   TaskEvent[]
+  habit    Habit?      @relation(fields: [habitId], references: [id], onDelete: Cascade)
 
   // Every index leads with userId, because every query filters on it.
+  @@unique([habitId, habitDate])
   @@index([userId, parentId, position])
   @@index([userId, categoryId, parentId])
   @@index([userId, status])
   @@index([userId, scheduledDate])
   @@index([userId, dueDate])
   @@index([userId, completedAt])
+  @@index([userId, habitId, habitDate])
+}
+
+/// A habit is the *recipe* for a repeating task; each day it is due, a Task is
+/// generated from it and appears in Today. The habit stores no progress of its
+/// own: "done" is derived from the generated tasks' completion history.
+model Habit {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  notes      String?
+  categoryId String?
+  // Weekday numbers the habit is due on (0 = Sunday … 6 = Saturday), comma
+  // separated. The default is every day. Stored as a string so the rule stays a
+  // plain application concern (see `src/lib/habits.ts`).
+  days       String   @default("0,1,2,3,4,5,6")
+  position   Int      @default(0)
+  // A paused habit keeps its history but stops generating new days.
+  paused     Boolean  @default(false)
+  // Date-only (UTC midnight) of the day the habit started. Days before it are
+  // neither due nor missed, so a habit created today does not read as a week of
+  // failures against its progress.
+  startDate  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tasks    Task[]
+
+  @@index([userId, position])
+  @@index([userId, paused])
 }
 
 model Category {
@@ -65,7 +106,8 @@ model Category {
   position  Int      @default(0)
   createdAt DateTime @default(now())
 
-  tasks Task[]
+  tasks  Task[]
+  habits Habit[]
 
   // Names are unique per user, not globally: two people may both have "Work".
   @@unique([userId, name])

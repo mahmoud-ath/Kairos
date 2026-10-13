@@ -45,7 +45,7 @@ export type { Prisma } from "@prisma/client";
 /* -------------------------------------------------------------------------- */
 
 /** Models whose rows belong to exactly one user. */
-const TENANT_MODELS = new Set(["Task", "Category", "TaskEvent", "Settings"]);
+const TENANT_MODELS = new Set(["Task", "Category", "TaskEvent", "Settings", "Habit"]);
 
 /** Operations whose `where` must be narrowed to the owner. */
 const FILTERED_OPERATIONS = new Set([
