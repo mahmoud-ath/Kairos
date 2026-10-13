@@ -3,6 +3,7 @@ import { todayDateOnly } from "@/lib/dates";
 import type { WorkspaceProgress } from "@/lib/stats";
 import type { ViewScope } from "@/lib/views";
 import { requireUserId } from "@/server/auth";
+import { ensureHabitInstances } from "@/server/services/habits";
 import { getStatistics } from "@/server/services/statistics";
 import { getSettingsRecord } from "@/server/services/settings";
 import { listTasks } from "@/server/services/tasks";
@@ -20,6 +21,7 @@ export async function WorkspacePage({
   emptyDescription,
   showCategory = false,
   windowDays = 7,
+  includeHabitInstances = false,
 }: {
   scope: ViewScope;
   title: string;
@@ -27,13 +29,22 @@ export async function WorkspacePage({
   emptyDescription: string;
   showCategory?: boolean;
   windowDays?: number;
+  /**
+   * Today includes the tasks generated from habits; every other view leaves them
+   * out, so they can never surface in All Tasks, Completed or a category.
+   */
+  includeHabitInstances?: boolean;
 }) {
   const userId = await requireUserId();
   const settings = await getSettingsRecord(userId);
   const today = todayDateOnly(settings.timezone);
 
+  // Generated here as well as in the layout, so this render is guaranteed to see
+  // the instances it is about to list (the two may run concurrently).
+  if (includeHabitInstances) await ensureHabitInstances(userId, today);
+
   const [tasks, statistics] = await Promise.all([
-    listTasks(userId),
+    listTasks(userId, { includeHabits: includeHabitInstances }),
     getStatistics(userId, { scope, today, timeZone: settings.timezone, windowDays }),
   ]);
 

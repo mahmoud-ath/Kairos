@@ -355,6 +355,7 @@ export function TaskWorkspace({
       createdAt: now,
       updatedAt: now,
       completedAt: subtask.completedAt,
+      habitId: null,
       subtasks: [],
     };
     const date =
@@ -446,6 +447,7 @@ export function TaskWorkspace({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       completedAt: null,
+      habitId: null,
       subtasks: [],
     };
 
@@ -479,12 +481,16 @@ export function TaskWorkspace({
     ): DragIntent => {
       const active = findDragItem(optimisticTasks, activeId);
       if (!active) return "invalid";
+      // Habit instances can only be ticked off in place: they are never dragged
+      // and never accept a drop, so they keep their habit's configuration.
+      if (active.task.habitId) return "invalid";
 
       if (overId.startsWith(CATEGORY_PREFIX)) {
         return active.parentId ? "invalid" : "category";
       }
 
       const over = findDragItem(optimisticTasks, overId);
+      if (over?.task.habitId) return "invalid";
 
       if (active.parentId) {
         // Subtasks stay in their parent unless they are clearly pulled out.
@@ -538,7 +544,9 @@ export function TaskWorkspace({
 
     const activeItem = findDragItem(optimisticTasks, activeId);
     if (!activeItem) return;
+    if (activeItem.task.habitId) return;
     const overItem = findDragItem(optimisticTasks, overId);
+    if (overItem?.task.habitId) return;
     const intent: DragIntent =
       handlers.current.resolveIntent?.(activeId, overId, delta.x) ?? "invalid";
 
