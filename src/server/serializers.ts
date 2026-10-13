@@ -32,6 +32,7 @@ export function serializeTask(task: TaskWithRelations): TaskDTO {
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
     completedAt: task.completedAt ? task.completedAt.toISOString() : null,
+    habitId: task.habitId,
     subtasks: task.subtasks.map(serializeSubtask),
   };
 }
@@ -74,6 +75,7 @@ export function serializeTaskSummary(task: {
   dueDate: Date | null;
   position: number;
   completedAt: Date | null;
+  habitId: string | null;
 }): TaskSummary {
   return {
     id: task.id,
@@ -83,5 +85,6 @@ export function serializeTaskSummary(task: {
     dueDate: task.dueDate ? dateToDateOnly(task.dueDate) : null,
     position: task.position,
     completedAt: task.completedAt ? task.completedAt.toISOString() : null,
+    habitId: task.habitId,
   };
 }

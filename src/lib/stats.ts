@@ -72,6 +72,24 @@ export function eventTaskKey(event: TaskEventLike): string | null {
 }
 
 /**
+ * True when the event was written for a habit's generated task.
+ *
+ * Habit instances are quarantined out of every task view, so their completions
+ * are left out of the task statistics too — otherwise `activity` would count
+ * work that `parents` deliberately excludes, and the same page would disagree
+ * with itself. Habits have their own page.
+ */
+export function isHabitEvent(event: TaskEventLike): boolean {
+  if (!event.metadata) return false;
+  try {
+    const parsed = JSON.parse(event.metadata) as { habitId?: unknown };
+    return typeof parsed?.habitId === "string" && parsed.habitId.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Bucket events into a day-by-day series.
  *
  * Each task counts at most once per day per action, so toggling a checkbox
@@ -88,6 +106,7 @@ export function buildActivitySeries(
 
   for (const event of events) {
     if (event.action !== "completed" && event.action !== "reopened") continue;
+    if (isHabitEvent(event)) continue;
     const key = eventTaskKey(event);
     if (!key) continue;
     const instant =

@@ -18,6 +18,8 @@ export type TaskLike = {
   dueDate: string | null;
   position: number;
   completedAt?: string | null;
+  /** Set on a generated habit instance (see `isHabitTask`). */
+  habitId?: string | null;
 };
 
 export type SectionKind =
@@ -69,6 +71,18 @@ export function isTaskOverdue(task: TaskLike, today: string): boolean {
 
 export function isDone(task: TaskLike): boolean {
   return task.status === "DONE";
+}
+
+/**
+ * True when the task is one day's generated instance of a habit.
+ *
+ * Habit instances are deliberately quarantined: they appear in **Today** and on
+ * the habits page, and never in All Tasks, Completed, a category view or in any
+ * counter derived from those. The habit itself is configured on the habits page,
+ * so there is nothing to edit here either.
+ */
+export function isHabitTask(task: TaskLike): boolean {
+  return Boolean(task.habitId);
 }
 
 /** The day a task is anchored to for grouping: planned day first, then deadline. */
@@ -235,16 +249,20 @@ export function buildSections<T extends TaskLike>({
   today,
   includeCompleted,
 }: GroupOptions<T>): TaskSection<T>[] {
+  // Habit instances are in scope for Today only, whatever list is handed in.
+  const inScope: readonly T[] =
+    scope.kind === "today" ? tasks : tasks.filter((task) => !isHabitTask(task));
+
   if (scope.kind === "completed") {
-    const done = tasks.filter(isDone);
+    const done = inScope.filter(isDone);
     return done.length > 0 ? [completedSection(done)] : [];
   }
 
   // Open tasks are grouped by date; completed tasks only ever appear in the
   // dedicated Completed section, so a task is never listed twice.
-  const visible = tasks.filter((task) => !isDone(task));
+  const visible = inScope.filter((task) => !isDone(task));
   const done = includeCompleted
-    ? tasks.filter((task) => isDone(task) && matchesDoneScope(scope, task, today))
+    ? inScope.filter((task) => isDone(task) && matchesDoneScope(scope, task, today))
     : [];
 
   switch (scope.kind) {
@@ -324,6 +342,8 @@ export type ViewCounts = {
   completed: number;
   open: number;
   unscheduled: number;
+  /** Habit instances still open today (the Habits badge in the sidebar). */
+  habits: number;
   /** Unfinished top-level tasks per category id. */
   byCategory: Record<string, number>;
 };
@@ -336,6 +356,12 @@ export function buildViewCounts(tasks: readonly TaskLike[], today: string): View
   const open = tasks.filter((task) => task.status === "TODO");
   const done = tasks.filter(isDone);
 
+  // Habit instances are quarantined to Today, so every counter that describes
+  // the ordinary task list (and the progress panel) skips them. The Today badge
+  // and the Habits badge are the two that do look at them.
+  const openRegular = open.filter((task) => !isHabitTask(task));
+  const doneRegular = done.filter((task) => !isHabitTask(task));
+
   // Sidebar counters show unfinished work, so they are derived from the same
   // grouping rules the task list uses — with completed tasks left out.
   const countOpen = (scope: ViewScope) =>
@@ -345,20 +371,25 @@ export function buildViewCounts(tasks: readonly TaskLike[], today: string): View
     );
 
   const byCategory: Record<string, number> = {};
-  for (const task of open) {
+  for (const task of openRegular) {
     if (!task.categoryId) continue;
     byCategory[task.categoryId] = (byCategory[task.categoryId] ?? 0) + 1;
   }
 
-  const unscheduled = open.filter((task) => groupedAnchorDate(task, today) === null).length;
+  const unscheduled = openRegular.filter(
+    (task) => groupedAnchorDate(task, today) === null,
+  ).length;
 
   return {
     today: countOpen({ kind: "today" }),
-    overdue: open.filter((task) => isTaskOverdue(task, today)).length,
-    all: open.length,
-    completed: done.length,
-    open: open.length,
+    overdue: openRegular.filter((task) => isTaskOverdue(task, today)).length,
+    all: openRegular.length,
+    completed: doneRegular.length,
+    open: openRegular.length,
     unscheduled,
+    habits: open.filter(
+      (task) => isHabitTask(task) && taskAnchorDate(task) === today,
+    ).length,
     byCategory,
   };
 }

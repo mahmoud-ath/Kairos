@@ -16,6 +16,7 @@ function task(overrides: Partial<TaskDTO> & { id: string }): TaskDTO {
     createdAt: "2026-10-01T08:00:00.000Z",
     updatedAt: "2026-10-01T08:00:00.000Z",
     completedAt: null,
+    habitId: null,
     subtasks: [],
     ...overrides,
   };

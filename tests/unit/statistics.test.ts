@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildActivitySeries, buildScopeCounts, completionPercentage } from "@/lib/stats";
+import { buildActivitySeries, buildScopeCounts, completionPercentage, isHabitEvent } from "@/lib/stats";
 
 const DAYS = ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"];
 
@@ -105,5 +105,40 @@ describe("completion activity history", () => {
       "UTC",
     );
     expect(series.every((point) => point.completed === 0)).toBe(true);
+  });
+
+  it("leaves habit completions out of the task statistics", () => {
+    const series = buildActivitySeries(
+      [
+        { taskId: "t1", action: "completed", timestamp: "2026-10-02T09:00:00.000Z" },
+        // A habit instance writes the same action, but its work is reported on
+        // the habits page, not here.
+        {
+          taskId: "h1",
+          action: "completed",
+          timestamp: "2026-10-02T09:00:00.000Z",
+          metadata: JSON.stringify({ habitId: "habit-1", habitDate: "2026-10-02" }),
+        },
+      ],
+      DAYS,
+      "UTC",
+    );
+
+    expect(series[1].completed).toBe(1);
+  });
+
+  it("recognises a habit event however the metadata is shaped", () => {
+    const withMetadata = (metadata: string | null) => ({
+      taskId: null,
+      action: "completed",
+      timestamp: "2026-10-02T09:00:00.000Z",
+      metadata,
+    });
+
+    expect(isHabitEvent(withMetadata(JSON.stringify({ habitId: "h1" })))).toBe(true);
+    expect(isHabitEvent(withMetadata(JSON.stringify({ habitId: "" })))).toBe(false);
+    expect(isHabitEvent(withMetadata(JSON.stringify({ taskId: "t1" })))).toBe(false);
+    expect(isHabitEvent(withMetadata(null))).toBe(false);
+    expect(isHabitEvent(withMetadata("not json"))).toBe(false);
   });
 });

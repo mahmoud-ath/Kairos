@@ -5,6 +5,7 @@ import {
   buildViewCounts,
   defaultCategoryId,
   defaultScheduledDate,
+  isHabitTask,
   isTaskOverdue,
   selectScopedTasks,
 } from "@/lib/views";
@@ -258,5 +259,75 @@ describe("quick-add defaults", () => {
   it("defaults a category view to that category", () => {
     expect(defaultCategoryId({ kind: "category", categoryId: "cat-1" })).toBe("cat-1");
     expect(defaultCategoryId({ kind: "today" })).toBeNull();
+  });
+});
+
+describe("habit instances are quarantined to Today", () => {
+  // One habit instance planned today, one already completed today, and one that
+  // a habit generated for a day that is now in the past.
+  const habitToday = task({
+    id: "habit-today",
+    scheduledDate: TODAY,
+    categoryId: "cat-1",
+    habitId: "habit-1",
+    position: 20,
+  });
+  const habitDoneToday = task({
+    id: "habit-done",
+    status: "DONE",
+    scheduledDate: TODAY,
+    completedAt: "2026-10-04T07:00:00.000Z",
+    habitId: "habit-1",
+    position: 21,
+  });
+  const habitStale = task({
+    id: "habit-stale",
+    scheduledDate: "2026-10-02",
+    habitId: "habit-1",
+    position: 22,
+  });
+  const tasks = [...allTasks, habitToday, habitDoneToday, habitStale];
+
+  it("shows them in Today, next to the day's own tasks", () => {
+    const sections = buildSections({
+      scope: { kind: "today" },
+      tasks,
+      today: TODAY,
+      includeCompleted: true,
+    });
+
+    expect(sections.map((section) => section.key)).toEqual(["today", "completed"]);
+    expect(sections[0].tasks.map((t) => t.id)).toEqual(["today", "habit-today"]);
+    // Ticking a habit instance off keeps it visible for the rest of the day.
+    expect(sections[1].tasks.map((t) => t.id)).toEqual(["done-today", "habit-done"]);
+  });
+
+  it("leaves them out of All Tasks, Completed and category views", () => {
+    const scoped = [
+      selectScopedTasks({ kind: "all" }, tasks, TODAY),
+      selectScopedTasks({ kind: "completed" }, tasks, TODAY),
+      selectScopedTasks({ kind: "category", categoryId: "cat-1" }, tasks, TODAY),
+    ].flatMap((list) => list.map((t) => t.id));
+
+    expect(scoped).not.toContain("habit-today");
+    expect(scoped).not.toContain("habit-done");
+    expect(scoped).not.toContain("habit-stale");
+  });
+
+  it("counts them in Today and in their own badge, and nowhere else", () => {
+    const counts = buildViewCounts(tasks, TODAY);
+    expect(counts.today).toBe(2); // today's task plus the open habit instance
+    expect(counts.habits).toBe(1); // only the habit still open today
+    expect(counts.all).toBe(10); // habit instances are not part of All Tasks
+    expect(counts.open).toBe(10);
+    expect(counts.completed).toBe(1);
+    expect(counts.overdue).toBe(4); // the stale instance is not overdue work
+    expect(counts.unscheduled).toBe(2);
+    expect(counts.byCategory).toEqual({ "cat-1": 1 });
+  });
+
+  it("recognises a habit instance by its habit link", () => {
+    expect(isHabitTask(habitToday)).toBe(true);
+    expect(isHabitTask(scheduledToday)).toBe(false);
   });
 });

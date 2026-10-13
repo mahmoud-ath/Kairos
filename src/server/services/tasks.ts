@@ -34,6 +34,22 @@ const TASK_ORDER: Prisma.TaskOrderByWithRelationInput[] = [
   { id: "asc" },
 ];
 
+/**
+ * Extra metadata written when a habit's generated task is completed.
+ *
+ * It names the habit and the day the instance belonged to, so the habit's
+ * progress can be read back from the append-only event log even after the task
+ * row itself is gone — which is what makes "the habit is done" a view over
+ * history rather than a value that has to be maintained.
+ */
+function habitCompletionMetadata(task: {
+  habitId: string | null;
+  habitDate: Date | null;
+}): Record<string, unknown> {
+  if (!task.habitId || !task.habitDate) return {};
+  return { habitId: task.habitId, habitDate: dateToDateOnly(task.habitDate) };
+}
+
 /* -------------------------------------------------------------------------- */
 /* Reads                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -44,18 +60,29 @@ const TASK_ORDER: Prisma.TaskOrderByWithRelationInput[] = [
  * Kairos is a personal task manager, so a page loads the (small) full set and
  * groups it in the UI with the shared helpers in `src/lib/views.ts`. Statistics
  * and counters are still computed on the server, never sent from the client.
+ *
+ * Generated habit instances are left out unless `includeHabits` is set: they
+ * belong to Today alone (see `isHabitTask` in `src/lib/views.ts`).
  */
-export async function listTasks(userId: string): Promise<TaskDTO[]> {
+export async function listTasks(
+  userId: string,
+  options: { includeHabits?: boolean } = {},
+): Promise<TaskDTO[]> {
   const prisma = scopedPrisma(userId);
   const rows = await prisma.task.findMany({
-    where: { parentId: null },
+    where: { parentId: null, ...(options.includeHabits ? {} : { habitId: null }) },
     include: TASK_INCLUDE,
     orderBy: TASK_ORDER,
   });
   return rows.map(serializeTask);
 }
 
-/** Lightweight rows for counters (sidebar and progress panel). */
+/**
+ * Lightweight rows for counters (sidebar and progress panel).
+ *
+ * Habit instances are included: `buildViewCounts` is what decides that they
+ * count towards Today and the Habits badge and towards nothing else.
+ */
 export async function listTaskSummaries(userId: string): Promise<TaskSummary[]> {
   const prisma = scopedPrisma(userId);
   const rows = await prisma.task.findMany({
@@ -68,6 +95,7 @@ export async function listTaskSummaries(userId: string): Promise<TaskSummary[]> 
       dueDate: true,
       position: true,
       completedAt: true,
+      habitId: true,
     },
     orderBy: TASK_ORDER,
   });
@@ -295,9 +323,19 @@ export async function updateTask(
 
     const statusChanged = values.status !== undefined && values.status !== existing.status;
     if (statusChanged && values.status === "DONE") {
-      await recordTaskEvent(tx, { taskId: values.id, action: "completed", metadata: {} });
+      await recordTaskEvent(tx, {
+        taskId: values.id,
+        action: "completed",
+        metadata: habitCompletionMetadata(existing),
+      });
     } else if (statusChanged && values.status === "TODO") {
-      await recordTaskEvent(tx, { taskId: values.id, action: "reopened" });
+      // The habit metadata is repeated here on purpose: a reopened event is what
+      // takes a day back off a habit's record, so it has to name the same day.
+      await recordTaskEvent(tx, {
+        taskId: values.id,
+        action: "reopened",
+        metadata: habitCompletionMetadata(existing),
+      });
     }
     if (changed.length > 0) {
       await recordTaskEvent(tx, {
@@ -363,10 +401,18 @@ export async function setTaskStatus(
         });
       }
 
-      await recordTaskEvent(tx, { taskId: id, action: "completed", metadata: {} });
+      await recordTaskEvent(tx, {
+        taskId: id,
+        action: "completed",
+        metadata: habitCompletionMetadata(task),
+      });
     } else {
       await tx.task.update({ where: { id }, data: { status: "TODO", completedAt: null } });
-      await recordTaskEvent(tx, { taskId: id, action: "reopened" });
+      await recordTaskEvent(tx, {
+        taskId: id,
+        action: "reopened",
+        metadata: habitCompletionMetadata(task),
+      });
     }
 
     const fresh = await tx.task.findUniqueOrThrow({
@@ -708,7 +754,9 @@ export async function clearCompletedTasks(
   scope: { kind: "all" } | { kind: "category"; categoryId: string },
 ): Promise<{ count: number }> {
   const prisma = scopedPrisma(userId);
-  const where: Prisma.TaskWhereInput = { parentId: null, status: "DONE" };
+  // Generated habit instances are left alone: they are not part of the task
+  // list's Completed section, and their history is what habit progress reads.
+  const where: Prisma.TaskWhereInput = { parentId: null, status: "DONE", habitId: null };
   if (scope.kind === "category") where.categoryId = scope.categoryId;
 
   return prisma.$transaction(async (tx) => {
