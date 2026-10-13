@@ -99,10 +99,11 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
       <div>
         <h2 className="text-sm font-semibold">Backup &amp; data</h2>
         <p className="text-xs text-muted-foreground">
-          Backups are plain JSON files containing tasks, subtasks, categories, history and
-          settings. They are private data — store them somewhere safe and never commit them to a
-          repository. Files exported by version 1 of Kairos can still be imported; their labels and
-          priorities are ignored.
+          Backups are plain JSON files containing tasks, subtasks, habits, categories,
+          history and settings. They are private data — store them somewhere safe and never
+          commit them to a repository. Files exported by older versions of Kairos can still be
+          imported; their labels and priorities are ignored, and a file written before habits
+          existed simply has none.
         </p>
       </div>
 
@@ -132,8 +133,8 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
         <div className="text-xs text-muted-foreground">
           <p className="font-medium text-foreground">Reset all data</p>
           <p>
-            Deletes all {taskCount} tasks, subtasks, categories, labels and history, and returns the
-            settings to their defaults.
+            Deletes all {taskCount} tasks, subtasks, habits, categories and history, and returns
+            the settings to their defaults.
           </p>
           <Button
             variant="ghost"
@@ -153,8 +154,8 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
           <DialogHeader>
             <DialogTitle>Replace all data with this backup?</DialogTitle>
             <DialogDescription>
-              Importing replaces your current tasks, categories, labels, history and settings. This
-              cannot be undone — export a backup first if you are unsure.
+              Importing replaces your current tasks, habits, categories, history and settings.
+              This cannot be undone — export a backup first if you are unsure.
             </DialogDescription>
           </DialogHeader>
 
@@ -172,6 +173,8 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
               <dd className="text-right tabular-nums">{pending.summary.completedTasks}</dd>
               <dt className="text-muted-foreground">Categories</dt>
               <dd className="text-right tabular-nums">{pending.summary.categories}</dd>
+              <dt className="text-muted-foreground">Habits</dt>
+              <dd className="text-right tabular-nums">{pending.summary.habits}</dd>
               <dt className="text-muted-foreground">History events</dt>
               <dd className="text-right tabular-nums">{pending.summary.events}</dd>
               <dt className="text-muted-foreground">Timezone</dt>

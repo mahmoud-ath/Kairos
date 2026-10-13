@@ -40,9 +40,10 @@ export function EmptyState({
       toast.error(result.error);
       return;
     }
-    toast.success(
-      `Loaded ${result.data?.tasks ?? 0} example tasks in ${result.data?.categories ?? 0} categories`,
-    );
+    const { tasks = 0, categories = 0, habits = 0 } = result.data ?? {};
+    toast.success("Example data loaded", {
+      description: `${tasks} tasks in ${categories} categories, and ${habits} habits with six weeks of history.`,
+    });
   }
 
   return (
@@ -76,7 +77,7 @@ export function EmptyState({
         {workspaceIsEmpty ? (
           <Button size="sm" onClick={loadExamples} disabled={loading}>
             <BookOpenCheck className="mr-1.5 h-3.5 w-3.5" />
-            {loading ? "Loading…" : "Load example tasks"}
+            {loading ? "Loading…" : "Load example data"}
           </Button>
         ) : null}
       </div>

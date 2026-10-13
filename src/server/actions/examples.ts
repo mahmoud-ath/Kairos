@@ -10,7 +10,7 @@ import { loadExampleTasks } from "@/server/services/examples";
  * Refuses to run once the workspace holds any real data.
  */
 export async function loadExampleTasksAction(): Promise<
-  ActionResult<{ tasks: number; categories: number }>
+  ActionResult<{ tasks: number; categories: number; habits: number }>
 > {
   return runAction(async () => {
     const userId = await requireUserId();

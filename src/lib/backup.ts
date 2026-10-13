@@ -10,6 +10,8 @@
  *  - v2: labels and priorities were removed (categories are the only grouping).
  *        v1 files are still accepted; their labels and priorities are ignored,
  *        with a warning in the summary.
+ *  - v3: habits (and the habit link on a generated task). Both are optional, so
+ *        v1 and v2 files still import unchanged.
  */
 
 import { z } from "zod";
@@ -18,8 +20,8 @@ import { DATE_ONLY_PATTERN, isValidDateOnly, isValidTimeZone } from "@/lib/dates
 import { NOTES_MAX_LENGTH, NAME_MAX_LENGTH, TITLE_MAX_LENGTH } from "@/lib/constants";
 
 export const BACKUP_FORMAT = "kairos-backup";
-export const BACKUP_VERSION = 2;
-export const SUPPORTED_BACKUP_VERSIONS = [1, 2] as const;
+export const BACKUP_VERSION = 3;
+export const SUPPORTED_BACKUP_VERSIONS = [1, 2, 3] as const;
 
 const dateOnly = z
   .string()
@@ -57,8 +59,25 @@ export const backupTaskSchema = z.object({
   createdAt: timestamp.optional(),
   updatedAt: timestamp.optional(),
   completedAt: nullableTimestamp.optional(),
+  /** v3: the habit this task was generated from, and the day it belongs to. */
+  habitId: z.string().max(64).nullable().optional(),
+  habitDate: nullableDateOnly.optional(),
   /** Legacy (v1): Kairos no longer has priorities. Accepted and ignored. */
   priority: z.string().max(16).optional(),
+});
+
+export const backupHabitSchema = z.object({
+  id: z.string().min(1).max(64),
+  title: z.string().min(1).max(TITLE_MAX_LENGTH),
+  notes: z.string().max(NOTES_MAX_LENGTH).nullable().optional(),
+  categoryId: z.string().max(64).nullable().optional(),
+  /** Weekday numbers, comma separated. Sanitised on import. */
+  days: z.string().max(32).optional(),
+  position: z.number().int().optional(),
+  paused: z.boolean().optional(),
+  /** The first day the habit is due. Inferred on import when absent. */
+  startDate: nullableDateOnly.optional(),
+  createdAt: timestamp.optional(),
 });
 
 export const backupEventSchema = z.object({
@@ -80,6 +99,8 @@ export const backupDataSchema = z.object({
   categories: z.array(backupCategorySchema).max(500),
   tasks: z.array(backupTaskSchema).max(50000),
   events: z.array(backupEventSchema).max(500000).optional(),
+  /** v3. Absent in older files, which simply have no habits. */
+  habits: z.array(backupHabitSchema).max(1000).optional(),
   /** Legacy (v1): ignored, reported as a warning. */
   labels: z.array(z.unknown()).max(5000).optional(),
   taskLabels: z.array(z.unknown()).max(200000).optional(),
@@ -87,7 +108,7 @@ export const backupDataSchema = z.object({
 
 export const backupFileSchema = z.object({
   format: z.literal(BACKUP_FORMAT),
-  version: z.union([z.literal(1), z.literal(2)]),
+  version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   exportedAt: timestamp.optional(),
   data: backupDataSchema,
 });
@@ -95,6 +116,7 @@ export const backupFileSchema = z.object({
 export type BackupFile = z.infer<typeof backupFileSchema>;
 export type BackupTask = z.infer<typeof backupTaskSchema>;
 export type BackupCategory = z.infer<typeof backupCategorySchema>;
+export type BackupHabit = z.infer<typeof backupHabitSchema>;
 export type BackupEvent = z.infer<typeof backupEventSchema>;
 
 export type BackupSummary = {
@@ -104,6 +126,7 @@ export type BackupSummary = {
   subtasks: number;
   completedTasks: number;
   categories: number;
+  habits: number;
   events: number;
   timezone: string;
   theme: string;
@@ -153,10 +176,28 @@ export function validateBackup(raw: unknown): BackupValidation {
     categoryIds.add(category.id);
   }
 
+  const habitIds = new Set<string>();
+  for (const habit of data.habits ?? []) {
+    if (habitIds.has(habit.id)) errors.push(`Duplicate habit id "${habit.id}".`);
+    habitIds.add(habit.id);
+  }
+
   const taskById = new Map<string, BackupTask>();
+  const habitInstanceKeys = new Set<string>();
   for (const task of data.tasks) {
     if (taskById.has(task.id)) errors.push(`Duplicate task id "${task.id}".`);
     taskById.set(task.id, task);
+
+    // One generated task per habit per day — the database enforces it.
+    if (task.habitId && task.habitDate) {
+      const key = `${task.habitId}@${task.habitDate}`;
+      if (habitInstanceKeys.has(key)) {
+        errors.push(
+          `Task "${task.id}" is a second task for habit "${task.habitId}" on ${task.habitDate}.`,
+        );
+      }
+      habitInstanceKeys.add(key);
+    }
   }
 
   // Parent references, cycles and nesting depth.
@@ -184,6 +225,11 @@ export function validateBackup(raw: unknown): BackupValidation {
     }
     if (task.categoryId && !categoryIds.has(task.categoryId)) {
       errors.push(`Task "${task.id}" references missing category "${task.categoryId}".`);
+    }
+    if (task.habitId && !habitIds.has(task.habitId)) {
+      warnings.push(
+        `Task "${task.id}" belonged to a habit that is not in the file; it was imported as an ordinary task.`,
+      );
     }
     if (task.status === "DONE" && !task.completedAt) {
       warnings.push(`Completed task "${task.id}" had no completion time; one was added.`);
@@ -236,6 +282,7 @@ export function validateBackup(raw: unknown): BackupValidation {
       subtasks,
       completedTasks,
       categories: data.categories.length,
+      habits: (data.habits ?? []).length,
       events: events.length,
       timezone: data.settings.timezone,
       theme: data.settings.theme,
@@ -267,7 +314,18 @@ export function buildBackupFile(input: {
     position: number;
     createdAt: Date;
   }>;
-  tasks: Array<{
+  /** Optional so a v2-shaped call site (without habits) still compiles. */
+  habits?: Array<{
+    id: string;
+    title: string;
+    notes: string | null;
+    categoryId: string | null;
+    days: string;
+    position: number;
+    paused: boolean;
+    startDate: Date;
+    createdAt: Date;
+  }>;  tasks: Array<{
     id: string;
     title: string;
     notes: string | null;
@@ -280,6 +338,8 @@ export function buildBackupFile(input: {
     createdAt: Date;
     updatedAt: Date;
     completedAt: Date | null;
+    habitId?: string | null;
+    habitDate?: Date | null;
   }>;
   events: Array<{
     id: string;
@@ -310,6 +370,17 @@ export function buildBackupFile(input: {
         position: category.position,
         createdAt: category.createdAt.toISOString(),
       })),
+      habits: (input.habits ?? []).map((habit) => ({
+        id: habit.id,
+        title: habit.title,
+        notes: habit.notes,
+        categoryId: habit.categoryId,
+        days: habit.days,
+        position: habit.position,
+        paused: habit.paused,
+        startDate: dateOnly(habit.startDate),
+        createdAt: habit.createdAt.toISOString(),
+      })),
       tasks: input.tasks.map((task) => ({
         id: task.id,
         title: task.title,
@@ -323,6 +394,8 @@ export function buildBackupFile(input: {
         createdAt: task.createdAt.toISOString(),
         updatedAt: task.updatedAt.toISOString(),
         completedAt: task.completedAt ? task.completedAt.toISOString() : null,
+        habitId: task.habitId ?? null,
+        habitDate: dateOnly(task.habitDate ?? null),
       })),
       events: input.events.map((event) => ({
         id: event.id,

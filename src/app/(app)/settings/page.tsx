@@ -23,7 +23,9 @@ export default async function SettingsPage() {
   const [settings, categories, taskCount, completedCount] = await Promise.all([
     getSettingsRecord(userId),
     listCategories(userId),
-    scopedPrisma(userId).task.count({ where: { parentId: null } }),
+    // Generated habit instances are not part of the task list, so they are not
+    // part of the number the backup panel reports either.
+    scopedPrisma(userId).task.count({ where: { parentId: null, habitId: null } }),
     countCompletions(userId),
   ]);
 

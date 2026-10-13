@@ -7,6 +7,7 @@ import {
   type BackupSummary,
 } from "@/lib/backup";
 import { dateOnlyToDate } from "@/lib/dates";
+import { formatHabitDays, parseHabitDays } from "@/lib/habits";
 import { DEFAULT_CATEGORY_ICON, isCategoryIconName } from "@/lib/category-icons";
 import { scopedPrisma } from "@/server/db";
 import { ServiceError } from "@/server/services/tasks";
@@ -15,9 +16,10 @@ import { getSettings } from "@/server/services/settings";
 /** Build a complete, versioned export of one user's data. */
 export async function exportBackup(userId: string): Promise<BackupFile> {
   const prisma = scopedPrisma(userId);
-  const [settings, categories, tasks, events] = await Promise.all([
+  const [settings, categories, habits, tasks, events] = await Promise.all([
     getSettings(userId),
     prisma.category.findMany({ orderBy: { position: "asc" } }),
+    prisma.habit.findMany({ orderBy: [{ position: "asc" }, { id: "asc" }] }),
     prisma.task.findMany({ orderBy: [{ position: "asc" }, { id: "asc" }] }),
     prisma.taskEvent.findMany({ orderBy: { timestamp: "asc" } }),
   ]);
@@ -29,6 +31,7 @@ export async function exportBackup(userId: string): Promise<BackupFile> {
       weekStartsOn: settings.weekStartsOn,
     },
     categories,
+    habits,
     tasks,
     events,
   });
@@ -57,12 +60,29 @@ export async function importBackup(
   }
 
   const { data } = validation.data;
+  // Ids that exist in the file: a reference outside them is dropped rather than
+  // failing the whole import (see `createTask` and the habit loop below).
+  const categoryIds = new Set(data.categories.map((category) => category.id));
+  const habitIds = new Set((data.habits ?? []).map((habit) => habit.id));
+
+  // Earliest generated instance per habit, used to infer a habit's start day for
+  // a file written before habits recorded one.
+  const earliestInstance = new Map<string, string>();
+  for (const task of data.tasks) {
+    if (!task.habitId || !task.habitDate) continue;
+    const current = earliestInstance.get(task.habitId);
+    if (!current || task.habitDate < current) {
+      earliestInstance.set(task.habitId, task.habitDate);
+    }
+  }
+  const fallbackStart = new Date().toISOString().slice(0, 10);
 
   await prisma.$transaction(
     async (tx) => {
       // Wipe current data (children first).
       await tx.taskEvent.deleteMany();
       await tx.task.deleteMany();
+      await tx.habit.deleteMany();
       await tx.category.deleteMany();
 
       for (const category of data.categories) {
@@ -81,6 +101,30 @@ export async function importBackup(
         });
       }
 
+      // Habits before tasks: a generated task references its habit.
+      for (const habit of data.habits ?? []) {
+        await tx.habit.create({
+          data: {
+            id: habit.id,
+            userId,
+            title: habit.title,
+            notes: habit.notes ?? null,
+            categoryId: categoryIds.has(habit.categoryId ?? "")
+              ? (habit.categoryId ?? null)
+              : null,
+            days: formatHabitDays(parseHabitDays(habit.days)),
+            position: habit.position ?? 0,
+            paused: habit.paused ?? false,
+            startDate: dateOnlyToDate(
+              habit.startDate ??
+                earliestInstance.get(habit.id) ??
+                habit.createdAt?.slice(0, 10) ??
+                fallbackStart,
+            ),
+          },
+        });
+      }
+
       const parents = data.tasks.filter((task) => !task.parentId);
       const children = data.tasks.filter((task) => task.parentId);
       const parentById = new Map(data.tasks.map((task) => [task.id, task]));
@@ -91,6 +135,12 @@ export async function importBackup(
       ) => {
         const categoryId =
           categoryIdOverride !== undefined ? categoryIdOverride : (task.categoryId ?? null);
+        // A link to a habit that is not in the file is dropped, so an older or
+        // hand-edited backup imports as ordinary tasks instead of failing.
+        const habitId = task.habitId && habitIds.has(task.habitId) ? task.habitId : null;
+        const habitDate = habitId
+          ? (task.habitDate ?? task.scheduledDate ?? null)
+          : null;
         await tx.task.create({
           data: {
             id: task.id,
@@ -103,6 +153,8 @@ export async function importBackup(
             scheduledDate: task.scheduledDate ? dateOnlyToDate(task.scheduledDate) : null,
             dueDate: task.dueDate ? dateOnlyToDate(task.dueDate) : null,
             position: task.position,
+            habitId,
+            habitDate: habitDate ? dateOnlyToDate(habitDate) : null,
             completedAt:
               task.status === "DONE"
                 ? new Date(task.completedAt ?? task.updatedAt ?? new Date().toISOString())
@@ -161,6 +213,7 @@ export async function resetAllData(userId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await tx.taskEvent.deleteMany();
     await tx.task.deleteMany();
+    await tx.habit.deleteMany();
     await tx.category.deleteMany();
     await tx.settings.deleteMany();
   });

@@ -8,7 +8,7 @@ import {
   validateBackup,
 } from "@/lib/backup";
 
-/** A complete, consistent version 2 backup. */
+/** A complete, consistent backup in the current format version. */
 function validBackup() {
   return {
     format: BACKUP_FORMAT,
@@ -60,12 +60,29 @@ function validBackup() {
   };
 }
 
+/**
+ * A minimal current-version file with habits, for the habit-specific checks.
+ * `habits` is optional so a task can reference a habit the file does not carry.
+ */
+function habitBackup(input: { habits?: unknown[]; tasks: unknown[] }) {
+  return {
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    data: {
+      settings: { theme: "dark", timezone: "Europe/Berlin", weekStartsOn: 1 },
+      categories: [],
+      habits: input.habits ?? [],
+      tasks: input.tasks,
+    },
+  };
+}
+
 describe("backup validation", () => {
   it("accepts a complete, consistent file and summarises it", () => {
     const result = validateBackup(validBackup());
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.summary.version).toBe(2);
+    expect(result.summary.version).toBe(BACKUP_VERSION);
     expect(result.summary.tasks).toBe(1);
     expect(result.summary.subtasks).toBe(1);
     expect(result.summary.completedTasks).toBe(1);
@@ -81,7 +98,7 @@ describe("backup validation", () => {
   });
 
   it("rejects an unsupported version", () => {
-    const result = validateBackup({ ...validBackup(), version: 3 });
+    const result = validateBackup({ ...validBackup(), version: 4 });
     expect(result.ok).toBe(false);
   });
 
@@ -188,8 +205,7 @@ describe("version 1 compatibility", () => {
   });
 });
 
-describe("backup export shape", () => {
-  it("is versioned and contains every entity the app can hold", () => {
+describe("backup export shape", () => {  it("is versioned and contains every entity the app can hold", () => {
     const file = buildBackupFile({
       settings: { theme: "system", timezone: "UTC", weekStartsOn: 1 },
       categories: [
@@ -222,11 +238,108 @@ describe("backup export shape", () => {
     });
 
     expect(file.format).toBe(BACKUP_FORMAT);
-    expect(file.version).toBe(2);
+    expect(file.version).toBe(BACKUP_VERSION);
     expect(file.exportedAt).toBe("2026-10-04T12:00:00.000Z");
     expect(file.data.tasks[0].scheduledDate).toBe("2026-10-04");
     expect(file.data.settings.timezone).toBe("UTC");
     expect("labels" in file.data).toBe(false);
+  });
+
+  it("carries habits and the task that belongs to one", () => {
+    const file = buildBackupFile({
+      settings: { theme: "light", timezone: "UTC", weekStartsOn: 1 },
+      categories: [],
+      habits: [
+        {
+          id: "habit-1",
+          title: "Read for 20 minutes",
+          notes: null,
+          categoryId: null,
+          days: "1,2,3,4,5",
+          position: 0,
+          paused: false,
+          startDate: new Date("2026-01-01T00:00:00.000Z"),
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+      ],
+      tasks: [
+        {
+          id: "task-1",
+          title: "Read for 20 minutes",
+          notes: null,
+          status: "DONE",
+          categoryId: null,
+          parentId: null,
+          scheduledDate: new Date("2026-10-04T00:00:00.000Z"),
+          dueDate: null,
+          position: 0,
+          createdAt: new Date("2026-10-04T00:00:00.000Z"),
+          updatedAt: new Date("2026-10-04T00:00:00.000Z"),
+          completedAt: new Date("2026-10-04T10:00:00.000Z"),
+          habitId: "habit-1",
+          habitDate: new Date("2026-10-04T00:00:00.000Z"),
+        },
+      ],
+      events: [],
+    });
+
+    expect(file.data.habits).toHaveLength(1);
+    expect(file.data.habits?.[0].startDate).toBe("2026-01-01");
+    expect(file.data.tasks[0].habitId).toBe("habit-1");
+    expect(file.data.tasks[0].habitDate).toBe("2026-10-04");
+
+    const result = validateBackup(JSON.parse(JSON.stringify(file)));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.summary.habits).toBe(1);
+  });
+
+  it("keeps a task whose habit is missing from the file, with a warning", () => {
+    const result = validateBackup(
+      habitBackup({
+        tasks: [
+          {
+            id: "task-1",
+            title: "Read for 20 minutes",
+            status: "TODO",
+            position: 0,
+            habitId: "habit-gone",
+            habitDate: "2026-10-04",
+          },
+        ],
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.summary.habits).toBe(0);
+    expect(result.summary.warnings.join(" ")).toMatch(
+      /belonged to a habit that is not in the file/,
+    );
+  });
+
+  it("rejects two tasks for the same habit on the same day", () => {
+    const instance = {
+      title: "Read",
+      status: "TODO",
+      position: 0,
+      habitId: "habit-1",
+      habitDate: "2026-10-04",
+    };
+    const result = validateBackup(
+      habitBackup({
+        habits: [
+          { id: "habit-1", title: "Read", days: "0,1,2,3,4,5,6", position: 0 },
+        ],
+        tasks: [
+          { ...instance, id: "a" },
+          { ...instance, id: "b" },
+        ],
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.join(" ")).toMatch(/second task for habit/);
   });
 
   it("round-trips through validation", () => {

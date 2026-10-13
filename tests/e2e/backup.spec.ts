@@ -28,15 +28,18 @@ async function expectExampleDataRestored(page: Page) {
     page.getByRole("button", { name: "Open task Draft the Q4 roadmap" }),
   ).toBeVisible();
   await expect(await expectSingle(page.getByLabel("0 of 3 subtasks completed"))).toBeVisible();
-  await expect(await expectSingle(page.getByRole("link", { name: "Today 3" }))).toBeVisible();
+  // 3 tasks planned today plus the 3 generated habit instances.
+  await expect(await expectSingle(page.getByRole("link", { name: "Today 6" }))).toBeVisible();
+  // Habit instances never reach the Completed view or its counter.
   await expect(await expectSingle(page.getByRole("link", { name: "Completed 1" }))).toBeVisible();
+  await expect(await expectSingle(page.getByRole("link", { name: "Habits 3" }))).toBeVisible();
 }
 
 test("JSON export and import round-trips tasks, subtasks and categories", async ({ page }) => {
   // Start from an empty workspace, then load the known example data set.
   await resetAllData(page);
   await page.goto("/today");
-  await page.getByRole("button", { name: "Load example tasks" }).click();
+  await page.getByRole("button", { name: "Load example data" }).click();
   await expectExampleDataRestored(page);
 
   // Export: the browser downloads a versioned backup file.
@@ -53,7 +56,7 @@ test("JSON export and import round-trips tasks, subtasks and categories", async 
   await resetAllData(page);
   await page.goto("/today");
   await expect(page.getByRole("button", { name: "Open task Draft the Q4 roadmap" })).toBeHidden();
-  await expect(page.getByRole("button", { name: "Load example tasks" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Load example data" })).toBeVisible();
 
   // Import: validated, summarised, confirmed, then applied in one transaction.
   await page.goto("/settings");
