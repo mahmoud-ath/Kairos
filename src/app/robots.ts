@@ -37,6 +37,7 @@ export default function robots(): MetadataRoute.Robots {
           "/categories",
           "/statistics",
           "/settings",
+          "/habits",
         ],
       },
     ],

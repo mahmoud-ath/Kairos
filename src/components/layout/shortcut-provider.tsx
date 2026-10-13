@@ -98,6 +98,9 @@ export function ShortcutProvider({ children }: { children: ReactNode }) {
       case "go-completed":
         router.push("/completed");
         break;
+      case "go-habits":
+        router.push("/habits");
+        break;
       case "go-statistics":
         router.push("/statistics");
         break;

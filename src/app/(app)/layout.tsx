@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { buildViewCounts } from "@/lib/views";
 import { todayDateOnly } from "@/lib/dates";
 import { isAuthDisabled, requireAuthProfile } from "@/server/auth";
+import { ensureHabitInstances } from "@/server/services/habits";
 import { getSettingsRecord } from "@/server/services/settings";
 import { listTaskSummaries } from "@/server/services/tasks";
 import { listCategories } from "@/server/services/taxonomy";
@@ -27,6 +28,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const settings = await getSettingsRecord(userId);
   const today = todayDateOnly(settings.timezone);
+
+  // Every habit that is due today needs its generated task before anything
+  // counts or lists tasks. This is idempotent, so it is safe on every render.
+  await ensureHabitInstances(userId, today);
 
   const [categories, summaries] = await Promise.all([
     listCategories(userId),

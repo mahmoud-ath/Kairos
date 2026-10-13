@@ -12,6 +12,7 @@ export type ShortcutId =
   | "go-today"
   | "go-tasks"
   | "go-completed"
+  | "go-habits"
   | "go-statistics"
   | "go-settings"
   | "search"
@@ -33,6 +34,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "go-today", keys: ["g", "t"], label: "Today", group: "Go to" },
   { id: "go-tasks", keys: ["g", "a"], label: "All Tasks", group: "Go to" },
   { id: "go-completed", keys: ["g", "c"], label: "Completed", group: "Go to" },
+  { id: "go-habits", keys: ["g", "h"], label: "Habits", group: "Go to" },
   { id: "go-statistics", keys: ["g", "s"], label: "Statistics", group: "Go to" },
   { id: "go-settings", keys: ["g", ","], label: "Settings", group: "Go to" },
   { id: "search", keys: ["/"], label: "Filter tasks on this page", group: "Actions" },
