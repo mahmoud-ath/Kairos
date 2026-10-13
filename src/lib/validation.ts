@@ -241,6 +241,59 @@ export const updateProfileSchema = z
   );
 
 /* -------------------------------------------------------------------------- */
+/* Habits                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export const habitTitleSchema = z
+  .string()
+  .trim()
+  .min(1, "A habit needs a title.")
+  .max(TITLE_MAX_LENGTH, `Titles are limited to ${TITLE_MAX_LENGTH} characters.`);
+
+/** Weekday numbers the habit is due on; normalised so storage is stable. */
+export const habitDaysSchema = z
+  .array(z.number().int().min(0).max(6), { invalid_type_error: "Pick at least one day." })
+  .min(1, "A habit needs at least one day.")
+  .max(7)
+  .transform((days) => [...new Set(days)].sort((a, b) => a - b));
+
+export const createHabitSchema = z.object({
+  title: habitTitleSchema,
+  notes: notesSchema.optional(),
+  categoryId: optionalIdSchema.optional(),
+  days: habitDaysSchema.optional(),
+});
+
+export type CreateHabitValues = z.output<typeof createHabitSchema>;
+
+export const updateHabitSchema = z
+  .object({
+    id: idSchema,
+    title: habitTitleSchema.optional(),
+    notes: notesSchema.optional(),
+    categoryId: optionalIdSchema.optional(),
+    days: habitDaysSchema.optional(),
+    paused: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 1, "Nothing to update.");
+
+export type UpdateHabitValues = z.output<typeof updateHabitSchema>;
+
+export const habitIdSchema = z.object({ id: idSchema });
+
+/**
+ * Ticking a habit's day off (or off again) from the month grid.
+ *
+ * Only a day that has already happened, and that the habit is actually due on,
+ * is accepted — the service checks the same rule with the account's timezone.
+ */
+export const setHabitDaySchema = z.object({
+  habitId: idSchema,
+  date: dateOnlySchema,
+  done: z.boolean(),
+});
+
+/* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
 

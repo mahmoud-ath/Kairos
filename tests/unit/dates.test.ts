@@ -2,15 +2,22 @@ import { describe, expect, it } from "vitest";
 
 import {
   addDays,
+  addMonths,
   compareDateOnly,
   dateOnlyInTimeZone,
   dateOnlyToDate,
   dateRange,
   dateToDateOnly,
   diffInDays,
+  endOfMonth,
+  formatFullMonthDay,
+  formatMonthLabel,
   formatRelativeDate,
   isValidDateOnly,
   lastNDays,
+  monthParamValue,
+  parseMonthParam,
+  startOfMonth,
   startOfWeek,
   todayDateOnly,
 } from "@/lib/dates";
@@ -43,6 +50,61 @@ describe("date-only values", () => {
     expect(diffInDays("2026-03-05", "2026-03-01")).toBe(4);
     expect(compareDateOnly("2026-03-01", "2026-03-02")).toBe(-1);
     expect(compareDateOnly("2026-03-02", "2026-03-02")).toBe(0);
+  });
+});
+
+describe("months", () => {
+  it("finds the first and last day of the month", () => {
+    expect(startOfMonth("2026-10-13")).toBe("2026-10-01");
+    expect(endOfMonth("2026-10-13")).toBe("2026-10-31");
+    expect(endOfMonth("2026-02-10")).toBe("2026-02-28");
+    // …and knows about a leap year.
+    expect(endOfMonth("2028-02-10")).toBe("2028-02-29");
+  });
+
+  it("shifts whole months without spilling into the next one", () => {
+    expect(addMonths("2026-10-13", 1)).toBe("2026-11-13");
+    expect(addMonths("2026-10-13", -1)).toBe("2026-09-13");
+    expect(addMonths("2026-12-15", 1)).toBe("2027-01-15");
+    // 31 January + 1 month is the end of February, never 2 or 3 March.
+    expect(addMonths("2026-01-31", 1)).toBe("2026-02-28");
+    expect(addMonths("2028-01-31", 1)).toBe("2028-02-29");
+  });
+
+  it("labels a month in words", () => {
+    expect(formatMonthLabel("2026-10-01")).toBe("October 2026");
+  });
+
+  it("spells out a day without its year, for a tooltip", () => {
+    expect(formatFullMonthDay("2026-10-12")).toBe("October 12");
+    expect(formatFullMonthDay("2026-10-01")).toBe("October 1");
+    // Read as UTC, so a date-only value never slips a day west of Greenwich.
+    expect(formatFullMonthDay("2026-01-01")).toBe("January 1");
+  });
+});
+
+describe("the ?month= query value", () => {
+  it("reads both the short and the full form", () => {
+    expect(parseMonthParam("2026-08")).toBe("2026-08-01");
+    expect(parseMonthParam("2026-08-17")).toBe("2026-08-01");
+    expect(parseMonthParam(" 2026-08 ")).toBe("2026-08-01");
+  });
+
+  it("refuses anything that is not a real month", () => {
+    expect(parseMonthParam(null)).toBeNull();
+    expect(parseMonthParam(undefined)).toBeNull();
+    expect(parseMonthParam("")).toBeNull();
+    expect(parseMonthParam("2026-13")).toBeNull();
+    expect(parseMonthParam("2026-00")).toBeNull();
+    expect(parseMonthParam("2026-8")).toBeNull();
+    expect(parseMonthParam("2026-02-30")).toBeNull();
+    expect(parseMonthParam("August 2026")).toBeNull();
+    expect(parseMonthParam("2026")).toBeNull();
+  });
+
+  it("writes the short form the links use", () => {
+    expect(monthParamValue("2026-08-01")).toBe("2026-08");
+    expect(monthParamValue("2026-08-31")).toBe("2026-08");
   });
 });
 

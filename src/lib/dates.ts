@@ -104,6 +104,34 @@ export function addDays(dateOnly: string, days: number): string {
   return new Date(base).toISOString().slice(0, 10);
 }
 
+/**
+ * Shift a date-only value by whole months.
+ *
+ * The day of month is kept where it exists: 31 Jan + 1 month is 28 Feb (or 29 in
+ * a leap year), never 2 or 3 March.
+ */
+export function addMonths(dateOnly: string, months: number): string {
+  const base = dateOnlyToDate(dateOnly);
+  const target = new Date(
+    Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + months, 1),
+  );
+  const lastDay = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  target.setUTCDate(Math.min(base.getUTCDate(), lastDay));
+  return target.toISOString().slice(0, 10);
+}
+
+/** First day of the month containing `dateOnly`. */
+export function startOfMonth(dateOnly: string): string {
+  return `${dateOnly.slice(0, 7)}-01`;
+}
+
+/** Last day of the month containing `dateOnly`. */
+export function endOfMonth(dateOnly: string): string {
+  return addDays(addMonths(startOfMonth(dateOnly), 1), -1);
+}
+
 /** Number of whole days from `from` to `to` (positive when `to` is later). */
 export function diffInDays(to: string, from: string): number {
   return Math.round(
@@ -163,6 +191,56 @@ export function formatWeekday(dateOnly: string): string {
 
 export function formatMonthDay(dateOnly: string): string {
   return MONTH_DAY_FORMATTER.format(dateOnlyToDate(dateOnly));
+}
+
+const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/** Month heading, e.g. "October 2026". */
+export function formatMonthLabel(dateOnly: string): string {
+  return MONTH_LABEL_FORMATTER.format(dateOnlyToDate(dateOnly));
+}
+
+const MONTH_PARAM_PATTERN = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/;
+
+/**
+ * Read a month out of a query string.
+ *
+ * Accepts both `YYYY-MM` (what the links write — short and readable) and a full
+ * `YYYY-MM-DD` value, and always returns the first day of that month. Anything
+ * else returns `null` so a hand-edited URL falls back to the current month
+ * instead of throwing or rendering an empty grid.
+ */
+export function parseMonthParam(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = MONTH_PARAM_PATTERN.exec(value.trim());
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const first = `${year}-${month}-01`;
+  if (!isValidDateOnly(first)) return null;
+  // A full date must still be a real day, so `2026-02-30` is rejected rather
+  // than silently treated as February.
+  if (day !== undefined && !isValidDateOnly(`${year}-${month}-${day}`)) return null;
+  return first;
+}
+
+/** The `?month=` value for a date's month, e.g. `2026-10`. */
+export function monthParamValue(dateOnly: string): string {
+  return dateOnly.slice(0, 7);
+}
+
+const FULL_DAY_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+/** Spelled-out day, e.g. "October 12" — used by tooltips, not dense rows. */
+export function formatFullMonthDay(dateOnly: string): string {
+  return FULL_DAY_FORMATTER.format(dateOnlyToDate(dateOnly));
 }
 
 /** Human label for a date group heading, relative to today. */
