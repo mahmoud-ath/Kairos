@@ -28,6 +28,7 @@ This is the **state of the project** document. For *how to deploy it*, read
 16. [Open items](#16-open-items)
 17. [Command reference](#17-command-reference)
 18. [Profiles, avatars, category icons and text size](#18-profiles-avatars-category-icons-and-text-size)
+19. [Habits](#19-habits)
 
 ---
 
@@ -57,10 +58,11 @@ teams and no collaboration — accounts are individual by design.
 | --- | --- |
 | **Application** | feature-complete for the described scope, deployed and reachable |
 | **Multi-user isolation** | implemented and tested (10 integration tests) |
+| **Habits** | implemented — a repeating task is generated into Today each day it is due, with a monthly grid, a 30-day trend, and "done" derived from the task's history |
 | **Auth** | Supabase — email/password **and** Google, both enabled and working |
 | **Database** | PostgreSQL (Prisma Postgres) — migrated, in sync with the schema |
 | **Production** | builds and serves; gate verified on the live URL |
-| **Unit tests** | 81 passing |
+| **Unit tests** | 184 passing |
 | **Integration tests** | 10 passing |
 | **Typecheck / lint** | clean |
 | **Account deletion** | ❌ not built — see [§15](#15-limitations-and-not-yet-built) |
@@ -158,8 +160,20 @@ erDiagram
     string status
     string categoryId FK
     string parentId FK
+    string habitId FK
+    date   habitDate
     date   scheduledDate
     date   dueDate
+    int    position
+  }
+  Habit {
+    string id PK
+    string userId
+    string title
+    string notes
+    string days
+    bool   paused
+    date   startDate
     int    position
   }
   TaskEvent {
@@ -171,6 +185,8 @@ erDiagram
     string metadata
   }
   Category ||--o{ Task : "groups"
+  Category ||--o{ Habit : "groups"
+  Habit    ||--o{ Task : "generates one per day"
   Task     ||--o{ Task : "subtasks (1 level)"
   Task     ||--o{ TaskEvent : "history"
 ```
@@ -201,6 +217,9 @@ Design points worth knowing:
 prisma/migrations/
   20261006120000_init                   ← squashed Postgres schema
   20261008120000_multi_user_scoping     ← adds userId to every table
+  20261011120000_profile_and_category_icon
+  20261011130000_text_scale
+  20261012120000_habits                 ← adds Habit + Task.habitId/habitDate
 ```
 
 The `init` migration is a **squashed** one: the original SQLite migrations were
@@ -321,7 +340,7 @@ what lets the landing page be statically rendered.
 | `/` | marketing | **public**, statically rendered — no session and no Supabase configuration required |
 | `/login` | auth | public, `noindex` |
 | `/register` | auth | public, indexable, listed in `sitemap.xml` |
-| `/today`, `/tasks`, `/completed`, `/categories/[id]`, `/statistics`, `/settings` | app | **session required**, `noindex` |
+| `/today`, `/tasks`, `/completed`, `/categories/[id]`, `/statistics`, `/settings`, `/habits` | app | **session required**, `noindex` |
 | `/auth/callback` | root | public — it sets the session cookie and must never be redirected |
 | `/api/health` | root | public — uptime checks run before a session exists |
 | `/api/backup` | root | session required |
@@ -370,9 +389,12 @@ src/
                       shortcut-provider, shortcut-dialog, progress-panel
     settings/         profile-panel (identity + theme), theme-picker,
                       preferences-form (dates), taxonomy-manager, backup-panel
+    habits/           habits-view (grid + trend + config list), habit-month-grid,
+                      habit-trend (+ chart), habit-dialog, charts (lazy Recharts)
     categories/ dnd/ statistics/ taxonomy/ ui/
   lib/
     auth-rules.ts     allowedEmails, isEmailAllowed, safeNextPath
+    habits.ts         cadence, streaks, completion rate, month/trend rules (pure)
     shortcuts.ts      the key table + resolveShortcut() (pure, unit tested)
     task-rules.ts     subtask rules
     validation.ts     Zod schemas
@@ -383,16 +405,16 @@ src/
     serializers.ts    DB rows -> client types
     actions/          Server Actions (tasks, taxonomy, settings, backup, auth, examples)
     services/         all data access: tasks, taxonomy, settings, events,
-                      statistics, backup, examples
+                      statistics, backup, examples, habits
   middleware.ts       session refresh + access gate
   types/kairos.ts     shared types
 tests/
-  unit/               9 files, 105 tests
+  unit/               14 files, 184 tests
   integration/        isolation.test.ts, 10 tests + setup guard
   e2e/                Playwright: task workflow, drag and drop, backup
 ```
 
-**123 source files**, 6 Server Action modules, 7 services, 2 API routes.
+**~140 source files**, 7 Server Action modules, 8 services, 2 API routes.
 
 ---
 
@@ -458,7 +480,7 @@ Two traps:
 
 | Suite | Command | Count | Notes |
 | --- | --- | --- | --- |
-| Unit | `bun run test` | **81** | pure logic: dates, filters, ordering, stats, grouping, subtask rules, backup validation, auth rules |
+| Unit | `bun run test` | **184** | pure logic: dates (incl. month maths and `?month=` parsing), filters, ordering, stats (incl. the habit-event exclusion), grouping, subtask rules, habit rules (cadence, streaks, rate, month/trend), backup validation, auth rules, avatars, icons, profile, shortcuts |
 | Integration | `bun run test:integration` | **10** | real PostgreSQL; proves per-user isolation |
 | E2E | `bun run test:e2e` | — | Playwright; builds first, sets `KAIROS_AUTH_DISABLED=true` |
 | Types | `bun run typecheck` | — | `tsc --noEmit` |
@@ -513,6 +535,12 @@ recreated, every place the ref appears must be updated — see
 | 10 | **Migration squashed at the Postgres switch** | The SQLite migrations were not valid Postgres DDL; the hosted database started empty |
 | 11 | **No Prisma ORM 8 upgrade** | Prisma's optional GitHub integration asks for it, but ORM 8 replaces the query API, schema format and migration workflow — a full data-layer rewrite for no benefit here |
 | 12 | **UI/UX round: theme at the root, shortcuts, minimal workspace** | `ThemeProvider` sat inside the app shell, so the landing and sign-in pages had no theme at all and ignored `prefers-color-scheme`; the dark palette moved to VS Code's "Dark 2026" surfaces (green accent kept), the workspace copy was cut to icons and counts, and a keyboard layer was added |
+| 13 | **Habits are a recipe, not a record** | A habit stores only *what repeats* — title, category, the days it is due. Each of those days Kairos generates an ordinary task for it, and "is the habit done today?" is read back from that task. Progress is therefore a *view* over history rather than a second thing to keep in sync, and there is no way for the habit and its tasks to disagree |
+| 14 | **A habit day can be corrected from the month grid** | Days get forgotten, and a tracker you cannot correct is a tracker you stop trusting. Tapping a cell writes the same generated task (creating the missed day's instance if it had already been swept away), and un-ticking works because the completion log is *folded* — `reopened` takes a day back off — rather than collected. The event log stays append-only; only the derived view changes |
+| 15 | **The grid draws cells and legend from one state map** | The first version styled a cell by whether it was *editable* rather than by what it *meant*, so a missed day read as neutral in the grid and red in the key. One `CELL_CLASS` map per state, used by both, makes that class of drift impossible |
+| 16 | **Two-letter weekday headings, a week view under `lg`, and a rich tooltip** | Single letters repeat `T` and `S` twice in a month table; 24 px cells are too small to be a comfortable touch target, so below `lg` the default becomes a week of 44 px controls with the month table one tap away; and the state of a cell is worth spelling out ("Reading · October 12 · Completed") rather than leaving to a `title` bubble |
+| 17 | **Habit completions are excluded from task statistics** | Habit instances are quarantined out of every task view, so counting their completions in the activity series would make one page disagree with itself. The habits page is where habit progress is reported |
+| 18 | **Example data includes six weeks of habit history** | A tracker is meaningless with an empty grid: streaks, misses and the trend only make sense against history. The sample is hand-written to be imperfect — one habit kept up, one improved, one abandoned — so the UI is exercised on the shapes it has to handle, not on a wall of green |
 
 ---
 
@@ -576,6 +604,15 @@ Every one of these cost real time. They are the reason the guide opens with
 **Product**
 
 - **One level of subtasks.** No deeper nesting.
+- **Habits repeat by weekday only.** No "every 3 days", no monthly rules, and no
+  target counts ("3× a week") — a habit is due on the weekdays you tick.
+- **A missed habit day is dropped, not carried over.** A habit is not a backlog:
+  a day that passed without being ticked off is simply absent from its history.
+  (It can still be ticked off afterwards from the month grid.)
+- **The month grid goes back 12 months**, and no further: the completion events it
+  reads are bounded to the same horizon the streak walk uses.
+- **A paused habit is not tracked at all** — it leaves the grid and the trend,
+  because nothing records *when* it was paused.
 - **One category per task.** Labels and priorities were removed deliberately.
 - **No recurring tasks**, reminders, notifications or calendar sync.
 - **Subtasks** carry a title and a status only — no notes, dates or categories.
@@ -647,7 +684,7 @@ bun run start                     # serve the production build (uses .env.produc
 # Quality gates
 bun run typecheck                 # tsc --noEmit
 bun run lint                      # eslint
-bun run test                      # 81 unit tests
+bun run test                      # 184 unit tests
 bun run test:integration          # 10 isolation tests (needs local PostgreSQL)
 bun run test:e2e                  # Playwright (builds first)
 
@@ -801,6 +838,216 @@ still counted in the progress panel’s “Overall” line and in `counts.overdu
 nothing becomes invisible. Category views keep their Overdue group. Consequence:
 the sidebar’s **Today** badge counts only today (the example data went from
 `Today 4` to `Today 3`, which `backup.spec.ts` asserts).
+
+---
+
+## 19. Habits
+
+Added 2026-10-12 in one additive migration (`20261012120000_habits`), so no data
+had to be backfilled.
+
+A habit is **the recipe, not the record**. It stores a title, notes, a category
+and the weekdays it is due on — and nothing else. Each of those days Kairos
+generates one ordinary task from it, and the habit's progress is read back out of
+that history. There is no second thing to keep in sync, and no way for a habit
+and its tasks to disagree.
+
+### The model
+
+```
+Habit  ──generates──▶  Task (habitId, habitDate)  ──completes──▶  TaskEvent
+```
+
+`Habit.startDate` is the day the habit began; days before it are neither due nor
+missed, so a habit created this morning does not open on a week of failures.
+`Habit.days` is a weekday list (`"0,1,2,3,4,5,6"` = every day) stored as a string,
+like `status`, so the rule stays an application concern (`src/lib/habits.ts`)
+rather than a database enum. `Habit.paused` keeps a habit's history but stops it
+generating new days.
+
+On the task side, `habitId` marks a row as a generated instance and `habitDate`
+records the day it belongs to — kept apart from `scheduledDate` so a habit day
+stays stable. `@@unique([habitId, habitDate])` makes generation idempotent
+(Postgres treats NULLs as distinct, so ordinary tasks are unaffected).
+
+### Generation
+
+`ensureHabitInstances(userId, today)` (`src/server/services/habits.ts`) runs on
+every workspace render. It is idempotent and, on the common path, **read-only**:
+two cheap reads decide whether anything changed, and the write transaction opens
+only when it needs to. It does three things:
+
+1. **creates** today's instance for every habit due today (`skipDuplicates`),
+   planned for today with the habit's position, so habits lead the list;
+2. **drops** open instances from days that are already over — a habit is not a
+   backlog, so a missed day is missing from the history rather than waiting to be
+   done late;
+3. **drops** today's open instance when its habit is no longer due today (paused,
+   or the cadence changed). Completed rows are never touched: they are the record.
+
+There is no scheduler and no cron. The day comes from the account's timezone in
+`Settings`, exactly like everywhere else.
+
+### Progress is derived, and the log is folded
+
+`getHabitBoard()` reads the completion history out of `TaskEvent` — not the task
+table — so clearing completed tasks never rewrites a habit's past. It looks for
+events whose metadata names the habit and **the day the instance belonged to**
+(`{ habitId, habitDate }`, written by `setTaskStatus` and `updateTask`), which
+means a habit ticked off just after midnight still counts for the day it was for,
+and the history survives the row being deleted.
+
+`buildHabitCompletionLog()` **folds** those events in timestamp order rather than
+just collecting the completions: `completed` adds the day and `reopened` takes it
+back off. That is what makes un-ticking a day actually undo it — in the grid, or
+in Today — while the event log itself stays append-only, and a day completed,
+reopened and completed again ends up done because the last event wins. (For the
+same reason the `reopened` branch of `setTaskStatus` now writes the habit metadata
+too, not just the `completed` one.)
+
+The rules are pure and unit tested in `src/lib/habits.ts`:
+
+- **streak** — consecutive due days completed, counting back from today. Today
+  does not break the streak while it is still open, days the habit is not due on
+  are skipped (so a Mon/Wed/Fri habit keeps one streak across the weekend), and
+  the walk stops at `startDate`.
+- **rate** — due days completed over the last 30 days. Today is a hit once done
+  and otherwise left out entirely.
+- **history** — one slice per habit, each day `due` / `done`, which is what the
+  month grid and the trend are drawn from. Days before `startDate` read as *not
+  due*.
+- **editable** — `isHabitDayEditable()` is the one rule the grid and the server
+  share: a day can be corrected only if the habit is due on it and it has already
+  happened.
+
+### Quarantine: habit tasks live in Today only
+
+This is the rule that keeps the two areas from bleeding into each other, and it
+is enforced in the **pure view layer** (`buildSections`, `buildViewCounts`) so it
+holds for every caller, not just the UI:
+
+| Surface | Habit instances |
+| --- | --- |
+| `/today` | **shown**, planned for today, in the day's list and in Completed |
+| `/habits` | shown as the month grid, the 30-day trend and per-habit stats |
+| `/tasks`, `/completed`, `/categories/[id]` | never |
+| statistics, category counters | never |
+| sidebar **Today** badge | counted |
+| sidebar **Habits** badge | open instances today |
+
+`listTasks()` leaves them out unless `includeHabits` is set (Today sets it), and
+`listTaskSummaries()` returns them so `buildViewCounts` can decide. The filter box
+in the top bar only ever narrows the page you are on, so it inherits the same
+quarantine for free.
+
+### In Today and on the row
+
+A habit row is **tick-only**. It carries a small “Habit” badge, and the drag
+handle, the rename (double-click), the notes button, the subtask controls and the
+whole actions menu are absent — the title, dates, category and notes are the
+habit's configuration and live on `/habits`. Drag and drop ignores habit rows in
+both directions (`resolveIntent` and `handleDragEnd` bail out), so nothing can be
+nested under or reordered onto one.
+
+### The habits page
+
+Three parts, in order:
+
+1. **Monthly grid** (`components/habits/habit-month-grid.tsx`) — one row per habit,
+   one cell per day of the month. The grid has a **week view and a month view**:
+   the month table needs a wide screen, so below `lg` the week view is the default
+   (44 px targets with day numbers and the streak) and the toggle switches to the
+   month table. Both are always rendered and swapped with CSS, so the responsive
+   default costs no JavaScript and nothing shifts after hydration.
+2. **Last 7 / 30 / 90 days** (`habit-trend.tsx` + `habit-trend-chart.tsx`) — how
+   much of each day's habits got done, as a line: "*N* of the last *M* days have a
+   check-in", a row of four KPI tiles (check-ins, average, perfect days, best
+   day), then the chart. A day with nothing due is a gap in the line
+   (`percent: null`), not a dip to zero. Recharts is loaded on demand through
+   `components/habits/charts.tsx`, like every other chart in the app.
+3. **Your habits** — the configuration list: create, edit, pause/resume and
+   delete, plus cadence in words (“Every day”, “Weekdays”, “Mon, Wed, Fri”),
+   category, 30-day rate, a streak badge, the start date, and either “Done today”
+   or a link to Today.
+
+`g h` jumps there.
+
+#### Day states are one decision, drawn twice
+
+The grid distinguishes five states — **done**, **missed**, **still to do today**,
+**upcoming** and **not scheduled** — and both the cells and the legend are drawn
+from a single `CELL_CLASS` map, so a legend swatch can never disagree with the
+cell it explains. That was a real bug: the first version tinted a cell by whether
+it was *editable* rather than by what it meant, so a missed day looked neutral in
+the grid and red in the key.
+
+| State | Treatment |
+| --- | --- |
+| done | filled accent, tick |
+| missed | red border and tint, the only red any cell ever uses |
+| still to do today | dashed accent outline with a faint tick, and the whole column is outlined |
+| upcoming | dashed neutral outline, empty until the day arrives |
+| not scheduled | flat muted block — not a gap the user left, a day the habit never asked for |
+
+Only done, missed and today are tappable; the rest are not buttons at all. The
+weekday headings are two letters (`Su Mo Tu We Th Fr Sa`) because a single letter
+repeats `T` and `S` twice, and hovering or focusing a cell shows a card with the
+habit, the date — “Reading · October 12 · Completed” — and the state, rather than
+relying on the browser's `title` bubble. When the month on screen is not the
+current one, a **This month** link appears next to the period label.
+
+#### Month navigation
+
+`?month=` is parsed by `parseMonthParam()` in `src/lib/dates.ts`, which accepts
+both `YYYY-MM` (what the links write) and a full `YYYY-MM-DD` value, and returns
+`null` for anything else. It is clamped rather than trusted: never in the future,
+never more than `HABIT_MONTH_HISTORY_MONTHS = 12` back. The trend window rides
+along in `?range=` so switching either control keeps the other one — and the
+trend window is limited to `HABIT_TREND_WINDOWS` (7, 30, 90).
+
+#### What the chart is
+
+A filled area for the day itself plus a dashed 7-day trailing average, weekends
+shaded, one hover card listing the habits behind the day (done, missed, not due).
+The average is the line to read for direction; the caption says so, because a
+filled line through a single week of noise invites the wrong conclusion.
+
+### Sample data
+
+“Load example data” seeds three habits with **six weeks of hand-written
+history** — one kept up, one that improved, one that faded out — so the grid, the
+streaks and the chart all have something honest to show, including missed days
+and a real trend. The patterns are literal strings in
+`src/server/services/examples.ts` ("x" done, "." skipped), each ending today,
+and today is always left open so Today still has its work waiting. Completion is
+recorded as `completed` events with `{ habitId, habitDate }` metadata, never as
+task rows: a missed day simply has no record, exactly as it would in real use.
+
+Example data goes into an **empty** workspace only, and the guard counts habits
+too — otherwise the button would be offered again after a wipe that left habits
+behind.
+
+### Statistics are about tasks, the habits page is about habits
+
+A habit completion is a real `completed` event, so `buildActivitySeries()` skips
+any event whose metadata names a habit (`isHabitEvent()`). Without that, the
+statistics page would count work its own counters deliberately exclude — habit
+instances are quarantined out of every task view — and the same page would
+disagree with itself. Habit progress is reported on `/habits`.
+
+### Pausing
+
+A paused habit keeps its history but stops generating days, and it is **not
+tracked**: it drops out of the grid and the trend, and its card shows no streak or
+rate (they would decay for a reason the user did not choose). There is no pause
+date, so this is all-or-nothing rather than "paused from the 12th".
+
+### Backup
+
+The JSON backup format is now **v3**: `data.habits` plus `habitId`/`habitDate` on
+a task. Both are optional, so v1 and v2 files still import — and a habit's
+`startDate` is inferred from its earliest instance (or `createdAt`) when a file
+does not carry one.
 
 ---
 
