@@ -67,6 +67,14 @@ export const PUBLIC_PATHS = [
   // Where Supabase returns the browser after Google sign-in or an email
   // confirmation — it must never be redirected away.
   "/auth/callback",
+  // The daily reminder broadcast. A scheduler has no session, so the route
+  // authenticates its caller with a shared secret of its own — and it must not
+  // be redirected, because a scheduled request does not follow redirects.
+  "/api/cron/daily-reminder",
+  // The service worker. Static files are already excluded from middleware by the
+  // matcher, so this is belt and braces: a browser cannot register a script it is
+  // not allowed to fetch, and a worker that 307s to `/login` fails silently.
+  "/sw.js",
   ...AUTH_PATHS,
 ] as const;
 

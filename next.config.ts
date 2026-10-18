@@ -45,6 +45,10 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
+  // The notification service worker is served from this origin (`/sw.js`). Stated
+  // explicitly rather than left to `default-src`, so a future tightening of the
+  // policy cannot break notifications by accident.
+  "worker-src 'self'",
   `connect-src ${connectSrc}`,
   "object-src 'none'",
   "base-uri 'self'",
@@ -69,8 +73,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Prisma must not be bundled by the Next.js server compiler.
-  serverExternalPackages: ["@prisma/client", "prisma"],
+  // Prisma must not be bundled by the Next.js server compiler. `web-push` is
+  // kept out of the bundle as well: it reaches for `node:crypto` and its own
+  // ASN.1/JWS chain, which the tracer handles more reliably as a real dependency.
+  serverExternalPackages: ["@prisma/client", "prisma", "web-push"],
   // Do not advertise the framework in every response.
   poweredByHeader: false,
   experimental: {

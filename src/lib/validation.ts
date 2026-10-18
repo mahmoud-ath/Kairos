@@ -17,6 +17,11 @@ import {
   TITLE_MAX_LENGTH,
 } from "@/lib/constants";
 import { DATE_ONLY_PATTERN, isValidDateOnly, isValidTimeZone } from "@/lib/dates";
+import {
+  isValidPushEndpoint,
+  isValidReminderHour,
+  isValidSubscriptionKey,
+} from "@/lib/push";
 import type { TaskStatus } from "@/types/kairos";
 
 export const taskStatusSchema = z.enum(["TODO", "DONE"]);
@@ -217,6 +222,19 @@ export const updateCategorySchema = z.object({
 /* Settings                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Which hour the daily reminder is sent at, in the account's own timezone.
+ *
+ * The hour is matched by one shared broadcast job, so this is the only thing that
+ * makes "remind me at 8 PM" possible without a job per account.
+ */
+export const reminderHourSchema = z
+  .number({ invalid_type_error: "Pick an hour." })
+  .int("Pick a whole hour.")
+  .min(0, "Pick an hour between 0 and 23.")
+  .max(23, "Pick an hour between 0 and 23.")
+  .refine(isValidReminderHour, "Pick an hour between 0 and 23.");
+
 export const updateSettingsSchema = z.object({
   theme: themeSchema.optional(),
   timezone: z
@@ -227,6 +245,7 @@ export const updateSettingsSchema = z.object({
     .optional(),
   weekStartsOn: z.number().int().min(0).max(6).optional(),
   fontScale: fontScaleSchema.optional(),
+  reminderHour: reminderHourSchema.optional(),
 });
 
 /** Nickname and avatar. Locked-avatar rules are enforced in the service/action. */
@@ -292,6 +311,48 @@ export const setHabitDaySchema = z.object({
   date: dateOnlySchema,
   done: z.boolean(),
 });
+
+/* -------------------------------------------------------------------------- */
+/* Web Push                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A device registering itself for the daily reminder.
+ *
+ * These values come from the browser's own push manager, which makes them
+ * plausible rather than trusted: they are shaped like a real endpoint and real
+ * keys, and the service re-checks them at the boundary. The owner is never taken
+ * from the request — it comes from the session.
+ */
+export const pushSubscriptionSchema = z.object({
+  endpoint: z
+    .string()
+    .trim()
+    .refine(isValidPushEndpoint, "That is not a valid notification endpoint."),
+  p256dh: z
+    .string()
+    .trim()
+    .refine(
+      (value) => isValidSubscriptionKey(value, "p256dh"),
+      "That device key is not valid.",
+    ),
+  auth: z
+    .string()
+    .trim()
+    .refine((value) => isValidSubscriptionKey(value, "auth"), "That device secret is not valid."),
+});
+
+export type PushSubscriptionValues = z.output<typeof pushSubscriptionSchema>;
+
+/** Identifying one device of the account — to disable it, or to test it. */
+export const pushEndpointSchema = z.object({
+  endpoint: z
+    .string()
+    .trim()
+    .refine(isValidPushEndpoint, "That is not a valid notification endpoint."),
+});
+
+export type PushEndpointValues = z.output<typeof pushEndpointSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */

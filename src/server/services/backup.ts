@@ -215,6 +215,10 @@ export async function resetAllData(userId: string): Promise<void> {
     await tx.task.deleteMany();
     await tx.habit.deleteMany();
     await tx.category.deleteMany();
+    // Devices go too: "start over" must not leave a phone receiving a reminder
+    // about a workspace that has been emptied. A backup file never carries them,
+    // so an import deliberately leaves them alone.
+    await tx.pushSubscription.deleteMany();
     await tx.settings.deleteMany();
   });
   await getSettings(userId); // recreate this user's row with defaults
