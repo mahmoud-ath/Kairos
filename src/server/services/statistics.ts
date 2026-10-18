@@ -1,5 +1,11 @@
 import "server-only";
 
+import {
+  categoryKey,
+  UNCATEGORIZED_COLOR,
+  UNCATEGORIZED_ID,
+} from "@/lib/categories";
+import { UNCATEGORIZED_LABEL } from "@/lib/constants";
 import { addDays, dateOnlyToDate } from "@/lib/dates";
 import {
   buildActivitySeries,
@@ -15,7 +21,8 @@ import { listCategories } from "@/server/services/taxonomy";
 import type { TaskDTO } from "@/types/kairos";
 
 export type CategoryBreakdown = {
-  id: string | null;
+  /** A real category id, or `UNCATEGORIZED_ID` for tasks with no category. */
+  id: string;
   name: string;
   color: string;
   total: number;
@@ -39,7 +46,11 @@ export type StatisticsPayload = {
   activityTotals: { completed: number; reopened: number };
 };
 
-const UNCATEGORIZED = { id: null, name: "Uncategorized", color: "#94a3b8" };
+const UNCATEGORIZED = {
+  id: UNCATEGORIZED_ID,
+  name: UNCATEGORIZED_LABEL,
+  color: UNCATEGORIZED_COLOR,
+};
 
 /**
  * Statistics for one scope.
@@ -111,7 +122,9 @@ function buildCategoryBreakdown(
   }
 
   for (const task of tasks) {
-    const key = task.categoryId ?? "none";
+    // The same key the filter and the sidebar counters use, so "no category"
+    // means one thing across the whole app.
+    const key = categoryKey(task.categoryId);
     let row = rows.get(key);
     if (!row) {
       row = { ...UNCATEGORIZED, total: 0, completed: 0, remaining: 0, percentage: 0 };

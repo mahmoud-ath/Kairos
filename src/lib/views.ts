@@ -7,6 +7,7 @@
  * in one section per view.
  */
 
+import { categoryKey } from "@/lib/categories";
 import { addDays, compareDateOnly, formatRelativeDate } from "@/lib/dates";
 import type { TaskStatus } from "@/types/kairos";
 
@@ -344,7 +345,11 @@ export type ViewCounts = {
   unscheduled: number;
   /** Habit instances still open today (the Habits badge in the sidebar). */
   habits: number;
-  /** Unfinished top-level tasks per category id. */
+  /**
+   * Unfinished top-level tasks per category **key** — real ids plus
+   * `UNCATEGORIZED_ID`, so tasks with no category are counted rather than
+   * vanishing from every total that is broken down by category.
+   */
   byCategory: Record<string, number>;
 };
 
@@ -372,8 +377,8 @@ export function buildViewCounts(tasks: readonly TaskLike[], today: string): View
 
   const byCategory: Record<string, number> = {};
   for (const task of openRegular) {
-    if (!task.categoryId) continue;
-    byCategory[task.categoryId] = (byCategory[task.categoryId] ?? 0) + 1;
+    const key = categoryKey(task.categoryId);
+    byCategory[key] = (byCategory[key] ?? 0) + 1;
   }
 
   const unscheduled = openRegular.filter(

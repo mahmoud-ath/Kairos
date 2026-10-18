@@ -10,7 +10,8 @@ import type { ActivityPoint, ScopeCounts } from "@/lib/stats";
 import { cn } from "@/lib/utils";
 
 export type CategoryBreakdownRow = {
-  id: string | null;
+  /** A real category id, or `UNCATEGORIZED_ID` for tasks with no category. */
+  id: string;
   name: string;
   color: string;
   total: number;

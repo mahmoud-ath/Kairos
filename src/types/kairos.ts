@@ -91,9 +91,15 @@ export type TaskSummary = {
   habitId: string | null;
 };
 
-/** The only narrowing control left is a text search. */
+/**
+ * What narrows a task list: a text search, and — in All Tasks — one category.
+ *
+ * `categoryId` is a real category id, `UNCATEGORIZED_ID` (the bucket for tasks
+ * with no category, see `lib/categories.ts`), or `null` for "no category filter".
+ */
 export type TaskFilters = {
   query: string;
+  categoryId: string | null;
 };
 
 /**

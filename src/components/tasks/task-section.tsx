@@ -5,6 +5,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 
 import { SECTION_PREFIX } from "@/components/tasks/dnd-utils";
 import { TaskRow, type RowCallbacks } from "@/components/tasks/task-row";
+import { UNCATEGORIZED_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { TaskSection } from "@/lib/views";
 import type { CategoryDTO, TaskDTO } from "@/types/kairos";
@@ -83,8 +84,8 @@ export function TaskSectionView({
                   selected={selectedId === task.id}
                   categories={categories}
                   categoryName={
-                    showCategory && task.categoryId
-                      ? (categoryNames.get(task.categoryId) ?? null)
+                    showCategory
+                      ? (categoryNames.get(task.categoryId ?? "") ?? UNCATEGORIZED_LABEL)
                       : null
                   }
                   nestTarget={nestTargetId === task.id}

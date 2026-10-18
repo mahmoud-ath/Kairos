@@ -38,7 +38,8 @@ import { TaskDetailsPanel } from "@/components/tasks/task-details";
 import { TaskSectionView } from "@/components/tasks/task-section";
 import { TaskToolbar } from "@/components/tasks/task-toolbar";
 import { Button } from "@/components/ui/button";
-import { applyFilters } from "@/lib/filters";
+import { applyFilters, hasActiveFilters } from "@/lib/filters";
+import { categoryFilterLabel } from "@/lib/categories";
 import type { WorkspaceProgress } from "@/lib/stats";
 import {
   buildSections,
@@ -95,8 +96,23 @@ export function TaskWorkspace({
 
   // The filter box lives in the top bar; every view is narrowed by the same text.
   const { query, clear: clearFilter } = useSearch();
-  const filters = useMemo(() => ({ query }), [query]);
-  const searching = query.trim().length > 0;
+  // The category narrowing belongs to this page, so it is local state: it must
+  // not follow the reader into another view. `scope` changes when a different
+  // page renders this component, which resets it.
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const scopeKey = scope.kind === "category" ? `${scope.kind}:${scope.categoryId}` : scope.kind;
+  useEffect(() => {
+    setCategoryFilter(null);
+  }, [scopeKey]);
+  const filters = useMemo(
+    () => ({ query, categoryId: categoryFilter }),
+    [query, categoryFilter],
+  );
+  const filtering = hasActiveFilters(filters);
+  const clearFilters = useCallback(() => {
+    clearFilter();
+    setCategoryFilter(null);
+  }, [clearFilter]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [focusTarget, setFocusTarget] = useState<"notes" | null>(null);
@@ -131,6 +147,7 @@ export function TaskWorkspace({
     () => new Map(categories.map((category) => [category.id, category.name])),
     [categories],
   );
+  const selectedCategoryLabel = categoryFilterLabel(categoryFilter, categories);
 
   const selectedTask = useMemo(
     () => optimisticTasks.find((task) => task.id === selectedId) ?? null,
@@ -707,14 +724,24 @@ export function TaskWorkspace({
           />
 
           <TaskToolbar
-            searching={searching}
-            onClearFilter={clearFilter}
+            filtering={filtering}
+            onClearFilter={clearFilters}
             resultCount={visibleCount}
             totalCount={scopedTasks.length}
             completedCount={completedInScope}
             clearCompletedCount={clearCompletedCount}
             clearCompletedScope={clearCompletedScope}
             onClearCompleted={handleClearCompleted}
+            categoryFilter={
+              scope.kind === "all"
+                ? {
+                    value: categoryFilter,
+                    categories,
+                    counts: counts.byCategory,
+                    onChange: setCategoryFilter,
+                  }
+                : undefined
+            }
           />
         </div>
 
@@ -738,17 +765,23 @@ export function TaskWorkspace({
             <div className="mt-6">
               <EmptyState
                 title={
-                  searching ? `No tasks on this page match “${query.trim()}”` : emptyTitle
+                  query.trim()
+                    ? `No tasks on this page match “${query.trim()}”`
+                    : selectedCategoryLabel
+                      ? `No tasks in ${selectedCategoryLabel}`
+                      : emptyTitle
                 }
                 description={
-                  searching
-                    ? "The filter only looks at the tasks in this view. Clear it to see them all."
+                  filtering
+                    ? query.trim()
+                      ? "The filter only looks at the tasks in this view. Clear it to see them all."
+                      : "This view has no tasks in that category. Clear the filter to see everything."
                     : emptyDescription
                 }
-                workspaceIsEmpty={workspaceIsEmpty && !searching}
-                onClearFilter={searching ? clearFilter : undefined}
+                workspaceIsEmpty={workspaceIsEmpty && !filtering}
+                onClearFilter={filtering ? clearFilters : undefined}
                 onFocusQuickAdd={
-                  searching
+                  filtering
                     ? undefined
                     : () => quickAddRef.current?.querySelector("input")?.focus()
                 }

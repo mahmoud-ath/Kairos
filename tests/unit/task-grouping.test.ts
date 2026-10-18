@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { UNCATEGORIZED_ID } from "@/lib/categories";
 import {
   buildSections,
   buildViewCounts,
@@ -232,7 +233,7 @@ describe("view counts", () => {
     expect(counts.completed).toBe(1);
     expect(counts.open).toBe(10);
     expect(counts.unscheduled).toBe(2);
-    expect(counts.byCategory).toEqual({ "cat-1": 1 });
+    expect(counts.byCategory).toEqual({ "cat-1": 1, [UNCATEGORIZED_ID]: 9 });
   });
 
   it("never shows a task twice in one view", () => {
@@ -323,7 +324,7 @@ describe("habit instances are quarantined to Today", () => {
     expect(counts.completed).toBe(1);
     expect(counts.overdue).toBe(4); // the stale instance is not overdue work
     expect(counts.unscheduled).toBe(2);
-    expect(counts.byCategory).toEqual({ "cat-1": 1 });
+    expect(counts.byCategory).toEqual({ "cat-1": 1, [UNCATEGORIZED_ID]: 9 });
   });
 
   it("recognises a habit instance by its habit link", () => {
