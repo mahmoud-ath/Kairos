@@ -14,6 +14,7 @@ export type SettingsRecord = {
   nickname: string | null;
   avatarId: string;
   fontScale: FontScale;
+  reminderHour: number;
 };
 
 /** Best-effort guess of the server's timezone, used only for first-run setup. */
@@ -53,6 +54,7 @@ export async function getSettingsRecord(userId: string): Promise<SettingsRecord>
     nickname: settings.nickname ?? null,
     avatarId: settings.avatarId,
     fontScale: settings.fontScale as FontScale,
+    reminderHour: settings.reminderHour,
   };
 }
 
@@ -65,6 +67,7 @@ export async function updateSettings(
     nickname?: string | null;
     avatarId?: string;
     fontScale?: FontScale;
+    reminderHour?: number;
   },
 ) {
   await getSettings(userId);
@@ -75,6 +78,7 @@ export async function updateSettings(
   if (values.nickname !== undefined) data.nickname = values.nickname;
   if (values.avatarId !== undefined) data.avatarId = values.avatarId;
   if (values.fontScale !== undefined) data.fontScale = values.fontScale;
+  if (values.reminderHour !== undefined) data.reminderHour = values.reminderHour;
 
   return prisma.settings.update({ where: { userId }, data });
 }

@@ -144,5 +144,40 @@ model Settings {
   // Root font size, applied to <html>. Every Tailwind size is in rem, so this
   // scales the whole interface together (see FONT_SCALES in lib/constants).
   fontScale    String   @default("default") // compact | default | large | larger
+  // Hour of the day (0-23 **in this account's own timezone**) the daily reminder
+  // is sent at. One shared job serves everybody, so the hour is matched per
+  // account rather than by running a job per account — see §20 of the docs.
+  reminderHour Int      @default(1)
   updatedAt    DateTime @updatedAt
+}
+
+/// One device's Web Push registration.
+///
+/// Only the daily reminder uses it: a device registers itself once, and the row
+/// is what lets the scheduled job reach it. The browser's keys are stored
+/// because they are the *only* way to encrypt a payload to that device — losing
+/// them means the subscription has to be created again from the client.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  /// Push service URL issued by the browser. It is a capability — whoever holds
+  /// it can write a notification to that device — so it is never logged and
+  /// never written to a backup file.
+  ///
+  /// Unique globally, because a browser profile has exactly one subscription per
+  /// VAPID key: when the same device signs in as another account and enables the
+  /// reminder again, the row is handed over rather than duplicated. Two rows for
+  /// one device would deliver every reminder twice.
+  endpoint  String   @unique
+  /// The browser's public key and auth secret, used to encrypt the payload.
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  /// Date-only (`YYYY-MM-DD`) of the last reminder delivered to this device, in
+  /// the reminder's own timezone (Africa/Casablanca); `null` means none yet.
+  /// This is what stops a re-run — a retry, or two overlapping invocations — from
+  /// sending the same day's reminder twice.
+  lastSentDate String?
+
+  @@index([userId])
 }

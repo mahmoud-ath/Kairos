@@ -13,6 +13,7 @@ import {
   formatFullMonthDay,
   formatMonthLabel,
   formatRelativeDate,
+  hourInTimeZone,
   isValidDateOnly,
   lastNDays,
   monthParamValue,
@@ -105,6 +106,26 @@ describe("the ?month= query value", () => {
   it("writes the short form the links use", () => {
     expect(monthParamValue("2026-08-01")).toBe("2026-08");
     expect(monthParamValue("2026-08-31")).toBe("2026-08");
+  });
+});
+
+describe("the hour in a timezone", () => {
+  const lateEvening = new Date("2026-10-14T23:30:00.000Z");
+
+  it("follows the offset each zone actually has", () => {
+    expect(hourInTimeZone(lateEvening, "UTC")).toBe(23);
+    // UTC+1, so it is already the next day there — and 00:30, not 24:30.
+    expect(hourInTimeZone(lateEvening, "Africa/Casablanca")).toBe(0);
+    expect(hourInTimeZone(lateEvening, "America/Los_Angeles")).toBe(16);
+  });
+
+  it("reads midnight as 0, whatever the zone", () => {
+    expect(hourInTimeZone(new Date("2026-10-14T00:10:00.000Z"), "UTC")).toBe(0);
+    expect(hourInTimeZone(new Date("2026-10-14T23:10:00.000Z"), "Africa/Casablanca")).toBe(0);
+  });
+
+  it("falls back to UTC rather than throwing on a nonsense zone", () => {
+    expect(hourInTimeZone(new Date("2026-10-14T05:30:00.000Z"), "Not/AZone")).toBe(5);
   });
 });
 

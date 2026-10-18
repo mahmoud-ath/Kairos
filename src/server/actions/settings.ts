@@ -35,6 +35,7 @@ export async function updateSettingsAction(input: unknown): Promise<ActionResult
       nickname: settings.nickname ?? null,
       avatarId: settings.avatarId,
       fontScale: settings.fontScale as SettingsDTO["fontScale"],
+      reminderHour: settings.reminderHour,
     };
   });
 }

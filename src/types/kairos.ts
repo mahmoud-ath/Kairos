@@ -65,6 +65,8 @@ export type SettingsDTO = {
   avatarId: string;
   /** Root font-size scale for the whole interface. */
   fontScale: FontScale;
+  /** Hour of the day (0-23, in this account's timezone) for the daily reminder. */
+  reminderHour: number;
 };
 
 /** The parts of the profile a person can change themselves. */

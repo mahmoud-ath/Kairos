@@ -99,6 +99,33 @@ export function todayDateOnly(timeZone = "UTC", now: Date = new Date()): string 
   return dateOnlyInTimeZone(now, timeZone);
 }
 
+/**
+ * The hour of the day (0-23) an instant falls in, in the given timezone.
+ *
+ * Used by the daily reminder, which is one shared job serving people in different
+ * timezones: the hour each account asked for is compared against its *own* clock,
+ * never against the server's.
+ */
+export function hourInTimeZone(instant: Date, timeZone: string): number {
+  try {
+    const hour = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      hour12: false,
+    })
+      .formatToParts(instant)
+      .find((part) => part.type === "hour")?.value;
+    if (hour !== undefined) {
+      // `hour12: false` can render midnight as "24" in some ICU versions.
+      const value = Number.parseInt(hour, 10) % 24;
+      if (Number.isInteger(value) && value >= 0 && value <= 23) return value;
+    }
+  } catch {
+    /* fall back to UTC below */
+  }
+  return instant.getUTCHours();
+}
+
 export function addDays(dateOnly: string, days: number): string {
   const base = dateOnlyToDate(dateOnly).getTime() + days * MS_PER_DAY;
   return new Date(base).toISOString().slice(0, 10);
