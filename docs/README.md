@@ -75,6 +75,23 @@ misconfigured part makes *later* steps fail in confusing ways.
 - **Optional — [Notifications](notifications.md)**: one generic daily Web Push reminder, VAPID keys, and what Vercel's UTC cron can and cannot promise
 - **When something breaks — [Troubleshooting](troubleshooting.md)**
 
+### Engineering analysis (plans, not yet built)
+
+Four reviews from 2026-10-18, each checked against both this machine and
+production, each ending in an ordered plan with verification steps:
+
+- **[Protecting the environment](security-environment.md)** — which variables are
+  secrets and which are merely public, what is verified today, and the rotation
+  runbook.
+- **[Rate limiting](rate-limiting.md)** — why Server Actions need the limiter
+  (not `/api/*`), why an in-memory counter is useless on Vercel, and the limits
+  to adopt.
+- **[CI/CD](ci-cd.md)** — the pipeline that would have caught the three
+  migration-drift outages, including the workflow files.
+- **[Architecture review](architecture-review.md)** — how features are coupled
+  today, the OOP question answered concretely, and a phased refactor with exit
+  criteria.
+
 ---
 
 ## Before you start
