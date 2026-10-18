@@ -291,6 +291,10 @@ Setup takes about five minutes and lives in its own guide:
 | `KAIROS_ALLOWED_EMAILS` | **no** — leave it unset | an allow-list for a *private* deployment. Setting it on a public app signs every other account out |
 | `KAIROS_AUTH_DISABLED` | no | `true` removes the gate and puts every visitor in one shared `local` workspace — local development only |
 | `KAIROS_NO_INDEX` | no | `true` serves `Disallow: /` to crawlers |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | for notifications | the 87-character public half of the VAPID pair — [notifications.md](notifications.md) |
+| `VAPID_PRIVATE_KEY` | for notifications | the 43-character private half. Server-side only |
+| `VAPID_SUBJECT` | for notifications | contact for the push services, `mailto:you@example.com` |
+| `KAIROS_CRON_SECRET` | for notifications | shared secret the scheduler sends; **name it `CRON_SECRET` on Vercel** so the header is attached automatically |
 | `PORT` | no | local/Docker only; Vercel manages this |
 
 `NEXT_PUBLIC_*` values are **inlined into the browser bundle at build time**, so
@@ -299,6 +303,15 @@ reason "I set the variable but nothing changed". Under `compose.yaml` that means
 `docker compose up -d --build` — Compose passes them as **build arguments** from
 `.env`, while a plain `docker compose up` reuses the image built with the old
 values.
+
+One exception: the VAPID **public** key is read on the server at request time and
+handed to the notifications panel as a prop, so rotating it needs only a restart.
+The rest of the reminder's configuration (`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`,
+`KAIROS_CRON_SECRET`) is runtime-only.
+
+Notifications are optional — an empty block simply leaves the feature switched off
+and Settings says so. Setting them up, and the scheduling caveats that come with
+Vercel's UTC-only cron, are in **[notifications.md](notifications.md)**.
 
 `DATABASE_URL` and `DIRECT_URL` are read at runtime, but a redeploy is still the
 simplest way to be sure.

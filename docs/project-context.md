@@ -62,7 +62,7 @@ teams and no collaboration — accounts are individual by design.
 | **Auth** | Supabase — email/password **and** Google, both enabled and working |
 | **Database** | PostgreSQL (Prisma Postgres) — migrated, in sync with the schema |
 | **Production** | builds and serves; gate verified on the live URL |
-| **Unit tests** | 184 passing |
+| **Unit tests** | 206 passing |
 | **Integration tests** | 10 passing |
 | **Typecheck / lint** | clean |
 | **Account deletion** | ❌ not built — see [§15](#15-limitations-and-not-yet-built) |
@@ -343,8 +343,9 @@ what lets the landing page be statically rendered.
 | `/today`, `/tasks`, `/completed`, `/categories/[id]`, `/statistics`, `/settings`, `/habits` | app | **session required**, `noindex` |
 | `/auth/callback` | root | public — it sets the session cookie and must never be redirected |
 | `/api/health` | root | public — uptime checks run before a session exists |
+| `/api/cron/daily-reminder` | root | **public, and secret-authenticated** — a scheduler has no session; see §20 |
 | `/api/backup` | root | session required |
-| `robots.txt`, `sitemap.xml`, `icon.svg` | root | static |
+| `robots.txt`, `sitemap.xml`, `icon.svg`, `sw.js`, `manifest.webmanifest` | root | static (`/api/` and the workspace views are `noindex`; `sw.js` is exempt from the gate by the middleware matcher, since a browser cannot register a script it is not allowed to fetch) |
 
 ### The access matrix
 
@@ -395,26 +396,29 @@ src/
   lib/
     auth-rules.ts     allowedEmails, isEmailAllowed, safeNextPath
     habits.ts         cadence, streaks, completion rate, month/trend rules (pure)
+    push.ts           the reminder's wording, tags, key shapes, delivery outcomes (pure)
     shortcuts.ts      the key table + resolveShortcut() (pure, unit tested)
     task-rules.ts     subtask rules
     validation.ts     Zod schemas
     dates.ts filters.ts ordering.ts stats.ts views.ts constants.ts site.ts
   server/
     auth.ts           the gate; requireAuthProfile() → requireUserId()
+    cron-auth.ts      constant-time check of the scheduler's shared secret
     db.ts             prisma + scopedPrisma(userId)
     serializers.ts    DB rows -> client types
-    actions/          Server Actions (tasks, taxonomy, settings, backup, auth, examples)
+    actions/          Server Actions (tasks, taxonomy, settings, backup, auth, examples, push)
     services/         all data access: tasks, taxonomy, settings, events,
-                      statistics, backup, examples, habits
+                      statistics, backup, examples, habits, push
   middleware.ts       session refresh + access gate
   types/kairos.ts     shared types
+public/sw.js          the notification service worker (no fetch handler)
 tests/
-  unit/               14 files, 184 tests
-  integration/        isolation.test.ts, 10 tests + setup guard
+  unit/               16 files, 206 tests
+  integration/        isolation.test.ts + push.test.ts, 22 tests + setup guard
   e2e/                Playwright: task workflow, drag and drop, backup
 ```
 
-**~140 source files**, 7 Server Action modules, 8 services, 2 API routes.
+**~140 source files**, 8 Server Action modules, 9 services, 3 API routes.
 
 ---
 
@@ -430,6 +434,10 @@ tests/
 | `KAIROS_ALLOWED_EMAILS` | ❌ leave unset | allow-list for a *private* deployment |
 | `KAIROS_AUTH_DISABLED` | no | `true` removes the gate — **local development only** |
 | `KAIROS_NO_INDEX` | no | `true` serves `Disallow: /` to crawlers |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | no | public half of the VAPID pair; the only push value handed to the browser |
+| `VAPID_PRIVATE_KEY` | no | private half — server-side only, never logged or sent to a client |
+| `VAPID_SUBJECT` | no | `mailto:` contact the push services can use |
+| `KAIROS_CRON_SECRET` | no | shared secret the scheduler authenticates with. On Vercel name it `CRON_SECRET` instead, so the `Authorization` header is attached automatically. With none set, every call to the cron route is refused |
 | `PORT` | no | local/Docker only; Vercel manages it |
 
 **Two rules that cause most problems:**
@@ -480,8 +488,8 @@ Two traps:
 
 | Suite | Command | Count | Notes |
 | --- | --- | --- | --- |
-| Unit | `bun run test` | **184** | pure logic: dates (incl. month maths and `?month=` parsing), filters, ordering, stats (incl. the habit-event exclusion), grouping, subtask rules, habit rules (cadence, streaks, rate, month/trend), backup validation, auth rules, avatars, icons, profile, shortcuts |
-| Integration | `bun run test:integration` | **10** | real PostgreSQL; proves per-user isolation |
+| Unit | `bun run test` | **206** | pure logic: dates (incl. month maths and `?month=` parsing), filters, ordering, stats (incl. the habit-event exclusion), grouping, subtask rules, habit rules (cadence, streaks, rate, month/trend), push rules (payload, key shapes, statuses, Morocco dates, bounded concurrency), scheduler auth, backup validation, auth rules, avatars, icons, profile, shortcuts |
+| Integration | `bun run test:integration` | **22** | real PostgreSQL; proves per-user isolation, and push device ownership, daily duplicate prevention and expired-subscription cleanup |
 | E2E | `bun run test:e2e` | — | Playwright; builds first, sets `KAIROS_AUTH_DISABLED=true` |
 | Types | `bun run typecheck` | — | `tsc --noEmit` |
 | Lint | `bun run lint` | — | ESLint |
@@ -541,6 +549,10 @@ recreated, every place the ref appears must be updated — see
 | 16 | **Two-letter weekday headings, a week view under `lg`, and a rich tooltip** | Single letters repeat `T` and `S` twice in a month table; 24 px cells are too small to be a comfortable touch target, so below `lg` the default becomes a week of 44 px controls with the month table one tap away; and the state of a cell is worth spelling out ("Reading · October 12 · Completed") rather than leaving to a `title` bubble |
 | 17 | **Habit completions are excluded from task statistics** | Habit instances are quarantined out of every task view, so counting their completions in the activity series would make one page disagree with itself. The habits page is where habit progress is reported |
 | 18 | **Example data includes six weeks of habit history** | A tracker is meaningless with an empty grid: streaks, misses and the trend only make sense against history. The sample is hand-written to be imperfect — one habit kept up, one improved, one abandoned — so the UI is exercised on the shapes it has to handle, not on a wall of green |
+| 19 | **One generic reminder, at most once per device per day** | A notification that guesses ("3 tasks are late") has to read the database, be right, and is wrong the moment the phone is offline — so the message is one fixed sentence on one shared schedule. Delivery is *at most* once, never exactly once: each device is claimed for the Morocco date before the send, and a transient failure hands the claim back. Vercel documents cron delivery as best effort, so a design that claimed exactly-once would be lying |
+| 20 | **The service worker has no `fetch` handler** | A worker that intercepts requests is a cache, and Kairos does not cache authenticated pages: a cached document holds one account's tasks, and a copy that outlives a sign-out is the kind of bug nobody notices until it matters. Two handlers — `push` and `notificationclick` — and nothing else |
+| 21 | **`endpoint` is unique across the whole table, and a re-subscribe hands the row over** | A browser profile has one subscription per VAPID key, so a device that changes account must *move* its row rather than add a second one; two rows would send every reminder twice, the second copy to an account that had already switched it off. This is the one write that uses the unscoped client, and it is documented as such in the service |
+| 22 | **The reminder hour is a per-account setting, matched against that account's clock** | A job per account is not an option (one shared schedule, and a once-a-day cron), so the hour travels in `Settings` and the broadcast compares it with `hourInTimeZone(now, account.timezone)`. The hour therefore means what a person expects — "8 PM my time" — while the deployment keeps one job. Hours the free daily cron cannot reach need a free hourly scheduler, and the panel says so rather than saving a choice that silently never arrives |
 
 ---
 
@@ -558,6 +570,9 @@ Every one of these cost real time. They are the reason the guide opens with
 | `P1001 Can't reach database server` | the URL still contained placeholders (`USER`, `PASSWORD`, `…`) | copy the real string; never retype it |
 | Vercel `500 Application error … Digest: 2414997240` | the real log said `Can't reach database server at localhost:5432` — Vercel still had the local dev URL | set the pooled string in Vercel |
 | `column "TaskEvent.userId" does not exist` | a migration was applied to production but not locally | apply migrations to both |
+| **Production 500 on every workspace page** (`/tasks`, digest 2837338973, 13 Oct 2026) | the habits code deployed, `20261012120000_habits` did not: `Habit` did not exist and `Task` had no `habitId`/`habitDate`. `ensureHabitInstances()` runs in the app shell, so a missing habit table takes out **every** page, not just `/habits` | `prisma migrate deploy` over the direct host. Diagnosed by reading `information_schema` and `_prisma_migrations` directly rather than guessing from the digest, then reproduced locally (drifted DB → `P2022 The column Task.habitId does not exist`, `/tasks` 500) |
+| **`/api/health` stayed green through that entire outage** | the probe selected `Settings` and `Category.icon` — columns that *were* present | extended the probe to read `Task.habitId`/`habitDate` and a `Habit` row, so a missing migration now answers **503**. Proven both ways: drop the column → 503, restored → 200 |
+| `bunx prisma migrate deploy` with `DATABASE_URL=…` inline still hit the **wrong database** | the Prisma CLI resolves `.env` over an inline environment variable, so a one-off command silently targets the dev database | inline the URL into a temporary schema instead: `sed -E 's\|env\("[A-Z_]+"\)\|"<url>"\|g' prisma/schema.prisma > prisma/schema.tmp.prisma`, then `--schema prisma/schema.tmp.prisma`, then delete it. **This also means Playwright's `DATABASE_URL="$E2E_DATABASE_URL" prisma migrate reset` may be resetting the dev database — check before running the e2e suite** |
 | `Unknown argument 'data'. Did you mean 'update'?` on `prisma.settings.upsert()` | `scopedPrisma`'s extension stamped `userId` into `args.data` for **every** listed operation — but `upsert` has no `data` argument, so every scoped upsert threw and **JSON import and reset were both broken**. The old integration suite missed it because `getSettings` upserts through the *unscoped* client | stamp `create` for upsert, keep `data` for create/createMany, never touch `update`. Pinned by two integration tests (backup round-trip, reset isolation) |
 
 ### Process failures
@@ -684,7 +699,7 @@ bun run start                     # serve the production build (uses .env.produc
 # Quality gates
 bun run typecheck                 # tsc --noEmit
 bun run lint                      # eslint
-bun run test                      # 184 unit tests
+bun run test                      # 206 unit tests
 bun run test:integration          # 10 isolation tests (needs local PostgreSQL)
 bun run test:e2e                  # Playwright (builds first)
 
@@ -1051,6 +1066,164 @@ does not carry one.
 
 ---
 
+## 20. Notifications (the daily reminder)
+
+Added 2026-10-15, in one additive migration (`20261015120000_push_subscriptions`)
+— a new table, so no data had to be backfilled. The feature is **optional**:
+without the VAPID variables nothing is registered, nothing is scheduled, and
+Settings says the deployment has no keys.
+
+One generic message, on one shared daily schedule:
+
+> **Kairos** — “Check your tasks for tomorrow.”
+
+Tapping it opens `/today`. There are no task-specific reminders, no `reminderAt`
+on a task, no native app, and no second database or auth provider.
+
+```
+Browser ──subscribe──▶ PushSubscription (endpoint, p256dh, auth)
+                            │
+scheduler ──GET /api/cron/daily-reminder──▶ broadcast ──▶ push service ──▶ sw.js
+```
+
+### The model, and why `endpoint` is unique globally
+
+`PushSubscription` holds one row per device: `endpoint`, the two keys, the owner,
+`createdAt`, and `lastSentDate` (the Morocco date it was last reminded for). It is
+in `TENANT_MODELS`, so reads, updates and deletes are narrowed to the owner like
+every other table.
+
+`endpoint` is **globally** unique rather than unique per user. A browser profile
+has exactly one subscription per VAPID key, so a device that signs in as somebody
+else and switches the reminder on again *moves* its row. Two rows for one endpoint
+would deliver every reminder twice — the second copy to an account that had already
+switched it off.
+
+That hand-over is the one write in the codebase that uses the **unscoped** client,
+and the reason is in the code: the scoping layer would (correctly) refuse to touch
+a row owned by somebody else, turning a legitimate change of account into a unique
+constraint error. It is not a hole — the owner comes from the verified session and
+never from the request, the row is addressed by an endpoint the caller's own
+browser just issued, and both the create and the update name the owner explicitly,
+so the write stays auditable. Everything else — listing, unsubscribing, sending a
+test — goes through the scoped client, so another account's device is invisible
+and "not subscribed" is what the caller is told.
+
+### Sending
+
+`web-push` (with `serverExternalPackages`), VAPID keys read **per call** rather
+than cached at module load: a serverless instance is reused, and a `null`
+remembered from a cold start would keep notifications off for the rest of that
+instance's life after the variables were fixed. Both keys are checked for *shape*
+(87 and 43 characters), so a truncated paste reads as “not configured” instead of
+failing later with an opaque 4xx.
+
+Delivery never logs the endpoint or the keys — the endpoint is a capability URL.
+Outcomes are split in two:
+
+| Push service said | What happens |
+| --- | --- |
+| **404 / 410** | the subscription is gone for good: the row is deleted |
+| anything else (timeout, 429, 5xx, no status) | transient: the device is kept and the day is handed back so a later run can retry |
+
+Devices are contacted `REMINDER_CONCURRENCY = 8` at a time, through a small
+`runWithConcurrency` helper, because the list has no ceiling and a push service is
+a third party.
+
+### Duplicate prevention, and what it does not promise
+
+Delivery is **at most once per device per Morocco date — never exactly once**.
+Vercel documents cron delivery as best effort: a run can be missed or repeated, so
+the design assumes both.
+
+Each device is *claimed* for the date **before** the send, with a conditional
+`updateMany` on `lastSentDate`. Two overlapping invocations therefore cannot both
+deliver — the loser sees `count === 0` and reports the device as `skipped`. A
+transient failure releases the claim (back to its previous value), which is what
+keeps the device eligible for a retry later the same day. The notification also
+carries a stable `tag` and a delivery `topic`, so a duplicate that does reach the
+device replaces the visible notification instead of stacking a second one, and a
+`TTL` of one hour keeps a stale reminder from arriving in the afternoon.
+
+### The route
+
+`GET /api/cron/daily-reminder` is listed in `PUBLIC_PATHS`, because a scheduler has
+no session and, more sharply, because **Vercel's cron invocations do not follow
+redirects** — a 307 to `/login` would look like a successful run while sending
+nothing. The secret is therefore the authentication, checked in constant time by
+`src/server/cron-auth.ts` (which fails closed: no secret configured, no entry).
+`KAIROS_CRON_SECRET` is the documented name; `CRON_SECRET` is accepted too,
+because that is the exact name Vercel reads when it attaches the `Authorization`
+header itself. It is a `GET` so that any scheduler can call it with `curl`.
+
+The job reads exactly one table. It does not query tasks, habits or categories —
+nothing else in Kairos runs on a timer.
+
+### The service worker
+
+`public/sw.js` has two handlers and **no `fetch` handler at all**. That is
+deliberate: a worker that intercepts requests is a cache, and Kairos does not cache
+authenticated pages — a cached document holds one account's tasks, and a copy that
+outlives a sign-out is exactly the bug that is hard to notice. The middleware
+matcher already skips static files, and the CSP states `worker-src 'self'`
+explicitly so a later tightening cannot break notifications by accident.
+
+`notificationclick` prefers a Kairos tab that is already open (focus, then
+navigate) and otherwise opens a new one. The target is resolved against this origin
+and falls back to `/today` for anything else: a push payload is a UI surface, and
+the same-origin rule is enforced rather than assumed.
+
+The panel's copy, the payload and the badge/icon paths live in `src/lib/push.ts` —
+pure, so the settings panel, the sender and the tests share one source of truth.
+The worker cannot import it (a worker is served as a plain file), so its handful of
+defaults are repeated there with a pointer back.
+
+### The hour, and why it is a setting rather than a schedule
+
+`Settings.reminderHour` (0–23, **read in the account's own timezone**) is what makes
+"remind me at 20:00" possible without a job per account: the shared broadcast asks,
+for every device, whether that owner's clock has reached the hour they chose.
+
+That decision is one pure function, `isReminderHourDue(localHour, reminderHour)`:
+the hour must have arrived (nothing is ever delivered early) and be within
+`REMINDER_CATCH_UP_HOURS` of it, which turns a scheduler that ran late — or skipped
+the hour — into a late reminder instead of a missing one. The window deliberately
+never wraps past midnight: an 11 PM reminder delivered at 00:30 would be claimed
+against the *next* local date and could suppress that evening's reminder.
+
+Because the hour is matched per account, the *date* used for duplicate prevention
+is the account's own local date too (`lastSentDate`), not a single global day. The
+broadcast therefore reads every subscription and the settings of the accounts that
+own them — one extra query for the whole run, not one per device.
+
+### Scheduling
+
+`vercel.json` declares one daily job, `0 0 * * *` (UTC). The consequences are
+documented rather than hidden: Vercel always schedules in UTC, Hobby runs a daily
+job at an unspecified minute inside the scheduled hour, and Morocco is UTC+1 except
+during Ramadan (UTC+0). So the reminder lands at 01:00–01:59 local for most of the
+year and at 00:00–00:59 during Ramadan. A fixed UTC expression cannot be 01:00
+Casablanca all year, and the docs say so; an external scheduler that understands
+timezones can call the same endpoint if that matters. The **date** used for
+duplicate prevention is always computed with the real Morocco offset
+(`dateOnlyInTimeZone`), so drift in the hour can never produce two reminders for
+one local day — the unit suite asserts exactly that, including the Ramadan case.
+
+`docs/notifications.md` is the operator-facing guide: key generation with Bun, the
+variables, the scheduling caveats, Android steps, and the manual checklist.
+
+### Settings
+
+The **Notifications** card (`components/settings/notifications-panel.tsx`) shows
+the **real** state of *this* device, read from `pushManager.getSubscription()`
+rather than remembered — permission, subscription and database row can drift, and
+only the browser knows the truth. Permission is requested after an explicit tap and
+never on load. Unsupported browsers, a denied permission (with re-enable
+instructions), loading and errors each have their own state, and the server sends
+the test push so the whole path is exercised.
+
+---
+
 ## Related documents
 
 | Document | Purpose |
@@ -1058,6 +1231,7 @@ does not carry one.
 | [README.md](README.md) | **the deployment guide** — start here |
 | [deployment.md](deployment.md) | Part 1: Prisma Postgres + Vercel |
 | [auth-setup.md](auth-setup.md) | Part 2: Supabase Auth |
+| [notifications.md](notifications.md) | optional: the daily reminder, VAPID keys and scheduling |
 | [troubleshooting.md](troubleshooting.md) | fast diagnosis for the common failures |
 | [multi-user.md](multi-user.md) | design rationale for the isolation model |
 | [supabase-auth.md](supabase-auth.md) | ⚠️ legacy private single-user model |

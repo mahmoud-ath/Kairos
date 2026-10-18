@@ -214,11 +214,36 @@ Applying the migration is a **required deploy step**, not an optional one:
 set -a; . ./.env.production.local; set +a   # production URLs, unquoted
 bunx prisma migrate status                  # what is pending?
 bunx prisma migrate deploy                  # apply it
+unset DATABASE_URL DIRECT_URL               # ⚠️ see below
 ```
+
+> ⚠️ **`set -a` exports the production URLs into the shell you keep using**, so
+> every later `prisma` command in that session also hits production. If you would
+> rather not do that, inline the URL into a temporary schema instead — same
+> result, no export:
+>
+> ```bash
+> sed -E 's|env\("[A-Z_]+"\)|"<direct url>"|g' prisma/schema.prisma > prisma/schema.tmp.prisma
+> bunx prisma migrate deploy --schema prisma/schema.tmp.prisma
+> rm prisma/schema.tmp.prisma
+> ```
+
+> ⚠️ **An inline `DATABASE_URL=… bunx prisma …` does *not* override `.env`** — the
+> Prisma CLI prefers the file, so the command silently targets the wrong
+> database. Use `--schema` as above when you need to be sure.
+>
+> **This bites the Playwright suite too.** `playwright.config.ts` runs
+> `DATABASE_URL="$E2E_DATABASE_URL" prisma migrate reset --force`, and the CLI
+> ignores that value in favour of `.env` — so a `bun run test:e2e` can reset your
+> **development** database while pointing the app at the e2e one. Check which
+> database `prisma migrate status` reports before running the suite, or give the
+> e2e database its own `.env` handling.
 
 `/api/health` is the fast check: it reads the real columns (not `COUNT(*)`, which
 touches none), so a missing migration reports **503** instead of a misleading
-`ok`. A healthy deploy answers `{"ok":true,"database":"ok"}`.
+`ok`. It covers the `Settings`, `Category`, `Task`-habit and `Habit` shapes, so a
+migration the app depends on cannot ship missing and still look healthy. A
+healthy deploy answers `{"ok":true,"database":"ok"}`.
 
 > A placeholder like `<your-user>` *looks* like a connection problem and is not
 > one. Real strings contain a 64-character random username and a password

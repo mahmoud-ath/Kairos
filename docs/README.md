@@ -68,9 +68,11 @@ misconfigured part makes *later* steps fail in confusing ways.
 | 11 | Set Site URL and redirect URLs | [Part 2 §7](auth-setup.md#7-site-url-and-redirects) |
 | 12 | Add the two `NEXT_PUBLIC_*` variables to Vercel | [Part 2 §9](auth-setup.md#9-where-to-put-them-in-vercel) |
 | 13 | **Redeploy**, then run the verification checklist | [Part 2 §10](auth-setup.md#10-deploy) · [§11](auth-setup.md#11-verify) |
+| 14 | *(optional)* The daily reminder | **[Notifications](notifications.md)** |
 
 - **Part 1 — [Database and hosting](deployment.md)**: Prisma Postgres + Vercel
 - **Part 2 — [Letting people sign in](auth-setup.md)**: Supabase Auth, email and Google
+- **Optional — [Notifications](notifications.md)**: one generic daily Web Push reminder, VAPID keys, and what Vercel's UTC cron can and cannot promise
 - **When something breaks — [Troubleshooting](troubleshooting.md)**
 
 ---
