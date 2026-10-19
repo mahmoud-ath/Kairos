@@ -294,6 +294,20 @@ const FALLBACK_CLOCK: AccountClock = {
 };
 
 /**
+ * The delivery port.
+ *
+ * Production uses `deliver()`; the integration suite passes a function that
+ * records the attempt instead of contacting a phone. That is the substitution
+ * worth having — it makes claiming, retries and duplicate prevention testable
+ * without a push service — and it is deliberately the *only* one in this
+ * service: wrapping Prisma in another layer would only forward calls.
+ */
+export type PushSender = (
+  subscriber: Subscriber,
+  payload: ReminderPayload,
+) => Promise<void>;
+
+/**
  * Send the due reminder to every subscribed device.
  *
  * One shared job serves everybody, so it has to answer two questions per device:
@@ -309,13 +323,13 @@ const FALLBACK_CLOCK: AccountClock = {
  * best effort: an invocation can be repeated, or missed entirely, which is why
  * the window is `REMINDER_CATCH_UP_HOURS` wide instead of a single minute.
  *
- * The `sender` is injectable so the integration suite can exercise claiming,
+ * The `sender` port is injectable so the integration suite can exercise claiming,
  * duplicate prevention, hour matching and cleanup without a push service.
  */
 export async function broadcastDailyReminder(
   options: {
     now?: Date;
-    sender?: (subscriber: Subscriber, payload: ReminderPayload) => Promise<void>;
+    sender?: PushSender;
   } = {},
 ): Promise<BroadcastSummary> {
   const config = vapidConfig();
