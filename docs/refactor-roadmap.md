@@ -22,7 +22,7 @@ the order the topics were listed.
 | 4 | B — typed event payloads, completed | Readers and habit writers done in 0; remaining writers | ✅ 2026-10-19 |
 | 5 | E — ports where substitution pays | Needs 2 and 3 to be worth doing | ✅ 2026-10-19 |
 | 6 | Environment protection (security P0) | Needs CI (1) to enforce it | 🟡 auth guard shipped |
-| 7 | Shared rate limiting | Needs CI (1) and the request context (3) | ⏳ |
+| 7 | Shared rate limiting | Needs CI (1) and the request context (3) | 🟡 rules shipped |
 | 8 | Feature boundaries | Last: it is the shape the rest produce | ⏳ |
 
 Reference documents: [`architecture-review.md`](architecture-review.md) (findings
@@ -284,6 +284,12 @@ From [`rate-limiting.md`](rate-limiting.md). Order inside the phase:
 **Acceptance.** 61st mutation in a minute returns `429`/`Retry-After`; a second
 account is unaffected; a Redis outage allows traffic and logs (fail open, by
 policy).
+
+**Step 1 shipped 2026-10-19:** `lib/rate-limit.ts` holds the policies, the
+action→bucket mapping and one fixed-window rule, all pure and covered by ten unit
+cases (including "a blocked caller cannot extend their own window"). No behaviour
+change yet — nothing calls it. Step 2 wires `consume()` into `runAction()` and the
+two route handlers; step 3 provisions the shared store.
 
 ---
 
