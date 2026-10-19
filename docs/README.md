@@ -91,6 +91,10 @@ production, each ending in an ordered plan with verification steps:
 - **[Architecture review](architecture-review.md)** — how features are coupled
   today, the OOP question answered concretely, and a phased refactor with exit
   criteria.
+- **[Refactor roadmap](refactor-roadmap.md)** — the ordered phases for that work
+  (CI first, then the module split, request context, typed events, ports,
+  security, rate limiting, feature boundaries) with status and acceptance
+  criteria.
 
 ---
 
