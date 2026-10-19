@@ -68,7 +68,7 @@ export async function createTask(
   await recordTaskEvent(prisma, {
     taskId: created.id,
     action: "created",
-    metadata: { parentId },
+    parentId,
   });
 
   return serializeTask(created);
@@ -150,7 +150,7 @@ export async function restoreTask(
   await recordTaskEvent(prisma, {
     taskId: created.id,
     action: "created",
-    metadata: { restored: true },
+    restored: true,
   });
   return serializeTask(created);
 }

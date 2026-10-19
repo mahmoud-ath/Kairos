@@ -106,10 +106,8 @@ export async function moveTask(
     await recordTaskEvent(tx, {
       taskId: values.id,
       action: "moved",
-      metadata: {
-        categoryId: values.categoryId ?? null,
-        parentId: values.parentId ?? null,
-      },
+      categoryId: values.categoryId ?? null,
+      parentId: values.parentId ?? null,
     });
 
     const fresh = await tx.task.findUniqueOrThrow({
@@ -182,7 +180,8 @@ export async function reorderTask(
     await recordTaskEvent(tx, {
       taskId: values.id,
       action: "moved",
-      metadata: { scheduledDate: values.scheduledDate ?? null, index: values.targetIndex },
+      scheduledDate: values.scheduledDate ?? null,
+      index: values.targetIndex,
     });
   });
 }

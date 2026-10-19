@@ -60,21 +60,22 @@ export async function setTaskStatus(
         await recordTaskEvent(tx, {
           taskId: id,
           action: "subtask_completed",
-          metadata: { count: toComplete.length, via: "parent" },
+          count: toComplete.length,
+          via: "parent",
         });
       }
 
       await recordTaskEvent(tx, {
         taskId: id,
         action: "completed",
-        metadata: habitCompletionMetadata(task),
+        habitDay: habitCompletionMetadata(task),
       });
     } else {
       await tx.task.update({ where: { id }, data: { status: "TODO", completedAt: null } });
       await recordTaskEvent(tx, {
         taskId: id,
         action: "reopened",
-        metadata: habitCompletionMetadata(task),
+        habitDay: habitCompletionMetadata(task),
       });
     }
 
@@ -131,7 +132,8 @@ export async function setSubtaskStatus(
     await recordTaskEvent(tx, {
       taskId: id,
       action: status === "DONE" ? "completed" : "reopened",
-      metadata: { parentId: subtask.parentId, subtask: true },
+      parentId: subtask.parentId,
+      subtask: true,
     });
 
     const parent = await tx.task.findUniqueOrThrow({
@@ -164,7 +166,8 @@ export async function clearCompletedTasks(
     await recordTaskEvent(tx, {
       taskId: null,
       action: "deleted",
-      metadata: { cleared: tasks.length, titles: tasks.slice(0, 10).map((t) => t.title) },
+      cleared: tasks.length,
+      titles: tasks.slice(0, 10).map((t) => t.title),
     });
     return { count: tasks.length };
   });

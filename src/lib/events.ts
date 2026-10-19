@@ -142,15 +142,98 @@ export function isHabitEventMetadata(metadata: TaskEventMetadata): boolean {
 /**
  * A payload for "this habit instance was (un)completed on this day".
  *
- * Returns `{}` for an ordinary task, because only habit instances carry a day.
- * Typed so the writer and `buildHabitCompletionLog` cannot disagree about the
+ * Returns `undefined` for an ordinary task, because only habit instances carry a
+ * day. Typed so the writer and `buildHabitCompletionLog` cannot disagree about the
  * field names.
  */
 export function habitCompletionMetadata(task: {
   habitId: string | null;
   habitDate: string | null;
-}): HabitDayMetadata | Record<string, never> {
-  if (!task.habitId || !task.habitDate) return {};
-  if (!DATE_ONLY.test(task.habitDate)) return {};
+}): HabitDayMetadata | undefined {
+  if (!task.habitId || !task.habitDate) return undefined;
+  if (!DATE_ONLY.test(task.habitDate)) return undefined;
   return { habitId: task.habitId, habitDate: task.habitDate };
+}
+
+/* -------------------------------------------------------------------------- */
+/* What a writer may record                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One event, as a writer describes it.
+ *
+ * Discriminated by `action`, so a payload that does not belong to its action is a
+ * compile error: `{ action: "completed", count: 2 }` cannot be written, and a
+ * habit completion has to name a habit **day** rather than two loose strings.
+ *
+ * The serialised JSON is unchanged from before this type existed — readers parse
+ * it with `parseTaskEventMetadata`, and rows written by older versions keep
+ * working (see the `date` alias above).
+ */
+export type TaskEventDetails =
+  | {
+      action: "created";
+      taskId?: string | null;
+      parentId?: string | null;
+      restored?: true;
+      example?: true;
+    }
+  | { action: "updated"; taskId?: string | null; fields: readonly string[] }
+  | {
+      action: "completed" | "reopened";
+      taskId?: string | null;
+      /** Set when the event belongs to a habit's generated instance. */
+      habitDay?: HabitDayMetadata;
+      /** Set when a subtask was toggled on its own. */
+      parentId?: string | null;
+      subtask?: true;
+      example?: true;
+    }
+  | {
+      action: "subtask_completed" | "subtask_reopened";
+      taskId?: string | null;
+      count: number;
+      via: "parent";
+    }
+  | {
+      action: "deleted";
+      taskId?: string | null;
+      title?: string;
+      subtasks?: number;
+      cleared?: number;
+      titles?: readonly string[];
+    }
+  | {
+      action: "moved";
+      taskId?: string | null;
+      categoryId?: string | null;
+      parentId?: string | null;
+      scheduledDate?: string | null;
+      index?: number;
+    };
+
+/**
+ * Flatten a writer's description into the JSON that is stored.
+ *
+ * `habitDay` is the only nested field: it expands back into the `habitId` /
+ * `habitDate` pair the readers already understand. `taskId` is always written,
+ * because `TaskEvent.taskId` goes null when the task is deleted and the daily
+ * charts still need to count it once per day.
+ */
+export function metadataFromDetails(event: TaskEventDetails): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(event)) {
+    if (key === "action" || key === "taskId" || value === undefined) continue;
+    if (key === "habitDay") {
+      const day = value as HabitDayMetadata;
+      metadata.habitId = day.habitId;
+      metadata.habitDate = day.habitDate;
+      continue;
+    }
+    metadata[key] = value;
+  }
+
+  metadata.taskId = event.taskId ?? null;
+  return metadata;
 }

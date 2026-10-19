@@ -223,7 +223,7 @@ expressed once, in `lib/`.**
 | --- | --- | --- |
 | Largest service file | 189 lines (`tasks/edit.ts`), was 777 | < 250 |
 | Hand-maintained tenancy list | 6 entries, by hand | generated + test-enforced |
-| Untyped JSON contracts crossing features | 1 (`TaskEvent.metadata`) | 0 |
+| Untyped JSON contracts crossing features | 0 (`TaskEvent.metadata` is typed and parsed) | 0 |
 | Places that derive "today" from settings | 6, was 8 | 0 |
 | Cross-feature service imports | 8 | 0 outside a feature's `index.ts` |
 | "Where does this rule live?" ambiguous cases | `UNCATEGORIZED_LABEL` was one | 0 known |

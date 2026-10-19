@@ -141,7 +141,7 @@ export async function loadExampleTasks(
       await recordTaskEvent(prisma, {
         taskId: task.id,
         action: "completed",
-        metadata: { example: true },
+        example: true,
       });
     }
 
@@ -221,7 +221,8 @@ export async function loadExampleTasks(
       await recordTaskEvent(prisma, {
         taskId: null,
         action: "completed",
-        metadata: { habitId: habit.id, habitDate: addDays(today, offset), example: true },
+        habitDay: { habitId: habit.id, habitDate: addDays(today, offset) },
+        example: true,
       });
     }
   }

@@ -1,7 +1,10 @@
 import "server-only";
 
 import { dateToDateOnly } from "@/lib/dates";
-import { habitCompletionMetadata as habitDayMetadata } from "@/lib/events";
+import {
+  habitCompletionMetadata as habitDayMetadata,
+  type HabitDayMetadata,
+} from "@/lib/events";
 import { nextPosition } from "@/lib/ordering";
 import type { Prisma, ScopedTx } from "@/server/db";
 import { ServiceError } from "@/server/errors";
@@ -33,7 +36,7 @@ export const TASK_ORDER: Prisma.TaskOrderByWithRelationInput[] = [
 export function habitCompletionMetadata(task: {
   habitId: string | null;
   habitDate: Date | null;
-}): Record<string, unknown> {
+}): HabitDayMetadata | undefined {
   return habitDayMetadata({
     habitId: task.habitId,
     habitDate: task.habitDate ? dateToDateOnly(task.habitDate) : null,

@@ -2,7 +2,8 @@ import "server-only";
 
 import type { Prisma } from "@prisma/client";
 
-import type { TaskEventAction } from "@/lib/events";
+import type { TaskEventAction, TaskEventDetails } from "@/lib/events";
+import { metadataFromDetails } from "@/lib/events";
 import type { ScopedTx } from "@/server/db";
 import { scopedPrisma } from "@/server/db";
 
@@ -23,18 +24,12 @@ export type { TaskEventAction };
  * `parseTaskEventMetadata` rather than reading raw keys.
  */
 
-export async function recordTaskEvent(
-  db: Db,
-  event: {
-    taskId?: string | null;
-    action: TaskEventAction;
-    metadata?: Record<string, unknown>;
-  },
-): Promise<void> {
-  // The originating task id is always kept inside the metadata too: TaskEvent's
-  // `taskId` is nulled when a task is deleted, but the daily activity charts
-  // still need to count that task once per day.
-  const metadata = { ...(event.metadata ?? {}), taskId: event.taskId ?? null };
+export async function recordTaskEvent(db: Db, event: TaskEventDetails): Promise<void> {
+  // The payload's shape is defined in `lib/events.ts`; this only serialises it.
+  // `taskId` is always present inside the JSON too: TaskEvent's `taskId` column is
+  // nulled when a task is deleted, but the daily activity charts still need to
+  // count that task once per day.
+  const metadata = metadataFromDetails(event);
 
   await db.taskEvent.create({
     data: {

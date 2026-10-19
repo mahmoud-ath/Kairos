@@ -4,6 +4,7 @@ import {
   habitCompletionMetadata,
   habitDayOf,
   isHabitEventMetadata,
+  metadataFromDetails,
   parseTaskEventMetadata,
 } from "@/lib/events";
 
@@ -84,12 +85,12 @@ describe("building a habit payload", () => {
   });
 
   it("writes nothing for an ordinary task", () => {
-    expect(habitCompletionMetadata({ habitId: null, habitDate: DAY })).toEqual({});
-    expect(habitCompletionMetadata({ habitId: "h1", habitDate: null })).toEqual({});
+    expect(habitCompletionMetadata({ habitId: null, habitDate: DAY })).toBeUndefined();
+    expect(habitCompletionMetadata({ habitId: "h1", habitDate: null })).toBeUndefined();
   });
 
   it("writes nothing rather than an invalid date", () => {
-    expect(habitCompletionMetadata({ habitId: "h1", habitDate: "tomorrow" })).toEqual({});
+    expect(habitCompletionMetadata({ habitId: "h1", habitDate: "tomorrow" })).toBeUndefined();
   });
 
   it("round-trips through the reader", () => {
@@ -98,5 +99,56 @@ describe("building a habit payload", () => {
       habitId: "h1",
       habitDate: DAY,
     });
+  });
+});
+
+describe("what a writer records", () => {
+  it("always stamps the task id that the column may later lose", () => {
+    expect(metadataFromDetails({ action: "created", taskId: "t1" })).toMatchObject({
+      taskId: "t1",
+    });
+    expect(metadataFromDetails({ action: "deleted", taskId: null })).toMatchObject({
+      taskId: null,
+    });
+  });
+
+  it("expands a habit day into the field names readers use", () => {
+    const metadata = metadataFromDetails({
+      action: "completed",
+      taskId: "t1",
+      habitDay: { habitId: "h1", habitDate: DAY },
+    });
+    expect(metadata).toMatchObject({ habitId: "h1", habitDate: DAY });
+    expect(metadata).not.toHaveProperty("habitDay");
+    // And the reader agrees with what was written.
+    expect(habitDayOf(parseTaskEventMetadata(JSON.stringify(metadata)))).toEqual({
+      habitId: "h1",
+      habitDate: DAY,
+    });
+  });
+
+  it("keeps the action out of the payload but the details in it", () => {
+    const metadata = metadataFromDetails({
+      action: "updated",
+      taskId: "t1",
+      fields: ["title", "status"],
+    });
+    expect(metadata).not.toHaveProperty("action");
+    expect(metadata.fields).toEqual(["title", "status"]);
+  });
+
+  it("drops optional fields that were not supplied", () => {
+    const metadata = metadataFromDetails({ action: "created", taskId: "t1", parentId: null });
+    expect(metadata).toEqual({ parentId: null, taskId: "t1" });
+  });
+
+  it("survives a round trip through JSON unchanged", () => {
+    const metadata = metadataFromDetails({
+      action: "subtask_completed",
+      taskId: "p1",
+      count: 3,
+      via: "parent",
+    });
+    expect(JSON.parse(JSON.stringify(metadata))).toEqual(metadata);
   });
 });

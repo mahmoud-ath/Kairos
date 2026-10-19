@@ -104,7 +104,8 @@ export async function updateTask(
           await recordTaskEvent(tx, {
             taskId: existing.id,
             action: "subtask_completed",
-            metadata: { count: toComplete.length, via: "parent" },
+            count: toComplete.length,
+            via: "parent",
           });
         }
       } else {
@@ -137,22 +138,22 @@ export async function updateTask(
       await recordTaskEvent(tx, {
         taskId: values.id,
         action: "completed",
-        metadata: habitCompletionMetadata(existing),
+        habitDay: habitCompletionMetadata(existing),
       });
     } else if (statusChanged && values.status === "TODO") {
-      // The habit metadata is repeated here on purpose: a reopened event is what
-      // takes a day back off a habit's record, so it has to name the same day.
+      // The habit day is repeated here on purpose: a reopened event is what takes
+      // a day back off a habit's record, so it has to name the same day.
       await recordTaskEvent(tx, {
         taskId: values.id,
         action: "reopened",
-        metadata: habitCompletionMetadata(existing),
+        habitDay: habitCompletionMetadata(existing),
       });
     }
     if (changed.length > 0) {
       await recordTaskEvent(tx, {
         taskId: values.id,
         action: "updated",
-        metadata: { fields: changed },
+        fields: changed,
       });
     }
 
@@ -177,10 +178,13 @@ export async function deleteTask(userId: string, id: string): Promise<TaskDTO> {
   await prisma.$transaction(async (tx) => {
     await tx.task.delete({ where: { id } });
     if (task.parentId === null) {
+      // `taskId` is null at the event level on purpose: the row it referred to is
+      // gone. The title is kept so the deletion is still readable in the log.
       await recordTaskEvent(tx, {
         taskId: null,
         action: "deleted",
-        metadata: { taskId: snapshot.id, title: snapshot.title, subtasks: snapshot.subtasks.length },
+        title: snapshot.title,
+        subtasks: snapshot.subtasks.length,
       });
     }
   });

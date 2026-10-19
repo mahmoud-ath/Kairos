@@ -19,8 +19,8 @@ the order the topics were listed.
 | 1 | CI pipeline (the safety net) | Every later phase is a refactor; without CI they are unprotected | ✅ 2026-10-19 |
 | 2 | A — split `services/tasks.ts` behind one entrance | Largest file, touched by every feature | ✅ 2026-10-19 |
 | 3 | D — request context | Removes repeated `userId`/`today` plumbing; depends on 2 | ✅ 2026-10-19 |
-| 4 | B — typed event payloads, completed | Readers and habit writers done in 0; remaining writers | ⏳ next |
-| 5 | E — ports where substitution pays | Needs 2 and 3 to be worth doing | ⏳ |
+| 4 | B — typed event payloads, completed | Readers and habit writers done in 0; remaining writers | ✅ 2026-10-19 |
+| 5 | E — ports where substitution pays | Needs 2 and 3 to be worth doing | ⏳ next |
 | 6 | Environment protection (security P0) | Needs CI (1) to enforce it | ⏳ |
 | 7 | Shared rate limiting | Needs CI (1) and the request context (3) | ⏳ |
 | 8 | Feature boundaries | Last: it is the shape the rest produce | ⏳ |
@@ -203,11 +203,19 @@ in `lib/events.ts` first, then the writer changes.
 
 **Acceptance.**
 
-- no `metadata: Record<string, unknown>` remains;
+- no `metadata: Record<string, unknown>` remains; ✅
 - a deliberate mismatch (e.g. `{ action: "completed", count: 2 }`) fails
-  `typecheck`;
+  `typecheck`; ✅ — `count` is only accepted by the cascade actions
 - habit history, statistics activity and the export/import round-trip are
   unchanged on the e2e suite.
+
+**Shipped 2026-10-19.** `recordTaskEvent(db, details)` now takes a
+`TaskEventDetails` union discriminated by `action`; `metadataFromDetails()`
+flattens it to exactly the JSON that was written before (`habitDay` expands to
+`habitId`/`habitDate`), so stored history and old rows are untouched. Seventeen
+call sites were updated, and `habitCompletionMetadata()` returns `undefined`
+instead of `{}` so an ordinary task can no longer masquerade as a habit day.
+**272 unit tests** (+5 on the writer → reader round trip).
 
 ---
 
