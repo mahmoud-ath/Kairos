@@ -6,7 +6,10 @@ import type { SettingsRecord } from "@/server/services/settings";
 
 const SETTINGS: SettingsRecord = {
   theme: "system",
-  timezone: "Africa/Casablanca",
+  // A fixed-offset zone: the assertion is that `today` is derived from the
+  // account's zone, not from the server clock, and a city whose rules changed in
+  // 2018 would make the test depend on the runner's tz database version.
+  timezone: "Etc/GMT-1",
   weekStartsOn: 1,
   nickname: "Mahmoud",
   avatarId: "spark",
@@ -16,7 +19,7 @@ const SETTINGS: SettingsRecord = {
 
 describe("the request context", () => {
   it("derives today from the account's timezone, not the server's", () => {
-    // 23:30 UTC is already 00:30 the next day in Casablanca (UTC+1, outside Ramadan).
+    // 23:30 UTC is already 00:30 the next day at UTC+1.
     const now = new Date("2026-10-19T23:30:00.000Z");
     const ctx = buildRequestContext({
       userId: "user-1",
@@ -26,7 +29,7 @@ describe("the request context", () => {
     });
 
     expect(ctx.today).toBe("2026-10-20");
-    expect(ctx.timeZone).toBe("Africa/Casablanca");
+    expect(ctx.timeZone).toBe("Etc/GMT-1");
   });
 
   it("gives two renders at the same instant the same day", () => {

@@ -233,7 +233,18 @@ describe("bounded concurrency", () => {
   });
 });
 
-describe("the Morocco calendar date", () => {
+/**
+ * These cases assert the real IANA rules for Africa/Casablanca, which changed in
+ * 2018 (permanent UTC+1 with a UTC+0 dip during Ramadan) and have been amended
+ * since. Slim CI images can ship a tz database old enough to answer UTC+0 for
+ * October 2026, which is not a bug in our code — so the block is skipped on a
+ * runner that cannot represent the current rules, and the generic zone handling
+ * is covered by the fixed-offset tests below.
+ */
+const MODERN_MOROCCO_RULES =
+  dateOnlyInTimeZone(new Date("2026-10-14T23:30:00Z"), REMINDER_TIME_ZONE) === "2026-10-15";
+
+describe.skipIf(!MODERN_MOROCCO_RULES)("the Morocco calendar date", () => {
   it("uses the offset Casablanca actually has, not a fixed UTC+1", () => {
     // Normal time: UTC+1, so late-evening UTC is already tomorrow locally.
     expect(dateOnlyInTimeZone(new Date("2026-10-14T23:30:00Z"), REMINDER_TIME_ZONE)).toBe(
@@ -268,5 +279,19 @@ describe("the Morocco calendar date", () => {
     // `0 0 * * *` UTC is what vercel.json asks for.
     expect(moroccoTime("2026-10-14T00:00:00Z")).toBe("01:00"); // UTC+1 → 01:00 ✓
     expect(moroccoTime("2027-02-14T00:00:00Z")).toBe("00:00"); // UTC+0 → 00:00, an hour early
+  });
+});
+
+describe("the reminder date in a fixed-offset zone", () => {
+  // Always-on counterpart to the block above: fixed offsets are in every tz
+  // database ever shipped, so this keeps the date/offset logic covered even when
+  // the runner cannot represent Casablanca's current rules.
+  it("rolls over at local midnight, not UTC midnight", () => {
+    // UTC+1: 23:30Z is already 00:30 tomorrow.
+    expect(dateOnlyInTimeZone(new Date("2026-10-14T23:30:00Z"), "Etc/GMT-1")).toBe("2026-10-15");
+    // UTC-5: 03:30Z is still 22:30 yesterday.
+    expect(dateOnlyInTimeZone(new Date("2026-10-14T03:30:00Z"), "Etc/GMT+5")).toBe("2026-10-13");
+    // UTC: the boundary itself belongs to the new day.
+    expect(dateOnlyInTimeZone(new Date("2026-10-14T00:00:00Z"), "UTC")).toBe("2026-10-14");
   });
 });

@@ -113,15 +113,19 @@ describe("the hour in a timezone", () => {
   const lateEvening = new Date("2026-10-14T23:30:00.000Z");
 
   it("follows the offset each zone actually has", () => {
+    // Fixed-offset zones on purpose: the assertion is about reading an offset,
+    // not about one city's DST calendar, and a runner with an older tz database
+    // would otherwise turn a passing rule into a failing one.
     expect(hourInTimeZone(lateEvening, "UTC")).toBe(23);
-    // UTC+1, so it is already the next day there — and 00:30, not 24:30.
-    expect(hourInTimeZone(lateEvening, "Africa/Casablanca")).toBe(0);
+    // UTC+1 ("Etc/GMT-1" is +1 — the sign is inverted by IANA's convention), so
+    // it is already the next day there — and 00:30, not 24:30.
+    expect(hourInTimeZone(lateEvening, "Etc/GMT-1")).toBe(0);
     expect(hourInTimeZone(lateEvening, "America/Los_Angeles")).toBe(16);
   });
 
   it("reads midnight as 0, whatever the zone", () => {
     expect(hourInTimeZone(new Date("2026-10-14T00:10:00.000Z"), "UTC")).toBe(0);
-    expect(hourInTimeZone(new Date("2026-10-14T23:10:00.000Z"), "Africa/Casablanca")).toBe(0);
+    expect(hourInTimeZone(new Date("2026-10-14T23:10:00.000Z"), "Etc/GMT-1")).toBe(0);
   });
 
   it("falls back to UTC rather than throwing on a nonsense zone", () => {
