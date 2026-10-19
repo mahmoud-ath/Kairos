@@ -74,6 +74,22 @@ jobs were **not** executed on this machine — a `next dev` server holds `.next`
 and building under it is the documented way to corrupt the running app. They will
 be proven by the first pull request that runs the workflow.
 
+**The first real run found four things, all fixed in `ac45119`, `d2133df` and
+`1708b9e`:**
+
+| Job | Failure | Cause |
+| --- | --- | --- |
+| `quality` | 5 unit tests | they pinned `Africa/Casablanca`'s real DST rules; the runner's tz database predates the 2018 change. Now fixed-offset zones, with the Morocco block skipped when the runner cannot represent it |
+| `integration` | "unparseable DATABASE_URL" | `bun run test:integration` is `env -u DATABASE_URL …` (it protects developer shells); in CI those variables are the only source, so the step stripped its own config |
+| `e2e` | 2 stale assertions | the empty state says "Load example data" and the backup format is version 3 — nobody had run the specs since both changed |
+| `e2e` | scroll test | it asserted the columns keep their starting y, which is only true while the document still has room to scroll |
+
+That is the pipeline paying for itself on day one. **It also caught that Phase 2
+was not in effect**: the split `services/tasks.ts` → `services/tasks/` left the
+original 772-line file on disk as an untracked twin, and module resolution prefers
+`tasks.ts` over `tasks/index.ts`, so every build still ran the monolith. Deleted;
+typecheck, 286 unit, 25 integration and 12/12 e2e now pass against the split.
+
 ---
 
 ## Phase 2 — A: split `services/tasks.ts` behind one public entrance
