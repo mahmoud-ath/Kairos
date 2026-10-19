@@ -17,8 +17,8 @@ the order the topics were listed.
 | --- | --- | --- | --- |
 | 0 | Fixes that unblock trust in the tooling | — | ✅ 2026-10-19 |
 | 1 | CI pipeline (the safety net) | Every later phase is a refactor; without CI they are unprotected | ✅ 2026-10-19 |
-| 2 | A — split `services/tasks.ts` behind one entrance | Largest file, touched by every feature | ⏳ next |
-| 3 | D — request context | Removes repeated `userId`/`today` plumbing; depends on 2 | ⏳ |
+| 2 | A — split `services/tasks.ts` behind one entrance | Largest file, touched by every feature | ✅ 2026-10-19 |
+| 3 | D — request context | Removes repeated `userId`/`today` plumbing; depends on 2 | ⏳ next |
 | 4 | B — typed event payloads, completed | Readers and habit writers done in 0; remaining writers | ⏳ |
 | 5 | E — ports where substitution pays | Needs 2 and 3 to be worth doing | ⏳ |
 | 6 | Environment protection (security P0) | Needs CI (1) to enforce it | ⏳ |
@@ -114,6 +114,13 @@ src/server/services/tasks/
 - largest file in `services/tasks/` < 300 lines.
 
 **Rollback.** Revert one commit; no schema, no API, no UI change.
+
+**Shipped 2026-10-19** as `services/tasks/{index,query,write,edit,status,tree,shared}.ts`.
+Largest file is now **189 lines** (was 777). The diff touches no importer — that
+is the proof the entrance held. `write.ts` was split once more during the phase
+(create/restore vs edit/delete) to keep every module under 200 lines.
+Verified: `typecheck`, `lint`, **255 unit**, **25 integration** (run against a
+throw-away database, exactly as the CI job does).
 
 ---
 

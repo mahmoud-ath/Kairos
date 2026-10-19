@@ -215,7 +215,7 @@ expressed once, in `lib/`.**
 
 | Metric | Today | Target |
 | --- | --- | --- |
-| Largest service file | 777 lines (`tasks.ts`) | < 250 |
+| Largest service file | 189 lines (`tasks/edit.ts`), was 777 | < 250 |
 | Hand-maintained tenancy list | 6 entries, by hand | generated + test-enforced |
 | Untyped JSON contracts crossing features | 1 (`TaskEvent.metadata`) | 0 |
 | Cross-feature service imports | 8 | 0 outside a feature's `index.ts` |
