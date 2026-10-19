@@ -3,6 +3,8 @@ import "server-only";
 import { PrismaClient } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
+import { isTenantModel } from "@/lib/tenancy";
+
 /**
  * A single Prisma client per process.
  *
@@ -44,15 +46,10 @@ export type { Prisma } from "@prisma/client";
 /* Multi-user scoping                                                         */
 /* -------------------------------------------------------------------------- */
 
-/** Models whose rows belong to exactly one user. */
-const TENANT_MODELS = new Set([
-  "Task",
-  "Category",
-  "TaskEvent",
-  "Settings",
-  "Habit",
-  "PushSubscription",
-]);
+/**
+ * Which models belong to one user lives in `lib/tenancy.ts`, where a unit test
+ * compares it against the Prisma schema. This module only consumes it.
+ */
 
 /** Operations whose `where` must be narrowed to the owner. */
 const FILTERED_OPERATIONS = new Set([
@@ -121,7 +118,7 @@ export function scopedPrisma(userId: string) {
     query: {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
-          if (!TENANT_MODELS.has(model)) return query(args);
+          if (!isTenantModel(model)) return query(args);
 
           const mutable = args as {
             where?: Record<string, unknown>;

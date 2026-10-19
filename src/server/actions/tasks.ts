@@ -13,6 +13,7 @@ import {
 import type { ActionResult, TaskDTO } from "@/types/kairos";
 import { scopedPrisma } from "@/server/db";
 import { requireUserId } from "@/server/auth";
+import { ServiceError } from "@/server/errors";
 import { runAction } from "@/server/actions/helpers";
 import {
   clearCompletedTasks,
@@ -21,7 +22,6 @@ import {
   moveTask,
   reorderTask,
   restoreTask,
-  ServiceError,
   setTaskStatus,
   updateTask,
 } from "@/server/services/tasks";

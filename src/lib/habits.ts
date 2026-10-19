@@ -13,12 +13,12 @@
  */
 
 import {
-  DATE_ONLY_PATTERN,
   addDays,
   compareDateOnly,
   dateOnlyToDate,
   lastNDays,
 } from "@/lib/dates";
+import { habitDayOf, parseTaskEventMetadata } from "@/lib/events";
 
 /** Weekday numbers, `0` = Sunday, matching `Date.prototype.getUTCDay()`. */
 export const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6] as const;
@@ -383,8 +383,9 @@ export function trendBest(points: readonly HabitTrendPoint[]): HabitTrendPoint |
  * stays append-only — and a day completed, reopened and completed again ends up
  * done, because the last event wins.
  *
- * Malformed metadata is skipped rather than throwing: this runs over history
- * written by older versions of the app.
+ * Malformed metadata is read through `parseTaskEventMetadata`, which never
+ * throws and accepts the older `date` field name, so history written by earlier
+ * versions still counts. See `lib/events.ts`.
  */
 export function buildHabitCompletionLog(
   events: Iterable<{
@@ -398,24 +399,15 @@ export function buildHabitCompletionLog(
     if (!event.metadata) continue;
     if (event.action !== "completed" && event.action !== "reopened") continue;
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(event.metadata);
-    } catch {
-      continue;
-    }
-    if (typeof parsed !== "object" || parsed === null) continue;
-
-    const { habitId, habitDate } = parsed as { habitId?: unknown; habitDate?: unknown };
-    if (typeof habitId !== "string" || habitId.length === 0) continue;
-    if (typeof habitDate !== "string" || !DATE_ONLY_PATTERN.test(habitDate)) continue;
+    const day = habitDayOf(parseTaskEventMetadata(event.metadata));
+    if (!day) continue;
 
     if (event.action === "completed") {
-      const set = log.get(habitId) ?? new Set<string>();
-      set.add(habitDate);
-      log.set(habitId, set);
+      const set = log.get(day.habitId) ?? new Set<string>();
+      set.add(day.habitDate);
+      log.set(day.habitId, set);
     } else {
-      log.get(habitId)?.delete(habitDate);
+      log.get(day.habitId)?.delete(day.habitDate);
     }
   }
 

@@ -9,6 +9,7 @@
  */
 
 import { dateOnlyInTimeZone, lastNDays } from "@/lib/dates";
+import { isHabitEventMetadata, parseTaskEventMetadata } from "@/lib/events";
 
 export type TaskEventLike = {
   id?: string;
@@ -59,14 +60,8 @@ export function buildScopeCounts(items: readonly { status: string }[]): ScopeCou
 export function eventTaskKey(event: TaskEventLike): string | null {
   if (event.taskId) return event.taskId;
   if (event.metadata) {
-    try {
-      const parsed = JSON.parse(event.metadata) as { taskId?: unknown };
-      if (typeof parsed?.taskId === "string" && parsed.taskId.length > 0) {
-        return parsed.taskId;
-      }
-    } catch {
-      /* ignore malformed metadata */
-    }
+    const taskId = parseTaskEventMetadata(event.metadata).taskId;
+    if (taskId) return taskId;
   }
   return event.id ?? null;
 }
@@ -81,12 +76,7 @@ export function eventTaskKey(event: TaskEventLike): string | null {
  */
 export function isHabitEvent(event: TaskEventLike): boolean {
   if (!event.metadata) return false;
-  try {
-    const parsed = JSON.parse(event.metadata) as { habitId?: unknown };
-    return typeof parsed?.habitId === "string" && parsed.habitId.length > 0;
-  } catch {
-    return false;
-  }
+  return isHabitEventMetadata(parseTaskEventMetadata(event.metadata));
 }
 
 /**

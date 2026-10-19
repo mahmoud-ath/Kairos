@@ -4,7 +4,7 @@ import { addDays } from "@/lib/dates";
 import { dateOnlyToDate, todayDateOnly } from "@/lib/dates";
 import { scopedPrisma } from "@/server/db";
 import { recordTaskEvent } from "@/server/services/events";
-import { ServiceError } from "@/server/services/tasks";
+import { ServiceError } from "@/server/errors";
 import { getSettings } from "@/server/services/settings";
 
 /**

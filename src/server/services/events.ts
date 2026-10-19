@@ -2,11 +2,14 @@ import "server-only";
 
 import type { Prisma } from "@prisma/client";
 
+import type { TaskEventAction } from "@/lib/events";
 import type { ScopedTx } from "@/server/db";
 import { scopedPrisma } from "@/server/db";
 
 /** A user-scoped Prisma client, or a transaction opened from one. */
 export type Db = ScopedTx;
+
+export type { TaskEventAction };
 
 /**
  * Append-only progress history.
@@ -15,16 +18,10 @@ export type Db = ScopedTx;
  * only": after a task is reopened or edited, the fact that it was completed on a
  * given day is still recorded here. Callers only write an event when something
  * actually changed, so repeated checkbox toggles cannot inflate history.
+ *
+ * The payload's meaning is defined in `lib/events.ts`; readers parse it through
+ * `parseTaskEventMetadata` rather than reading raw keys.
  */
-export type TaskEventAction =
-  | "created"
-  | "updated"
-  | "completed"
-  | "reopened"
-  | "deleted"
-  | "moved"
-  | "subtask_completed"
-  | "subtask_reopened";
 
 export async function recordTaskEvent(
   db: Db,

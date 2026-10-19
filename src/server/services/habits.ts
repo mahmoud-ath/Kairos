@@ -33,7 +33,8 @@ import {
 import type { CreateHabitValues, UpdateHabitValues } from "@/lib/validation";
 import type { HabitDTO, HabitMonth, HabitProgress } from "@/types/kairos";
 import { scopedPrisma, type Prisma, type ScopedTx } from "@/server/db";
-import { ServiceError, setTaskStatus } from "@/server/services/tasks";
+import { ServiceError } from "@/server/errors";
+import { setTaskStatus } from "@/server/services/tasks";
 
 /**
  * Habits.

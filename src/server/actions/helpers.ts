@@ -5,7 +5,7 @@ import type { ZodError } from "zod";
 
 import { firstErrorMessage, flattenZodError } from "@/lib/validation";
 import type { ActionResult } from "@/types/kairos";
-import { ServiceError } from "@/server/services/tasks";
+import { ServiceError } from "@/server/errors";
 
 /**
  * Refresh every app route after a mutation.

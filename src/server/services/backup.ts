@@ -10,7 +10,7 @@ import { dateOnlyToDate } from "@/lib/dates";
 import { formatHabitDays, parseHabitDays } from "@/lib/habits";
 import { DEFAULT_CATEGORY_ICON, isCategoryIconName } from "@/lib/category-icons";
 import { scopedPrisma } from "@/server/db";
-import { ServiceError } from "@/server/services/tasks";
+import { ServiceError } from "@/server/errors";
 import { getSettings } from "@/server/services/settings";
 
 /** Build a complete, versioned export of one user's data. */

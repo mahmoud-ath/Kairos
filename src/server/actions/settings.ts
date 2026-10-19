@@ -11,7 +11,7 @@ import { runAction } from "@/server/actions/helpers";
 import { exportBackup, importBackup, resetAllData } from "@/server/services/backup";
 import { countCompletions } from "@/server/services/profile";
 import { updateSettings } from "@/server/services/settings";
-import { ServiceError } from "@/server/services/tasks";
+import { ServiceError } from "@/server/errors";
 
 const importInputSchema = z.object({
   json: z.string().min(2, "The file is empty.").max(50_000_000),

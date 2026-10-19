@@ -20,7 +20,7 @@ import {
   type ReminderPayload,
 } from "@/lib/push";
 import { prisma, scopedPrisma } from "@/server/db";
-import { ServiceError } from "@/server/services/tasks";
+import { ServiceError } from "@/server/errors";
 
 /**
  * The daily reminder: device registration, and the one job that sends it.

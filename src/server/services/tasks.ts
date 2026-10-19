@@ -1,6 +1,7 @@
 import "server-only";
 
 import { dateOnlyToDate, dateToDateOnly } from "@/lib/dates";
+import { habitCompletionMetadata as habitDayMetadata } from "@/lib/events";
 import { computeReorderedIds, nextPosition } from "@/lib/ordering";
 import {
   subtasksToComplete,
@@ -10,6 +11,7 @@ import {
 import type { TaskDTO, TaskSummary } from "@/types/kairos";
 import type { CreateTaskValues, UpdateTaskValues } from "@/lib/validation";
 import { scopedPrisma, type Prisma, type ScopedTx } from "@/server/db";
+import { ServiceError } from "@/server/errors";
 import { recordTaskEvent } from "@/server/services/events";
 import {
   serializeTask,
@@ -17,17 +19,6 @@ import {
   TASK_INCLUDE,
   type TaskWithRelations,
 } from "@/server/serializers";
-
-/** Error raised by the service layer; Server Actions turn it into a message. */
-export class ServiceError extends Error {
-  readonly fieldErrors?: Record<string, string[]>;
-
-  constructor(message: string, fieldErrors?: Record<string, string[]>) {
-    super(message);
-    this.name = "ServiceError";
-    this.fieldErrors = fieldErrors;
-  }
-}
 
 const TASK_ORDER: Prisma.TaskOrderByWithRelationInput[] = [
   { position: "asc" },
@@ -46,8 +37,12 @@ function habitCompletionMetadata(task: {
   habitId: string | null;
   habitDate: Date | null;
 }): Record<string, unknown> {
-  if (!task.habitId || !task.habitDate) return {};
-  return { habitId: task.habitId, habitDate: dateToDateOnly(task.habitDate) };
+  // The field names live in `lib/events.ts`, so the writer and the habit history
+  // reader cannot drift apart.
+  return habitDayMetadata({
+    habitId: task.habitId,
+    habitDate: task.habitDate ? dateToDateOnly(task.habitDate) : null,
+  });
 }
 
 /* -------------------------------------------------------------------------- */
