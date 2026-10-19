@@ -31,7 +31,10 @@ export default defineConfig({
   webServer: {
     command: [
       `DATABASE_URL="${E2E_DATABASE_URL}" DIRECT_URL="${E2E_DATABASE_URL}" bunx prisma migrate reset --force --skip-generate`,
-      `NEXT_PUBLIC_APP_URL="${BASE_URL}" KAIROS_AUTH_DISABLED=true DATABASE_URL="${E2E_DATABASE_URL}" DIRECT_URL="${E2E_DATABASE_URL}" PORT=${PORT} bunx next start`,
+      // KAIROS_RATE_LIMIT_DISABLED: a spec suite is a script, not a person — it
+      // makes far more requests a minute than the 60/account budget, and the
+      // limiter ignores this switch on a hosted deployment anyway.
+      `NEXT_PUBLIC_APP_URL="${BASE_URL}" KAIROS_AUTH_DISABLED=true KAIROS_RATE_LIMIT_DISABLED=true DATABASE_URL="${E2E_DATABASE_URL}" DIRECT_URL="${E2E_DATABASE_URL}" PORT=${PORT} bunx next start`,
     ].join(" && "),
     url: `${BASE_URL}/today`,
     reuseExistingServer: false,

@@ -246,13 +246,42 @@ shared Redis.
 
 ## 8. Rollout
 
-1. Ship `lib/rate-limit.ts` + unit tests (no behaviour change).
+1. Ship `lib/rate-limit.ts` + unit tests (no behaviour change). **Done.**
 2. Add `consume()` with the dev fallback; deploy. Verify the app behaves
-   identically (the limiter allows everything at normal volumes).
+   identically (the limiter allows everything at normal volumes). **Done** — see
+   §8.1 for what actually shipped.
 3. Provision Upstash, add `UPSTASH_REDIS_REST_URL` / `..._TOKEN` to Vercel for
    all three scopes, redeploy.
 4. Watch the blocked-count metric for a week before tightening any limit.
 5. Configure Supabase auth limits and, on Pro, Vercel WAF rules.
+
+### 8.1 What step 2 shipped (2026-10-19)
+
+| Piece | Where |
+| --- | --- |
+| Rules, buckets, key, message | `src/lib/rate-limit.ts` (pure, unit tested) |
+| Store selection + `consumeRateLimit()` | `src/server/rate-limit.ts` |
+| The choke point | `runAction()` in `server/actions/helpers.ts` — a refusal never reaches Zod, the database or a service |
+| Route handlers | `/api/backup` (own hourly budget, `Retry-After` header) and `/api/cron/daily-reminder` (keyed on the job, no session) |
+| The kill switch | `KAIROS_RATE_LIMIT_DISABLED=true`, ignored when `VERCEL`/`VERCEL_ENV` is set |
+
+Two details worth keeping:
+
+- **The account is resolved once per request.** `requireAuthProfile()` is now
+  wrapped in React's `cache`, because the limiter identifies the account and then
+  the action body asks again; uncached, that would be two Supabase round trips per
+  mutation. React `cache` and not a module variable — a serverless instance is
+  reused across accounts.
+- **Only three actions declare a bucket.** `loadExampleTasks`, `restoreBackup` and
+  `resetAllData` pass `{ action: … }` to `runAction`; everything else is a
+  `mutation`. The name is optional on purpose: labelling dozens of call sites
+  would be a bigger diff than the behaviour is worth, and the default is the safe
+  one.
+
+Verified live on a production build (local PostgreSQL, limiter enabled): ten
+`/api/backup` calls returned `200`, the eleventh `429` with `Retry-After: 3600`.
+The action path is covered by `tests/integration/rate-limit.test.ts` (limit,
+second account unaffected, buckets independent, window expiry, fail-open).
 
 ---
 

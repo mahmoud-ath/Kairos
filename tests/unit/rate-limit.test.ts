@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   applyFixedWindow,
   bucketForAction,
+  isRateLimitingDisabled,
   RATE_LIMITS,
+  rateLimitKey,
+  rateLimitMessage,
   retryAfterSeconds,
   type RateLimitPolicy,
 } from "@/lib/rate-limit";
@@ -90,5 +93,75 @@ describe("a fixed window", () => {
     const bob = applyFixedWindow(undefined, POLICY, T0);
     expect(alice.allowed).toBe(false);
     expect(bob.allowed).toBe(true);
+  });
+});
+
+describe("the switch that turns the limiter off", () => {
+  it("is off by default", () => {
+    expect(isRateLimitingDisabled({})).toBe(false);
+  });
+
+  it("works for a local run, so a spec suite is not throttled", () => {
+    expect(isRateLimitingDisabled({ KAIROS_RATE_LIMIT_DISABLED: "true" })).toBe(true);
+  });
+
+  it("is ignored on a hosted deployment, where it would be a hole", () => {
+    expect(
+      isRateLimitingDisabled({ KAIROS_RATE_LIMIT_DISABLED: "true", VERCEL: "1" }),
+    ).toBe(false);
+    expect(
+      isRateLimitingDisabled({
+        KAIROS_RATE_LIMIT_DISABLED: "true",
+        VERCEL_ENV: "production",
+      }),
+    ).toBe(false);
+    expect(
+      isRateLimitingDisabled({
+        KAIROS_RATE_LIMIT_DISABLED: "true",
+        VERCEL_ENV: "preview",
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("a counter key", () => {
+  it("separates the buckets, so a cheap call cannot spend an expensive budget", () => {
+    expect(rateLimitKey("mutation", "user-1")).not.toBe(rateLimitKey("expensive", "user-1"));
+  });
+
+  it("separates the accounts", () => {
+    expect(rateLimitKey("mutation", "user-1")).not.toBe(rateLimitKey("mutation", "user-2"));
+  });
+
+  it("namespaces the key so a cron run cannot collide with an account id", () => {
+    expect(rateLimitKey("cron", "daily-reminder")).toBe("kairos:rl:cron:daily-reminder");
+  });
+});
+
+describe("the message a limited caller sees", () => {
+  const refusal = (retryAfterSeconds: number) =>
+    ({
+      allowed: false as const,
+      bucket: "mutation" as const,
+      policy: POLICY,
+      retryAfterSeconds,
+    }) as const;
+
+  it("is empty when the caller was allowed", () => {
+    expect(rateLimitMessage({ allowed: true })).toBe("");
+  });
+
+  it("never says zero seconds", () => {
+    expect(rateLimitMessage(refusal(0))).toBe("Too many requests. Try again in a second.");
+    expect(rateLimitMessage(refusal(1))).toBe("Too many requests. Try again in a second.");
+  });
+
+  it("says how long to wait", () => {
+    expect(rateLimitMessage(refusal(42))).toBe("Too many requests. Try again in 42 seconds.");
+  });
+
+  it("switches to whole minutes for a long wait, without saying one minutes", () => {
+    expect(rateLimitMessage(refusal(60))).toBe("Too many requests. Try again in 1 minute.");
+    expect(rateLimitMessage(refusal(3_600))).toBe("Too many requests. Try again in 60 minutes.");
   });
 });

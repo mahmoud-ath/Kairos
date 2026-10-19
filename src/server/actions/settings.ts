@@ -74,27 +74,33 @@ export async function updateProfileAction(input: unknown): Promise<ActionResult<
 export async function importBackupAction(
   input: unknown,
 ): Promise<ActionResult<{ summary: BackupSummary }>> {
-  return runAction(async () => {
-    const userId = await requireUserId();
-    const { json } = importInputSchema.parse(input);
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(json);
-    } catch {
-      throw new Error("The selected file is not valid JSON.");
-    }
-    return importBackup(userId, parsed);
-  });
+  return runAction(
+    async () => {
+      const userId = await requireUserId();
+      const { json } = importInputSchema.parse(input);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(json);
+      } catch {
+        throw new Error("The selected file is not valid JSON.");
+      }
+      return importBackup(userId, parsed);
+    },
+    { action: "restoreBackup" },
+  );
 }
 
 /** Delete every task, category and event; settings return to defaults. */
 export async function resetAllDataAction(input: unknown): Promise<ActionResult<undefined>> {
-  return runAction(async () => {
-    const userId = await requireUserId();
-    resetInputSchema.parse(input);
-    await resetAllData(userId);
-    return undefined;
-  });
+  return runAction(
+    async () => {
+      const userId = await requireUserId();
+      resetInputSchema.parse(input);
+      await resetAllData(userId);
+      return undefined;
+    },
+    { action: "resetAllData" },
+  );
 }
 
 /** Serialize the current database as a versioned JSON backup string. */

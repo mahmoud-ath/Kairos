@@ -1,6 +1,7 @@
 import { exportBackup } from "@/server/services/backup";
 import { todayDateOnly } from "@/lib/dates";
 import { getCurrentUser, isAuthDisabled, requireUserId } from "@/server/auth";
+import { consumeRateLimit } from "@/server/rate-limit";
 import { getSettingsRecord } from "@/server/services/settings";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,20 @@ export async function GET() {
   }
 
   const userId = await requireUserId();
+
+  // A backup reads every table, so it gets its own (hourly) budget. `Retry-After`
+  // is what a download client expects; the body stays a plain sentence.
+  const limit = await consumeRateLimit(userId, "backup");
+  if (!limit.allowed) {
+    return new Response("Too many backups. Try again later.", {
+      status: 429,
+      headers: {
+        "Retry-After": String(limit.retryAfterSeconds),
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
   const [backup, settings] = await Promise.all([
     exportBackup(userId),
     getSettingsRecord(userId),

@@ -12,8 +12,12 @@ import { loadExampleTasks } from "@/server/services/examples";
 export async function loadExampleTasksAction(): Promise<
   ActionResult<{ tasks: number; categories: number; habits: number }>
 > {
-  return runAction(async () => {
-    const userId = await requireUserId();
-    return loadExampleTasks(userId);
-  });
+  return runAction(
+    async () => {
+      const userId = await requireUserId();
+      return loadExampleTasks(userId);
+    },
+    // Rewrites the workspace, so it spends the `expensive` budget, not `mutation`.
+    { action: "loadExampleTasks" },
+  );
 }

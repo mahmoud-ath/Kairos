@@ -161,7 +161,16 @@ export type HabitMonth = {
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
-  | { ok: false; error: string; fieldErrors?: Record<string, string[]> };
+  | {
+      ok: false;
+      error: string;
+      fieldErrors?: Record<string, string[]>;
+      /**
+       * Set when the failure was a rate limit, so the UI can say how long to
+       * wait instead of guessing.
+       */
+      retryAfterSeconds?: number;
+    };
 
 /** Result of a mutating server action, used for optimistic rollback. */
 export type MutationResult = ActionResult<undefined>;

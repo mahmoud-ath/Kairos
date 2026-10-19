@@ -49,6 +49,73 @@ export function bucketForAction(action: string): RateLimitBucket {
   return EXPENSIVE_ACTIONS.has(action) ? "expensive" : "mutation";
 }
 
+/**
+ * The key one counter lives under.
+ *
+ * The bucket is part of the key so the same account cannot spend its 60
+ * mutations on 60 restores, and the identifier is namespaced so a cron key can
+ * never collide with an account id.
+ *
+ * `:` is safe even though the identifier is user-supplied on nothing — accounts
+ * come from the session — but the prefix keeps the namespace obvious in Redis.
+ */
+export function rateLimitKey(bucket: RateLimitBucket, identifier: string): string {
+  return `kairos:rl:${bucket}:${identifier}`;
+}
+
+/**
+ * The answer one request gets from the limiter.
+ *
+ * A refusal carries everything the transport needs — the bucket for logging, the
+ * policy for context and `retryAfterSeconds` for a `Retry-After` header — so the
+ * store, the action wrapper and the route handlers all describe the same thing.
+ */
+export type RateLimitOutcome =
+  | { allowed: true }
+  | {
+      allowed: false;
+      bucket: RateLimitBucket;
+      policy: RateLimitPolicy;
+      retryAfterSeconds: number;
+    };
+
+/**
+ * Turn the limiter off for a local run.
+ *
+ * A test suite and a screenshot script are *programs*: they make more requests
+ * per minute than any person, so they trip limits that exist for people. This
+ * switch is for them, and it follows the same rule as the auth switch in
+ * `lib/auth-rules.ts` — **it is ignored on a hosted deployment**, because a
+ * limiter that an environment variable can disable on the internet is not a
+ * limiter at all.
+ */
+export function isRateLimitingDisabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  if (env.KAIROS_RATE_LIMIT_DISABLED !== "true") return false;
+  const hosted =
+    env.VERCEL === "1" ||
+    env.VERCEL_ENV === "production" ||
+    env.VERCEL_ENV === "preview";
+  return !hosted;
+}
+
+/**
+ * The message a limited caller sees.
+ *
+ * It says how long to wait, because "too many requests" with no number reads like
+ * a bug. Under a minute the seconds are rounded up, so nobody is told to retry in
+ * "0 seconds"; over a minute it switches to whole minutes.
+ */
+export function rateLimitMessage(outcome: RateLimitOutcome): string {
+  if (outcome.allowed) return "";
+  const seconds = outcome.retryAfterSeconds;
+  if (seconds <= 1) return "Too many requests. Try again in a second.";
+  if (seconds < 60) return `Too many requests. Try again in ${seconds} seconds.`;
+  const minutes = Math.ceil(seconds / 60);
+  return `Too many requests. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+}
+
 /** Seconds until the window resets, for `Retry-After`. Never negative. */
 export function retryAfterSeconds(resetAt: number, now: number): number {
   return Math.max(0, Math.ceil((resetAt - now) / 1000));

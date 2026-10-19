@@ -2,6 +2,7 @@ import "server-only";
 
 import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 import { isEmailAllowed, isUnauthenticatedModeEnabled } from "@/lib/auth-rules";
 import {
@@ -96,14 +97,20 @@ export const LOCAL_USER_ID = "local";
  *
  * Built on `requireUser`, so the redirect and allow-list rules above are the
  * only ones in play — there is no second copy to drift.
+ *
+ * Memoised **per request** with React's `cache`, because every server action now
+ * asks for it twice (the rate limiter identifies the account, then the action
+ * body does) and each uncached call is a round trip to Supabase. It is not a
+ * module-level variable: a serverless instance is reused across accounts, so
+ * remembering one here would hand one person's id to the next request.
  */
-export async function requireAuthProfile(): Promise<{
+export const requireAuthProfile = cache(async (): Promise<{
   userId: string;
   email: string | null;
-}> {
+}> => {
   const user = await requireUser();
   return { userId: user?.id ?? LOCAL_USER_ID, email: user?.email ?? null };
-}
+});
 
 /**
  * The current owner's id — the value every service filters by.

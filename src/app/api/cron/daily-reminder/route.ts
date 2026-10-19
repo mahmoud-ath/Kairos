@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { isAuthorizedScheduler } from "@/server/cron-auth";
+import { consumeRateLimit } from "@/server/rate-limit";
 import { broadcastDailyReminder, isPushConfigured } from "@/server/services/push";
 
 /**
@@ -40,6 +41,17 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { ok: false, error: "Web Push is not configured on this deployment." },
       { status: 503 },
+    );
+  }
+
+  // One run is the whole day's work, so the budget is small — it is there to stop
+  // a leaked secret from being turned into a broadcast loop, not to pace a
+  // scheduler. Keyed on the job, not on an account: a scheduler has no session.
+  const limit = await consumeRateLimit("daily-reminder", "cron");
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many runs. Try again later." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
   }
 

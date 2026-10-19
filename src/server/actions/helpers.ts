@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import type { ZodError } from "zod";
 
 import { firstErrorMessage, flattenZodError } from "@/lib/validation";
+import { rateLimitMessage } from "@/lib/rate-limit";
 import type { ActionResult } from "@/types/kairos";
 import { ServiceError } from "@/server/errors";
+import { consumeActionRateLimit } from "@/server/rate-limit";
 
 /**
  * Refresh every app route after a mutation.
@@ -33,11 +35,35 @@ export function toActionError(error: unknown): ActionResult<never> {
   return { ok: false, error: "Something went wrong. Please try again." };
 }
 
-/** Run a validated mutation and normalize any failure into an ActionResult. */
+/**
+ * Run a validated mutation and normalize any failure into an ActionResult.
+ *
+ * This is the app's choke point: every write goes through it, which is why the
+ * rate limiter lives here rather than on `/api/*` (there are three routes and
+ * dozens of mutations — see docs/rate-limiting.md).
+ *
+ * `action` names the mutation for the limiter's bucket. It is optional: an
+ * unlabelled action falls into the ordinary `mutation` bucket. Only the actions
+ * that rewrite the whole workspace need to say who they are, because they spend
+ * a much smaller budget.
+ *
+ * The limiter runs *before* `fn`, so a blocked caller never reaches Zod, the
+ * database, or a service. It resolves the account itself, which is memoised per
+ * request, so it does not add an auth round trip.
+ */
 export async function runAction<T>(
   fn: () => Promise<T>,
-  options: { revalidate?: boolean } = {},
+  options: { revalidate?: boolean; action?: string } = {},
 ): Promise<ActionResult<T>> {
+  const limit = await consumeActionRateLimit(options.action ?? "mutation");
+  if (!limit.allowed) {
+    return {
+      ok: false,
+      error: rateLimitMessage(limit),
+      retryAfterSeconds: limit.retryAfterSeconds,
+    };
+  }
+
   try {
     const data = await fn();
     if (options.revalidate !== false) revalidateApp();

@@ -22,7 +22,7 @@ the order the topics were listed.
 | 4 | B — typed event payloads, completed | Readers and habit writers done in 0; remaining writers | ✅ 2026-10-19 |
 | 5 | E — ports where substitution pays | Needs 2 and 3 to be worth doing | ✅ 2026-10-19 |
 | 6 | Environment protection (security P0) | Needs CI (1) to enforce it | 🟡 auth guard shipped |
-| 7 | Shared rate limiting | Needs CI (1) and the request context (3) | 🟡 rules shipped |
+| 7 | Shared rate limiting | Needs CI (1) and the request context (3) | 🟡 steps 1–2 shipped (store provisioning open) |
 | 8 | Feature boundaries | Last: it is the shape the rest produce | ⏳ |
 
 Reference documents: [`architecture-review.md`](architecture-review.md) (findings
@@ -306,6 +306,27 @@ action→bucket mapping and one fixed-window rule, all pure and covered by ten u
 cases (including "a blocked caller cannot extend their own window"). No behaviour
 change yet — nothing calls it. Step 2 wires `consume()` into `runAction()` and the
 two route handlers; step 3 provisions the shared store.
+
+**Step 2 shipped 2026-10-19.** `server/rate-limit.ts` owns the store and the one
+call the app makes into it; `runAction()` spends a token before it runs anything,
+and `/api/backup` and the cron route answer `429` with `Retry-After`. Two stores
+behind one interface: Upstash (plain `fetch`, no client library) when
+`UPSTASH_REDIS_REST_URL`/`_TOKEN` are set, in-process memory otherwise — honest for
+`next dev`, the compose stack and Playwright, and useless across instances on
+Vercel, which is why the fallback logs once instead of pretending. **Fails open**:
+an unreachable store allows the request and logs, because a limiter that takes the
+product down is worse than the abuse it prevents.
+
+`KAIROS_RATE_LIMIT_DISABLED=true` turns the limiter off for a local run (the
+Playwright config sets it: a spec suite makes more requests a minute than any
+person), and it is **ignored on a hosted deployment** by the same rule as the auth
+switch.
+
+Verified: 5 integration cases (the limit, a second account unaffected, buckets
+independent, window expiry, the fail-open policy) and a live check on a built app
+— 10 backups allowed, the 11th `429` with `Retry-After: 3600`. Open: step 3
+(provision Upstash and set the two variables in Vercel) and step 4 (Supabase auth
+limits).
 
 ---
 
