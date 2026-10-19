@@ -4,9 +4,16 @@
  * Pure and dependency-free, so the matching rules can be tested without a DOM —
  * the listener that feeds them lives in `ShortcutProvider`.
  *
- * Single keys are matched immediately; a key that only ever starts a longer
- * sequence ("g") is held for `SEQUENCE_TIMEOUT_MS`, which is what makes `g t`
- * work without breaking `t`.
+ * Two shapes exist:
+ *
+ * - a **modifier combo**, written `["shift", "t"]` — Shift held plus a key;
+ * - a **sequence**, written `["g", "t"]` — one key, then another. The resolver
+ *   still supports this, but the default table does not use it.
+ *
+ * `keyTokens` is the only thing that turns a keyboard event into tokens, because
+ * `KeyboardEvent.key` alone cannot express Shift: Shift+T arrives as `"T"` and
+ * normalises to `"t"`. Punctuation is the exception — `?` is already what
+ * Shift+/ produces, so it is bound as a single token.
  */
 export type ShortcutId =
   | "go-today"
@@ -24,32 +31,34 @@ export type ShortcutGroup = "Go to" | "Actions";
 
 export type Shortcut = {
   id: ShortcutId;
-  /** The keys in order. A one-element list is a plain key press. */
+  /**
+   * The tokens this shortcut needs, in order.
+   *
+   * `["t"]` is a plain key. `["shift", "t"]` is Shift + T — a leading modifier
+   * token is matched against the modifier, not against a key press.
+   */
   keys: readonly string[];
   label: string;
   group: ShortcutGroup;
 };
 
 export const SHORTCUTS: readonly Shortcut[] = [
-  // Go-to is a two-key sequence ("g" then the destination).
-  //
-  // Modifier tokens ("shift", "ctrl", …) are deliberately NOT part of this
-  // table: `shortcut-provider.tsx` normalises `KeyboardEvent.key`, which never
-  // yields a token like "shift" — Shift+T arrives as "T" → "t". A binding
-  // written that way can never match, so the guard tests in
-  // `tests/unit/shortcuts.test.ts` reject any token the provider cannot emit.
-  { id: "go-today", keys: ["g", "t"], label: "Today", group: "Go to" },
-  { id: "go-tasks", keys: ["g", "a"], label: "All Tasks", group: "Go to" },
-  { id: "go-completed", keys: ["g", "c"], label: "Completed", group: "Go to" },
-  { id: "go-habits", keys: ["g", "h"], label: "Habits", group: "Go to" },
-  { id: "go-statistics", keys: ["g", "s"], label: "Statistics", group: "Go to" },
-  { id: "go-settings", keys: ["g", ","], label: "Settings", group: "Go to" },
+  // Go to — Shift + letter. One modifier, one key, no waiting for a second
+  // press, so navigation is immediate.
+  { id: "go-today", keys: ["shift", "t"], label: "Today", group: "Go to" },
+  { id: "go-tasks", keys: ["shift", "a"], label: "All Tasks", group: "Go to" },
+  { id: "go-completed", keys: ["shift", "c"], label: "Completed", group: "Go to" },
+  { id: "go-habits", keys: ["shift", "h"], label: "Habits", group: "Go to" },
+  { id: "go-statistics", keys: ["shift", "s"], label: "Statistics", group: "Go to" },
+  { id: "go-settings", keys: ["shift", "i"], label: "Settings", group: "Go to" },
 
-  // Actions run on a single key. A key may repeat as the *second* key of a
-  // sequence ("t" toggles the theme, "g t" opens Today) without ambiguity.
+  // Actions — one unmodified key. `t` and `Shift+T` are different bindings, so
+  // toggling the theme does not navigate away.
   { id: "search", keys: ["/"], label: "Filter tasks on this page", group: "Actions" },
   { id: "new-task", keys: ["n"], label: "New task", group: "Actions" },
   { id: "toggle-theme", keys: ["t"], label: "Switch theme", group: "Actions" },
+  // `?` is Shift+/ on most layouts, but `event.key` already reports `?` — see
+  // `keyTokens`, which deliberately does not add a `shift` token to punctuation.
   { id: "help", keys: ["?"], label: "Keyboard shortcuts", group: "Actions" },
 ];
 
@@ -62,9 +71,31 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = ["Go to", "Actions"];
 /** Keys waiting for a follow-up, e.g. `["g"]` after pressing G. */
 export type Pending = readonly string[];
 
+/** Modifier tokens `keyTokens` can produce, in the order they are written. */
+export const MODIFIER_TOKENS = ["shift"] as const;
+
+export function isModifierToken(token: string): boolean {
+  return (MODIFIER_TOKENS as readonly string[]).includes(token);
+}
+
 /** `KeyboardEvent.key` → the token used in the table above. */
 export function normalizeKey(key: string): string {
   return key === " " ? "space" : key.toLowerCase();
+}
+
+/**
+ * The token(s) one key press contributes.
+ *
+ * Shift is named only when it produced a **letter**, because that is the only case
+ * `KeyboardEvent.key` hides: `Shift+T` reports `"T"`, which normalises to the same
+ * `"t"` as the unshifted key. For punctuation the shifted character already *is*
+ * the key (`?`), and for named keys (`Escape`) the modifier is irrelevant — naming
+ * it there would make `Shift+/` impossible to bind.
+ */
+export function keyTokens(event: { key: string; shiftKey?: boolean }): string[] {
+  const key = normalizeKey(event.key);
+  if (event.shiftKey && /^[a-z]$/.test(key)) return ["shift", key];
+  return [key];
 }
 
 function matches(keys: readonly string[], pressed: readonly string[]): boolean {
@@ -85,9 +116,9 @@ function startsWith(keys: readonly string[], pressed: readonly string[]): boolea
  */
 export function resolveShortcut(
   pending: Pending,
-  key: string,
+  key: string | readonly string[],
 ): { shortcut: Shortcut | null; pending: Pending } {
-  const pressed = [...pending, key];
+  const pressed = [...pending, ...(typeof key === "string" ? [key] : key)];
 
   const exact = SHORTCUTS.find((shortcut) => matches(shortcut.keys, pressed));
   if (exact) return { shortcut: exact, pending: [] };
@@ -100,8 +131,18 @@ export function resolveShortcut(
   return { shortcut: null, pending: [] };
 }
 
-/** Readable form for screen readers: `["g", "t"]` → `"g then t"`. */
+/**
+ * Readable form for the help dialog.
+ *
+ * A combo reads `Shift + T`; a sequence reads `g then t`. The two are never mixed
+ * in the table, but the helper handles both rather than assuming.
+ */
 export function keysLabel(keys: readonly string[]): string {
+  if (keys.length > 0 && isModifierToken(keys[0])) {
+    return keys
+      .map((token) => (isModifierToken(token) ? "Shift" : token.toUpperCase()))
+      .join(" + ");
+  }
   return keys.join(" then ");
 }
 
