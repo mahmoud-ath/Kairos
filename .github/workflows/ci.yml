@@ -1,0 +1,203 @@
+name: CI
+
+# Every phase of docs/refactor-roadmap.md lands on this pipeline.
+#
+# Four jobs, each answering a question a laptop check cannot answer in a way that
+# cannot be forgotten:
+#   quality      — does it type-check, lint and pass the pure rules?
+#   integration  — does the tenancy boundary still hold against a real Postgres?
+#   e2e          — does the built app still work through a browser?
+#   build        — does a production build succeed before it reaches Vercel?
+#
+# No secrets are available to pull requests, including forks: the e2e and build
+# jobs run with a throw-away database and placeholder NEXT_PUBLIC_* values.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: "1.3.14"
+  # Throw-away Postgres used by the integration and e2e jobs (the service block
+  # below creates both databases).
+  POSTGRES_USER: kairos
+  POSTGRES_PASSWORD: kairos
+
+jobs:
+  quality:
+    name: typecheck · lint · unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache bun's install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run typecheck
+
+      - run: bun run lint
+
+      - run: bun run test
+
+  integration:
+    name: tenancy isolation
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kairos
+          POSTGRES_PASSWORD: kairos
+          POSTGRES_DB: kairos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # `localhost` is required: tests/integration/setup.ts refuses any other host
+      # unless KAIROS_ALLOW_REMOTE_INTEGRATION_DB=true is set, which it never is
+      # here. See docs/security-environment.md for why that guard exists.
+      DATABASE_URL: postgresql://kairos:kairos@localhost:5432/kairos
+      DIRECT_URL: postgresql://kairos:kairos@localhost:5432/kairos
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache bun's install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - run: bun install --frozen-lockfile
+
+      - name: Create the schema from the committed migrations
+        run: bunx prisma migrate deploy
+
+      # `env -u` in the script is for local shells that exported production URLs;
+      # in CI the job environment above is the only source.
+      - run: bun run test:integration
+
+  e2e:
+    name: playwright
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kairos
+          POSTGRES_PASSWORD: kairos
+          POSTGRES_DB: kairos_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # playwright.config.ts resets this database from the migrations, then runs
+      # `next start` against it with KAIROS_AUTH_DISABLED=true.
+      E2E_DATABASE_URL: postgresql://kairos:kairos@localhost:5432/kairos_e2e
+      # Needed by `bun run build` (db.ts throws at import without it) and inlined
+      # into the client bundle, so it must match the port Playwright uses.
+      DATABASE_URL: postgresql://kairos:kairos@localhost:5432/kairos_e2e
+      DIRECT_URL: postgresql://kairos:kairos@localhost:5432/kairos_e2e
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3211
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache bun's install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - run: bun install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: playwright-${{ runner.os }}-
+
+      - run: bunx playwright install --with-deps chromium
+
+      # Builds, resets the throw-away database, starts the server on 3211, retries.
+      - run: bun run test:e2e
+
+      - name: Upload the report when a spec fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  build:
+    name: production build
+    runs-on: ubuntu-latest
+    env:
+      # The build inlines NEXT_PUBLIC_* values and never connects to anything, so
+      # placeholders are enough — and they are all a pull request from a fork will
+      # ever see.
+      NEXT_PUBLIC_SUPABASE_URL: https://build-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: build-only-not-a-secret
+      NEXT_PUBLIC_APP_URL: https://build-placeholder.example
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: build-only-not-a-secret
+      # Constructing the Prisma client requires the variable to exist.
+      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+      DIRECT_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache bun's install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - run: bun install --frozen-lockfile
+
+      # `prisma generate && next build`, as on Vercel. A build that only fails on
+      # main costs a production deployment; here it costs a pull request.
+      - run: bun run build

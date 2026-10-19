@@ -3,6 +3,12 @@
 Status: **analysis + plan**, 2026-10-18. There is no pipeline today; this file
 describes what to build and why, in the order that removes the most risk first.
 
+> **Implemented 2026-10-19:** `.github/workflows/ci.yml` (Phase 1 of
+> [`refactor-roadmap.md`](refactor-roadmap.md)) contains the `quality`,
+> `integration`, `e2e` and `build` jobs below. The `migrate` workflow described in
+> §5 is still a plan — it needs an environment approval rule and a decision about
+> preview databases.
+
 ---
 
 ## 1. Where Kairos is today

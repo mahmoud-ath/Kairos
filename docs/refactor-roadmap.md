@@ -16,8 +16,8 @@ the order the topics were listed.
 | # | Phase | Why here | Status |
 | --- | --- | --- | --- |
 | 0 | Fixes that unblock trust in the tooling | — | ✅ 2026-10-19 |
-| 1 | CI pipeline (the safety net) | Every later phase is a refactor; without CI they are unprotected | ⏳ next |
-| 2 | A — split `services/tasks.ts` behind one entrance | Largest file, touched by every feature | ⏳ |
+| 1 | CI pipeline (the safety net) | Every later phase is a refactor; without CI they are unprotected | ✅ 2026-10-19 |
+| 2 | A — split `services/tasks.ts` behind one entrance | Largest file, touched by every feature | ⏳ next |
 | 3 | D — request context | Removes repeated `userId`/`today` plumbing; depends on 2 | ⏳ |
 | 4 | B — typed event payloads, completed | Readers and habit writers done in 0; remaining writers | ⏳ |
 | 5 | E — ports where substitution pays | Needs 2 and 3 to be worth doing | ⏳ |
@@ -65,6 +65,14 @@ environment approval rule and a decision about preview databases — its own pha
 - a PR from a fork gets no secrets and still builds.
 
 **Rollback.** Delete the workflow files; nothing in the app changes.
+
+**Shipped 2026-10-19** as `.github/workflows/ci.yml` (jobs: `quality`,
+`integration`, `e2e`, `build`). Verified locally by running each job's commands
+by hand: unit 255, integration 25 against a throw-away database,
+`bun install --frozen-lockfile` and the YAML structure. The `e2e` and `build`
+jobs were **not** executed on this machine — a `next dev` server holds `.next`,
+and building under it is the documented way to corrupt the running app. They will
+be proven by the first pull request that runs the workflow.
 
 ---
 
