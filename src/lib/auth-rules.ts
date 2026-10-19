@@ -23,6 +23,41 @@ export function isEmailAllowed(email: string | null | undefined): boolean {
 }
 
 /**
+ * Is this a hosted deployment rather than somebody's machine?
+ *
+ * Vercel sets `VERCEL=1` and `VERCEL_ENV` to `production`, `preview` or
+ * `development`. **Preview counts as hosted**: preview URLs are reachable from the
+ * internet and inherit the project's environment variables.
+ *
+ * `next dev` and `next start` on a laptop set neither, which is what keeps local
+ * development and the Playwright suite working.
+ */
+export function isHostedDeployment(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  if (env.VERCEL === "1") return true;
+  return env.VERCEL_ENV === "production" || env.VERCEL_ENV === "preview";
+}
+
+/**
+ * Is the sign-in gate switched off?
+ *
+ * `KAIROS_AUTH_DISABLED=true` exists for local development and the Playwright
+ * suite. It is **never honoured on a hosted deployment**: one stray variable would
+ * turn every account's workspace into one shared workspace, visible to anybody who
+ * loaded the site, and nothing else in the app could tell the difference.
+ *
+ * Pure and shared, because the middleware (edge runtime) and `server/auth.ts` (node)
+ * must apply exactly the same rule.
+ */
+export function isUnauthenticatedModeEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  if (isHostedDeployment(env)) return false;
+  return env.KAIROS_AUTH_DISABLED === "true";
+}
+
+/**
  * Where to send somebody after signing in.
  *
  * Only a path on this app is ever accepted — never an absolute URL, and never a

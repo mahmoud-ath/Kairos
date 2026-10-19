@@ -3,7 +3,7 @@ import "server-only";
 import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
-import { isEmailAllowed } from "@/lib/auth-rules";
+import { isEmailAllowed, isUnauthenticatedModeEnabled } from "@/lib/auth-rules";
 import {
   createSupabaseServerClient,
   isSupabaseConfigured,
@@ -20,9 +20,13 @@ import {
  * shared workspace. `KAIROS_AUTH_DISABLED=true` is the only way to switch it
  * off, and it exists for local development and the Playwright suite — never for
  * anything reachable from the internet.
+ *
+ * The rule lives in `lib/auth-rules.ts` so the middleware applies the same one,
+ * and it refuses to honour the switch on a hosted deployment (Vercel production
+ * or preview) at all.
  */
 export function isAuthDisabled(): boolean {
-  return process.env.KAIROS_AUTH_DISABLED === "true";
+  return isUnauthenticatedModeEnabled();
 }
 
 /**
@@ -37,7 +41,8 @@ function assertAuthConfigured(): void {
       "Authentication is enabled but Supabase is not configured. Set " +
         "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY " +
         "(docs/auth-setup.md), or set KAIROS_AUTH_DISABLED=true to run without " +
-        "sign-in — local development only.",
+        "sign-in — local development only; that switch is ignored on a hosted " +
+        "deployment.",
     );
   }
 }

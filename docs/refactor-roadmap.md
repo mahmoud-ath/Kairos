@@ -20,8 +20,8 @@ the order the topics were listed.
 | 2 | A — split `services/tasks.ts` behind one entrance | Largest file, touched by every feature | ✅ 2026-10-19 |
 | 3 | D — request context | Removes repeated `userId`/`today` plumbing; depends on 2 | ✅ 2026-10-19 |
 | 4 | B — typed event payloads, completed | Readers and habit writers done in 0; remaining writers | ✅ 2026-10-19 |
-| 5 | E — ports where substitution pays | Needs 2 and 3 to be worth doing | ⏳ next |
-| 6 | Environment protection (security P0) | Needs CI (1) to enforce it | ⏳ |
+| 5 | E — ports where substitution pays | Needs 2 and 3 to be worth doing | ✅ 2026-10-19 |
+| 6 | Environment protection (security P0) | Needs CI (1) to enforce it | 🟡 auth guard shipped |
 | 7 | Shared rate limiting | Needs CI (1) and the request context (3) | ⏳ |
 | 8 | Feature boundaries | Last: it is the shape the rest produce | ⏳ |
 
@@ -234,6 +234,12 @@ the integration suite already runs against a real Postgres.
 **Acceptance.** One fake sender test proving: a transient failure releases the
 claim; a 410 removes the device; two runs in one day send once.
 
+**Shipped 2026-10-19.** `PushSender` is now a named, exported port, and the
+acceptance cases already existed in `tests/integration/push.test.ts` —
+"reminds each device once per local day", "drops a device the push service reports
+as gone", "keeps the device and the day when delivery fails transiently" (25/25
+green). No new abstraction was added: wrapping Prisma would only forward calls.
+
 ---
 
 ## Phase 6 — Environment protection
@@ -251,6 +257,17 @@ From [`security-environment.md`](security-environment.md), P0 then P1:
 **Acceptance.** `/today` with no session still 307s on a gated build; with
 `KAIROS_AUTH_DISABLED=true` forced in a production-like environment, it **does
 not** serve the shared workspace.
+
+**Partially shipped 2026-10-19 — item 1, the highest-value change in the list.**
+`isUnauthenticatedModeEnabled()` in `lib/auth-rules.ts` refuses the switch on any
+hosted deployment (`VERCEL=1`, or `VERCEL_ENV` of `production`/`preview`), and both
+the middleware and `server/auth.ts` go through it, so the edge and node guards
+cannot disagree. Preview counts as hosted because its URL is public too. Local
+`next dev`/`next start` (and therefore the Playwright suite, and the compose stack)
+is unchanged. Covered by three unit cases including the forbidden combination.
+
+Still open in this phase: `scripts/with-prod-env.sh`, removing
+`.env.production.local`, `gitleaks` in CI, and split database roles.
 
 ---
 

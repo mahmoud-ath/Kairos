@@ -5,7 +5,9 @@ import {
   AUTH_PATHS,
   isAuthPath,
   isEmailAllowed,
+  isHostedDeployment,
   isPublicPath,
+  isUnauthenticatedModeEnabled,
   LANDING_PATH,
   PUBLIC_PATHS,
   safeNextPath,
@@ -151,5 +153,35 @@ describe("isAuthPath", () => {
   it("ignores a trailing slash", () => {
     expect(isAuthPath("/login/")).toBe(true);
     expect(isAuthPath("/register/")).toBe(true);
+  });
+});
+
+describe("where the sign-in gate can be switched off", () => {
+  const local = {};
+  const disabled = { KAIROS_AUTH_DISABLED: "true" };
+
+  it("is a local-only switch", () => {
+    expect(isUnauthenticatedModeEnabled(local)).toBe(false);
+    expect(isUnauthenticatedModeEnabled(disabled)).toBe(true);
+    expect(isUnauthenticatedModeEnabled({ KAIROS_AUTH_DISABLED: "TRUE" })).toBe(false);
+  });
+
+  it("is never honoured on a hosted deployment", () => {
+    // The whole point: one stray variable must not turn a public app into a
+    // shared workspace.
+    expect(isUnauthenticatedModeEnabled({ ...disabled, VERCEL: "1" })).toBe(false);
+    expect(
+      isUnauthenticatedModeEnabled({ ...disabled, VERCEL_ENV: "production" }),
+    ).toBe(false);
+    // Previews are publicly reachable too, and inherit the same variables.
+    expect(isUnauthenticatedModeEnabled({ ...disabled, VERCEL_ENV: "preview" })).toBe(false);
+  });
+
+  it("recognises what counts as hosted", () => {
+    expect(isHostedDeployment(local)).toBe(false);
+    expect(isHostedDeployment({ VERCEL_ENV: "development" })).toBe(false);
+    expect(isHostedDeployment({ VERCEL: "1" })).toBe(true);
+    expect(isHostedDeployment({ VERCEL_ENV: "production" })).toBe(true);
+    expect(isHostedDeployment({ VERCEL_ENV: "preview" })).toBe(true);
   });
 });

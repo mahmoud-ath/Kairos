@@ -134,7 +134,14 @@ not about a bank.
 ### P0 — do before the next deploy
 
 **P0.1 Refuse to run ungated in production.** The flag is honest about being
-local-only; make the code enforce it.
+local-only; make the code enforce it. **Shipped 2026-10-19** —
+`isUnauthenticatedModeEnabled()` in `lib/auth-rules.ts` returns `false` on a
+hosted deployment (`VERCEL=1`, or `VERCEL_ENV` of `production`/`preview`) whatever
+`KAIROS_AUTH_DISABLED` says, and the middleware and `server/auth.ts` both call it.
+`next dev`/`next start` on a laptop is not hosted, so local runs and the Playwright
+suite keep working.
+
+Original sketch, kept for the reasoning:
 
 ```ts
 // src/server/auth.ts

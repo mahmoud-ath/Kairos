@@ -5,6 +5,7 @@ import {
   isAuthPath,
   isEmailAllowed,
   isPublicPath,
+  isUnauthenticatedModeEnabled,
   LANDING_PATH,
 } from "@/lib/auth-rules";
 
@@ -41,7 +42,8 @@ const CONFIGURATION_ERROR = [
   "or set KAIROS_AUTH_DISABLED=true to run without sign-in.",
   "",
   "That flag is for local development only. It removes the gate that keeps each",
-  "account's tasks separate from everybody else's.",
+  "account's tasks separate from everybody else's, so it is ignored on a hosted",
+  "deployment (Vercel production or preview).",
 ].join("\n");
 
 function copyCookies(from: NextResponse, to: NextResponse): NextResponse {
@@ -106,7 +108,8 @@ export async function middleware(request: NextRequest) {
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const authDisabled = process.env.KAIROS_AUTH_DISABLED === "true";
+  // Same rule as `server/auth.ts`, and it is ignored on a hosted deployment.
+  const authDisabled = isUnauthenticatedModeEnabled();
 
   // The landing page is public, so it is served before anything else is
   // considered: no session refresh, and no Supabase configuration required. Its
