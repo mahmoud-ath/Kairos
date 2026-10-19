@@ -33,6 +33,7 @@ import {
   type DragIntent,
 } from "@/components/tasks/dnd-utils";
 import { clientTaskId, optimisticReducer, type OptimisticAction } from "@/components/tasks/optimistic";
+import { celebrateCompletion } from "@/components/tasks/celebration";
 import { QuickAdd, type QuickAddValues } from "@/components/tasks/quick-add";
 import { TaskDetailsPanel } from "@/components/tasks/task-details";
 import { TaskSectionView } from "@/components/tasks/task-section";
@@ -179,7 +180,7 @@ export function TaskWorkspace({
    * own — we only have to explain what happened.
    */
   const mutate = useCallback(
-    (action: OptimisticAction, request: () => Promise<ActionResult<unknown>>) => {
+    (action: OptimisticAction, request: () => Promise<ActionResult<unknown>>, onSaved?: () => void) => {
       startTransition(async () => {
         applyOptimistic(action);
         const result = await request();
@@ -187,7 +188,11 @@ export function TaskWorkspace({
           toast.error("Couldn't save your change", {
             description: `${result.error} The list was restored.`,
           });
+          return;
         }
+        // Only once the server accepted it: a celebration followed by "the list
+        // was restored" would contradict itself.
+        onSaved?.();
       });
     },
     [applyOptimistic],
@@ -204,12 +209,23 @@ export function TaskWorkspace({
         subtask.status === "DONE" ? subtask : { ...subtask, status: "DONE", completedAt },
       );
     }
-    mutate({ type: "patch", id: task.id, patch }, () =>
-      setTaskStatusAction({ id: task.id, status: next }),
+    mutate(
+      { type: "patch", id: task.id, patch },
+      () => setTaskStatusAction({ id: task.id, status: next }),
+      // One celebration per action, so a parent with subtasks still earns a
+      // single "well done" rather than one per row.
+      next === "DONE"
+        ? () => celebrateCompletion(task.habitId ? "habit" : "task", task.title)
+        : undefined,
     );
   }
 
   function handleToggleSubtask(parentId: string, subtaskId: string, status: "TODO" | "DONE") {
+    const subtaskTitle =
+      optimisticTasks
+        .find((task) => task.id === parentId)
+        ?.subtasks.find((subtask) => subtask.id === subtaskId)?.title ?? "";
+
     mutate(
       {
         type: "patchSubtask",
@@ -221,6 +237,7 @@ export function TaskWorkspace({
         },
       },
       () => setTaskStatusAction({ id: subtaskId, status }),
+      status === "DONE" ? () => celebrateCompletion("subtask", subtaskTitle) : undefined,
     );
   }
 

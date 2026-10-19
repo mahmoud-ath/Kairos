@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 
 import { useAppData } from "@/components/app-data";
+import { celebrateCompletion } from "@/components/tasks/celebration";
 import { Button } from "@/components/ui/button";
 import {
   addDays,
@@ -198,6 +199,7 @@ export function HabitMonthGrid({
         toast.error("Couldn't update that day", { description: result.error });
         return;
       }
+      if (done) celebrateCompletion("habit", habit.title);
       router.refresh();
     });
   }
