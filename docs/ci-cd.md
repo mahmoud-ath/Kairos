@@ -158,7 +158,7 @@ jobs:
         with: { bun-version: 1.3.x }
       - run: bun install --frozen-lockfile
       - run: bunx prisma migrate deploy
-      - run: bun run test:integration
+      - run: bunx vitest run --config vitest.integration.config.ts
 
   e2e:
     name: playwright

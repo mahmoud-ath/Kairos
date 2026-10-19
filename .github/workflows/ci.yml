@@ -99,9 +99,11 @@ jobs:
       - name: Create the schema from the committed migrations
         run: bunx prisma migrate deploy
 
-      # `env -u` in the script is for local shells that exported production URLs;
-      # in CI the job environment above is the only source.
-      - run: bun run test:integration
+      # Run the runner directly instead of `bun run test:integration`: that script
+      # strips DATABASE_URL/DIRECT_URL to protect local shells that exported
+      # production values. Here the job environment is the only source, so
+      # stripping it leaves the suite with nothing to connect to.
+      - run: bunx vitest run --config vitest.integration.config.ts
 
   e2e:
     name: playwright
