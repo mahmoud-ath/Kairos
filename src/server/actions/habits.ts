@@ -6,29 +6,20 @@ import {
   setHabitDaySchema,
   updateHabitSchema,
 } from "@/lib/validation";
-import { todayDateOnly } from "@/lib/dates";
 import type { ActionResult, HabitDTO } from "@/types/kairos";
-import { requireUserId } from "@/server/auth";
 import { runAction } from "@/server/actions/helpers";
+import { getRequestContext } from "@/server/context";
 import {
   createHabit,
   deleteHabit,
   setHabitDay,
   updateHabit,
 } from "@/server/services/habits";
-import { getSettingsRecord } from "@/server/services/settings";
-
-/** Today, in the account's timezone — the day a habit change applies to. */
-async function currentDay(userId: string): Promise<string> {
-  const settings = await getSettingsRecord(userId);
-  return todayDateOnly(settings.timezone);
-}
 
 export async function createHabitAction(input: unknown): Promise<ActionResult<HabitDTO>> {
   return runAction(async () => {
-    const userId = await requireUserId();
     const values = createHabitSchema.parse(input);
-    return createHabit(userId, values, await currentDay(userId));
+    return createHabit(await getRequestContext(), values);
   });
 }
 
@@ -38,18 +29,16 @@ export async function createHabitAction(input: unknown): Promise<ActionResult<Ha
  */
 export async function updateHabitAction(input: unknown): Promise<ActionResult<HabitDTO>> {
   return runAction(async () => {
-    const userId = await requireUserId();
     const values = updateHabitSchema.parse(input);
-    return updateHabit(userId, values, await currentDay(userId));
+    return updateHabit(await getRequestContext(), values);
   });
 }
 
 /** Delete a habit together with the tasks it generated. */
 export async function deleteHabitAction(input: unknown): Promise<ActionResult<HabitDTO>> {
   return runAction(async () => {
-    const userId = await requireUserId();
     const { id } = habitIdSchema.parse(input);
-    return deleteHabit(userId, id);
+    return deleteHabit(await getRequestContext(), id);
   });
 }
 
@@ -61,9 +50,8 @@ export async function deleteHabitAction(input: unknown): Promise<ActionResult<Ha
  */
 export async function setHabitDayAction(input: unknown): Promise<ActionResult<undefined>> {
   return runAction(async () => {
-    const userId = await requireUserId();
     const values = setHabitDaySchema.parse(input);
-    await setHabitDay(userId, values, await currentDay(userId));
+    await setHabitDay(await getRequestContext(), values);
     return undefined;
   });
 }

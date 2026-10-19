@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
 
 import { HabitsView } from "@/components/habits/habits-view";
-import { todayDateOnly } from "@/lib/dates";
 import { viewMetadata } from "@/lib/site";
-import { requireUserId } from "@/server/auth";
+import { getRequestContext } from "@/server/context";
 import {
   ensureHabitInstances,
   getHabitBoard,
   listHabits,
 } from "@/server/services/habits";
-import { getSettingsRecord } from "@/server/services/settings";
 import { listCategories } from "@/server/services/taxonomy";
 
 export const metadata: Metadata = viewMetadata({
@@ -34,17 +32,15 @@ export default async function HabitsPage({
   searchParams: Promise<{ month?: string; range?: string }>;
 }) {
   const params = await searchParams;
-  const userId = await requireUserId();
-  const settings = await getSettingsRecord(userId);
-  const today = todayDateOnly(settings.timezone);
+  const ctx = await getRequestContext();
 
-  await ensureHabitInstances(userId, today);
+  await ensureHabitInstances(ctx);
 
   const [habits, categories] = await Promise.all([
-    listHabits(userId),
-    listCategories(userId),
+    listHabits(ctx),
+    listCategories(ctx.userId),
   ]);
-  const board = await getHabitBoard(userId, habits, today, {
+  const board = await getHabitBoard(ctx, habits, {
     month: params.month,
     trendWindow: params.range ? Number(params.range) : undefined,
   });
@@ -58,7 +54,7 @@ export default async function HabitsPage({
       grid={board.grid}
       month={board.month}
       categories={categories}
-      today={today}
+      today={ctx.today}
     />
   );
 }

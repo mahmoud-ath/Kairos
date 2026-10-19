@@ -5,11 +5,11 @@ import { NotificationsPanel } from "@/components/settings/notifications-panel";
 import { PreferencesForm } from "@/components/settings/preferences-form";
 import { ProfilePanel } from "@/components/settings/profile-panel";
 import { TaxonomyManager } from "@/components/settings/taxonomy-manager";
-import { isAuthDisabled, requireAuthProfile } from "@/server/auth";
+import { isAuthDisabled } from "@/server/auth";
+import { getRequestContext } from "@/server/context";
 import { scopedPrisma } from "@/server/db";
 import { countCompletions } from "@/server/services/profile";
 import { countDevices, vapidConfig } from "@/server/services/push";
-import { getSettingsRecord } from "@/server/services/settings";
 import { listCategories } from "@/server/services/taxonomy";
 import { viewMetadata } from "@/lib/site";
 
@@ -21,9 +21,10 @@ export const metadata: Metadata = viewMetadata({
 });
 
 export default async function SettingsPage() {
-  const { userId, email } = await requireAuthProfile();
-  const [settings, categories, taskCount, completedCount, deviceCount] = await Promise.all([
-    getSettingsRecord(userId),
+  // The layout already built the context for this request, so this reuses that
+  // read rather than fetching the settings row a second time.
+  const { userId, email, settings } = await getRequestContext();
+  const [categories, taskCount, completedCount, deviceCount] = await Promise.all([
     listCategories(userId),
     // Generated habit instances are not part of the task list, so they are not
     // part of the number the backup panel reports either.

@@ -144,6 +144,12 @@ the safety net, and every phase should end greener than it started.
 
 ### Phase 2 — make contracts explicit
 
+**Done 2026-10-19:** the request context (`lib/request-context.ts` +
+`server/context.ts`) now supplies `userId`, `email`, `settings`, `timeZone` and
+`today` once per request, and the habits/statistics services take it instead of
+re-deriving the account's clock. Remaining in this phase: the schema-derived tenancy
+check (done in Phase 0), the ESLint import rules, and the `AppData` split.
+
 4. **Schema-derived tenancy test** (removes A3 permanently):
 
    ```ts
@@ -218,6 +224,7 @@ expressed once, in `lib/`.**
 | Largest service file | 189 lines (`tasks/edit.ts`), was 777 | < 250 |
 | Hand-maintained tenancy list | 6 entries, by hand | generated + test-enforced |
 | Untyped JSON contracts crossing features | 1 (`TaskEvent.metadata`) | 0 |
+| Places that derive "today" from settings | 6, was 8 | 0 |
 | Cross-feature service imports | 8 | 0 outside a feature's `index.ts` |
 | "Where does this rule live?" ambiguous cases | `UNCATEGORIZED_LABEL` was one | 0 known |
 | Unit tests | 228 | ≥ 260 after Phase 2 |

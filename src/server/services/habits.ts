@@ -34,6 +34,7 @@ import type { CreateHabitValues, UpdateHabitValues } from "@/lib/validation";
 import type { HabitDTO, HabitMonth, HabitProgress } from "@/types/kairos";
 import { scopedPrisma, type Prisma, type ScopedTx } from "@/server/db";
 import { ServiceError } from "@/server/errors";
+import type { RequestContext } from "@/server/context";
 import { setTaskStatus } from "@/server/services/tasks";
 
 /**
@@ -73,7 +74,8 @@ function serializeHabit(habit: HabitRow): HabitDTO {
 }
 
 /** Habits in display order. */
-export async function listHabits(userId: string): Promise<HabitDTO[]> {
+export async function listHabits(ctx: RequestContext): Promise<HabitDTO[]> {
+  const { userId } = ctx;
   const prisma = scopedPrisma(userId);
   const rows = await prisma.habit.findMany({
     orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }],
@@ -81,7 +83,8 @@ export async function listHabits(userId: string): Promise<HabitDTO[]> {
   return rows.map(serializeHabit);
 }
 
-export async function getHabit(userId: string, id: string): Promise<HabitDTO | null> {
+export async function getHabit(ctx: RequestContext, id: string): Promise<HabitDTO | null> {
+  const { userId } = ctx;
   const prisma = scopedPrisma(userId);
   const row = await prisma.habit.findUnique({ where: { id } });
   return row ? serializeHabit(row) : null;
@@ -100,10 +103,10 @@ async function assertCategoryExists(db: ScopedTx, categoryId: string): Promise<v
 /* -------------------------------------------------------------------------- */
 
 export async function createHabit(
-  userId: string,
+  ctx: RequestContext,
   values: CreateHabitValues,
-  today: string,
 ): Promise<HabitDTO> {
+  const { userId, today } = ctx;
   const prisma = scopedPrisma(userId);
   if (values.categoryId) await assertCategoryExists(prisma, values.categoryId);
 
@@ -131,16 +134,16 @@ export async function createHabit(
 /**
  * Edit a habit's configuration.
  *
- * `today` is passed in so the change is reflected in the day that is already
- * open: renaming a habit, or moving it to another category, updates today's
- * generated task in the same transaction. Past days are history and stay as they
- * were.
+ * The context's `today` is used so the change is reflected in the day that is
+ * already open: renaming a habit, or moving it to another category, updates
+ * today's generated task in the same transaction. Past days are history and stay
+ * as they were.
  */
 export async function updateHabit(
-  userId: string,
+  ctx: RequestContext,
   values: UpdateHabitValues,
-  today: string,
 ): Promise<HabitDTO> {
+  const { userId, today } = ctx;
   const prisma = scopedPrisma(userId);
 
   return prisma.$transaction(async (tx) => {
@@ -188,7 +191,8 @@ export async function updateHabit(
  * History rows in `TaskEvent` survive (their `taskId` becomes null) but are
  * meaningless once the habit is gone, so nothing is kept for it.
  */
-export async function deleteHabit(userId: string, id: string): Promise<HabitDTO> {
+export async function deleteHabit(ctx: RequestContext, id: string): Promise<HabitDTO> {
+  const { userId } = ctx;
   const prisma = scopedPrisma(userId);
   const habit = await prisma.habit.findUnique({ where: { id } });
   if (!habit) throw new ServiceError("Habit not found.");
@@ -212,7 +216,8 @@ export async function deleteHabit(userId: string, id: string): Promise<HabitDTO>
  * is not a backlog — a missed day is missing from the history, not waiting to be
  * done late. Completed instances are kept: they are the record.
  */
-export async function ensureHabitInstances(userId: string, today: string): Promise<void> {
+export async function ensureHabitInstances(ctx: RequestContext): Promise<void> {
+  const { userId, today } = ctx;
   const prisma = scopedPrisma(userId);
   const todayDate = dateOnlyToDate(today);
 
@@ -314,11 +319,11 @@ export type HabitBoard = {
  * `HABIT_TREND_WINDOWS`.
  */
 export async function getHabitBoard(
-  userId: string,
+  ctx: RequestContext,
   habits: readonly HabitDTO[],
-  today: string,
   options: { month?: string | null; trendWindow?: number } = {},
 ): Promise<HabitBoard> {
+  const { userId, today } = ctx;
   const prisma = scopedPrisma(userId);
 
   const trendWindow: HabitTrendWindow =
@@ -413,10 +418,10 @@ export async function getHabitBoard(
  * history completely rather than lingering as a half-state.
  */
 export async function setHabitDay(
-  userId: string,
+  ctx: RequestContext,
   input: { habitId: string; date: string; done: boolean },
-  today: string,
 ): Promise<void> {
+  const { userId, today } = ctx;
   const prisma = scopedPrisma(userId);
   const habit = await prisma.habit.findUnique({ where: { id: input.habitId } });
   if (!habit) throw new ServiceError("Habit not found.");

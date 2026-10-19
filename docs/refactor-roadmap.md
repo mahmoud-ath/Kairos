@@ -18,8 +18,8 @@ the order the topics were listed.
 | 0 | Fixes that unblock trust in the tooling | — | ✅ 2026-10-19 |
 | 1 | CI pipeline (the safety net) | Every later phase is a refactor; without CI they are unprotected | ✅ 2026-10-19 |
 | 2 | A — split `services/tasks.ts` behind one entrance | Largest file, touched by every feature | ✅ 2026-10-19 |
-| 3 | D — request context | Removes repeated `userId`/`today` plumbing; depends on 2 | ⏳ next |
-| 4 | B — typed event payloads, completed | Readers and habit writers done in 0; remaining writers | ⏳ |
+| 3 | D — request context | Removes repeated `userId`/`today` plumbing; depends on 2 | ✅ 2026-10-19 |
+| 4 | B — typed event payloads, completed | Readers and habit writers done in 0; remaining writers | ⏳ next |
 | 5 | E — ports where substitution pays | Needs 2 and 3 to be worth doing | ⏳ |
 | 6 | Environment protection (security P0) | Needs CI (1) to enforce it | ⏳ |
 | 7 | Shared rate limiting | Needs CI (1) and the request context (3) | ⏳ |
@@ -153,12 +153,28 @@ request and passed explicitly.
 
 **Acceptance.**
 
-- no service derives `today` itself;
-- no `string` userId reaches a tenant query (type-level);
+- no service derives `today` itself; ✅ — `ensureHabitInstances`, `getHabitBoard`,
+  `createHabit`, `updateHabit`, `setHabitDay` and `getStatistics` take the context
+- no `string` userId reaches a tenant query (type-level); **partly** — the id is
+  branded at the context boundary (`asUserId`, which refuses an empty value), but
+  `scopedPrisma` and the task services still accept a plain `string`. Finishing
+  that is a mechanical change across every service signature and belongs with
+  Phase 8, when those call sites move to the context anyway
 - integration suite unchanged and green (it proves isolation, which is exactly
-  what this refactor could break).
+  what this refactor could break); ✅ 25/25
 
 **Rollback.** Revert; the context is additive until the last commit of the phase.
+
+**Shipped 2026-10-19.** `lib/request-context.ts` (pure shape + derivation),
+`lib/ids.ts` (`UserId` brand), `server/context.ts` (`cache()`d per request). The
+settings page now *reuses* the layout's read instead of fetching the row again,
+and the habit actions lost their `currentDay()` helper. The layout, the workspace
+page, the habits page, the statistics page and the habit actions all obtain the
+clock the same way. **260 unit tests** (+5 on the derivation, including the
+Casablanca midnight boundary).
+
+`/api/backup` deliberately still uses `requireUserId()` + `getSettingsRecord()`:
+it is a route handler outside a page render, so there is no layout read to reuse.
 
 ---
 

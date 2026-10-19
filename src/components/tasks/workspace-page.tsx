@@ -1,11 +1,9 @@
 import { TaskWorkspace } from "@/components/tasks/task-workspace";
-import { todayDateOnly } from "@/lib/dates";
 import type { WorkspaceProgress } from "@/lib/stats";
 import type { ViewScope } from "@/lib/views";
-import { requireUserId } from "@/server/auth";
+import { getRequestContext } from "@/server/context";
 import { ensureHabitInstances } from "@/server/services/habits";
 import { getStatistics } from "@/server/services/statistics";
-import { getSettingsRecord } from "@/server/services/settings";
 import { listTasks } from "@/server/services/tasks";
 
 /**
@@ -35,17 +33,15 @@ export async function WorkspacePage({
    */
   includeHabitInstances?: boolean;
 }) {
-  const userId = await requireUserId();
-  const settings = await getSettingsRecord(userId);
-  const today = todayDateOnly(settings.timezone);
+  const ctx = await getRequestContext();
 
   // Generated here as well as in the layout, so this render is guaranteed to see
   // the instances it is about to list (the two may run concurrently).
-  if (includeHabitInstances) await ensureHabitInstances(userId, today);
+  if (includeHabitInstances) await ensureHabitInstances(ctx);
 
   const [tasks, statistics] = await Promise.all([
-    listTasks(userId, { includeHabits: includeHabitInstances }),
-    getStatistics(userId, { scope, today, timeZone: settings.timezone, windowDays }),
+    listTasks(ctx.userId, { includeHabits: includeHabitInstances }),
+    getStatistics(ctx, { scope, windowDays }),
   ]);
 
   const progress: WorkspaceProgress = {

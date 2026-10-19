@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 
 import { StatisticsView } from "@/components/statistics/statistics-view";
 import { isValidActivityWindow } from "@/lib/stats";
-import { todayDateOnly } from "@/lib/dates";
 import { viewMetadata } from "@/lib/site";
-import { requireUserId } from "@/server/auth";
+import { getRequestContext } from "@/server/context";
 import { getStatistics } from "@/server/services/statistics";
-import { getSettingsRecord } from "@/server/services/settings";
 
 export const metadata: Metadata = viewMetadata({
   title: "Statistics",
@@ -24,14 +22,10 @@ export default async function StatisticsPage({
   const requested = Number(params.range ?? 7);
   const windowDays = isValidActivityWindow(requested) ? requested : 7;
 
-  const userId = await requireUserId();
-  const settings = await getSettingsRecord(userId);
-  const today = todayDateOnly(settings.timezone);
+  const ctx = await getRequestContext();
 
-  const statistics = await getStatistics(userId, {
+  const statistics = await getStatistics(ctx, {
     scope: { kind: "all" },
-    today,
-    timeZone: settings.timezone,
     windowDays,
   });
 
@@ -45,9 +39,9 @@ export default async function StatisticsPage({
         categoryBreakdown: statistics.categoryBreakdown,
         windowDays: statistics.windowDays,
       }}
-      today={today}
+      today={ctx.today}
       scopeLabel="all tasks"
-      weekStartsOn={settings.weekStartsOn}
+      weekStartsOn={ctx.settings.weekStartsOn}
     />
   );
 }

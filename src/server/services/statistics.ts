@@ -15,6 +15,7 @@ import {
 } from "@/lib/stats";
 import { lastNDays } from "@/lib/dates";
 import { selectScopedTasks, type ViewScope } from "@/lib/views";
+import type { RequestContext } from "@/server/context";
 import { listEventsSince } from "@/server/services/events";
 import { listTasks } from "@/server/services/tasks";
 import { listCategories } from "@/server/services/taxonomy";
@@ -60,15 +61,14 @@ const UNCATEGORIZED = {
  * completed on the day it was actually finished.
  */
 export async function getStatistics(
-  userId: string,
+  ctx: RequestContext,
   options: {
     scope: ViewScope;
-    today: string;
-    timeZone: string;
     windowDays: number;
   },
 ): Promise<StatisticsPayload> {
-  const { scope, today, timeZone, windowDays } = options;
+  const { userId, today, timeZone } = ctx;
+  const { scope, windowDays } = options;
 
   const [tasks, categories] = await Promise.all([
     listTasks(userId),

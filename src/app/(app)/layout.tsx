@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { buildViewCounts } from "@/lib/views";
-import { todayDateOnly } from "@/lib/dates";
-import { isAuthDisabled, requireAuthProfile } from "@/server/auth";
+import { isAuthDisabled } from "@/server/auth";
+import { getRequestContext } from "@/server/context";
 import { ensureHabitInstances } from "@/server/services/habits";
-import { getSettingsRecord } from "@/server/services/settings";
 import { listTaskSummaries } from "@/server/services/tasks";
 import { listCategories } from "@/server/services/taxonomy";
 import type { AppData } from "@/components/app-data";
@@ -23,15 +22,14 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  // A signed-out visitor is redirected before any query runs below.
-  const { userId, email } = await requireAuthProfile();
-
-  const settings = await getSettingsRecord(userId);
-  const today = todayDateOnly(settings.timezone);
+  // A signed-out visitor is redirected before any query runs below, and the
+  // account's clock is read once for the whole render.
+  const ctx = await getRequestContext();
+  const { userId, email, settings, today } = ctx;
 
   // Every habit that is due today needs its generated task before anything
   // counts or lists tasks. This is idempotent, so it is safe on every render.
-  await ensureHabitInstances(userId, today);
+  await ensureHabitInstances(ctx);
 
   const [categories, summaries] = await Promise.all([
     listCategories(userId),
