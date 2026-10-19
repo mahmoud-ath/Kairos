@@ -64,6 +64,30 @@ describe("the shortcut table", () => {
     expect(new Set(sequences).size).toBe(sequences.length);
   });
 
+  it("uses only tokens the keyboard handler can actually produce", () => {
+    // `normalizeKey` returns a single character (lower-cased) or "space". A
+    // token like "shift" can never be emitted, so a binding written that way is
+    // dead — exactly the mistake this guard exists to catch.
+    const emittable = (token: string) => token === "space" || token.length === 1;
+    for (const shortcut of SHORTCUTS) {
+      for (const token of shortcut.keys) {
+        expect(emittable(token), `${shortcut.id} uses "${token}"`).toBe(true);
+      }
+    }
+  });
+
+  it("has no sequence that is a prefix of another", () => {
+    // `resolveShortcut` runs an exact match immediately, so a ["g"] binding
+    // would swallow every ["g", x] sequence before it could complete.
+    for (const a of SHORTCUTS) {
+      for (const b of SHORTCUTS) {
+        if (a === b || a.keys.length >= b.keys.length) continue;
+        const isPrefix = a.keys.every((key, index) => b.keys[index] === key);
+        expect(isPrefix, `${a.id} is a prefix of ${b.id}`).toBe(false);
+      }
+    }
+  });
+
   it("describes sequences for screen readers", () => {
     expect(keysLabel(["g", "t"])).toBe("g then t");
   });

@@ -31,12 +31,22 @@ export type Shortcut = {
 };
 
 export const SHORTCUTS: readonly Shortcut[] = [
+  // Go-to is a two-key sequence ("g" then the destination).
+  //
+  // Modifier tokens ("shift", "ctrl", …) are deliberately NOT part of this
+  // table: `shortcut-provider.tsx` normalises `KeyboardEvent.key`, which never
+  // yields a token like "shift" — Shift+T arrives as "T" → "t". A binding
+  // written that way can never match, so the guard tests in
+  // `tests/unit/shortcuts.test.ts` reject any token the provider cannot emit.
   { id: "go-today", keys: ["g", "t"], label: "Today", group: "Go to" },
   { id: "go-tasks", keys: ["g", "a"], label: "All Tasks", group: "Go to" },
   { id: "go-completed", keys: ["g", "c"], label: "Completed", group: "Go to" },
   { id: "go-habits", keys: ["g", "h"], label: "Habits", group: "Go to" },
   { id: "go-statistics", keys: ["g", "s"], label: "Statistics", group: "Go to" },
   { id: "go-settings", keys: ["g", ","], label: "Settings", group: "Go to" },
+
+  // Actions run on a single key. A key may repeat as the *second* key of a
+  // sequence ("t" toggles the theme, "g t" opens Today) without ambiguity.
   { id: "search", keys: ["/"], label: "Filter tasks on this page", group: "Actions" },
   { id: "new-task", keys: ["n"], label: "New task", group: "Actions" },
   { id: "toggle-theme", keys: ["t"], label: "Switch theme", group: "Actions" },
