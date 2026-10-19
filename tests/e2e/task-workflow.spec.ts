@@ -46,7 +46,7 @@ test.describe("task workflow", () => {
     await page.goto("/today");
     await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
     // Nothing is created silently: the example data is an explicit choice.
-    const loadExamples = page.getByRole("button", { name: "Load example tasks" });
+    const loadExamples = page.getByRole("button", { name: "Load example data" });
     await expect(loadExamples).toBeVisible();
     await loadExamples.click();
     await expect(
@@ -197,8 +197,13 @@ test.describe("task workflow", () => {
     await page.setViewportSize({ width: 1440, height: 500 });
     await page.goto("/tasks");
 
+    // Enough rows that the main column is clearly taller than the viewport: a
+    // sticky element only stays put while its container still has room below it,
+    // so a short list at a 500px viewport would scroll the panel away for the
+    // right reason and make this test lie.
+    const FILLERS = 20;
     const input = await quickAdd(page);
-    for (let index = 0; index < 6; index += 1) {
+    for (let index = 0; index < FILLERS; index += 1) {
       const title = `Scroll filler ${index}`;
       await input.fill(title);
       await input.press("Enter");
@@ -212,16 +217,36 @@ test.describe("task workflow", () => {
     const panel = page.getByRole("complementary", { name: "Progress" });
     await expect(panel).toBeVisible();
 
+    const firstRow = page.getByRole("button", { name: "Open task Scroll filler 0" });
     const beforeSidebar = await sidebarLink.boundingBox();
     const beforePanel = await panel.boundingBox();
+    const beforeRow = await firstRow.boundingBox();
+    expect(beforeSidebar).not.toBeNull();
+    expect(beforePanel).not.toBeNull();
+    expect(beforeRow).not.toBeNull();
 
-    await page.mouse.wheel(0, 800);
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    const scrollToY = async (target: number) => {
+      await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), target);
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(target);
+    };
 
-    const afterSidebar = await sidebarLink.boundingBox();
-    const afterPanel = await panel.boundingBox();
-    expect(afterSidebar?.y).toBe(beforeSidebar?.y);
-    expect(afterPanel?.y).toBe(beforePanel?.y);
+    // Two different scroll offsets, both well past the point where the columns
+    // reach the top. A sticky column keeps the same viewport position at both; a
+    // column that simply scrolls with the document moves by the scroll delta.
+    await scrollToY(120);
+    const pinnedSidebar = await sidebarLink.boundingBox();
+    const pinnedPanel = await panel.boundingBox();
+    await scrollToY(240);
+
+    // The list itself did move...
+    expect((await firstRow.boundingBox())!.y).toBeLessThan(beforeRow!.y - 100);
+    // ...while both columns stayed put, never lower than where they started.
+    expect(Math.round((await sidebarLink.boundingBox())!.y)).toBe(
+      Math.round(pinnedSidebar!.y),
+    );
+    expect(Math.round((await panel.boundingBox())!.y)).toBe(Math.round(pinnedPanel!.y));
+    expect(pinnedSidebar!.y).toBeLessThanOrEqual(beforeSidebar!.y);
+    expect(pinnedPanel!.y).toBeLessThanOrEqual(beforePanel!.y);
   });
 
   test("statistics, settings and the export endpoint work", async ({ page }) => {
@@ -249,7 +274,9 @@ test.describe("task workflow", () => {
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body.format).toBe("kairos-backup");
-    expect(body.version).toBe(2);
+    // Bumped to 3 when habits and their history were added; older files are still
+    // accepted on import (see SUPPORTED_BACKUP_VERSIONS).
+    expect(body.version).toBe(3);
     expect(Array.isArray(body.data.tasks)).toBe(true);
     expect(body.data.settings.timezone).toBeTruthy();
     expect(body.data.tasks[0]).not.toHaveProperty("priority");
