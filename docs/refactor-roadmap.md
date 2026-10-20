@@ -21,9 +21,9 @@ the order the topics were listed.
 | 3 | D — request context | Removes repeated `userId`/`today` plumbing; depends on 2 | ✅ 2026-10-19 |
 | 4 | B — typed event payloads, completed | Readers and habit writers done in 0; remaining writers | ✅ 2026-10-19 |
 | 5 | E — ports where substitution pays | Needs 2 and 3 to be worth doing | ✅ 2026-10-19 |
-| 6 | Environment protection (security P0) | Needs CI (1) to enforce it | 🟡 auth guard shipped |
-| 7 | Shared rate limiting | Needs CI (1) and the request context (3) | 🟡 steps 1–2 shipped (store provisioning open) |
-| 8 | Feature boundaries | Last: it is the shape the rest produce | ⏳ |
+| 6 | Environment protection (security P0) | Needs CI (1) to enforce it | ✅ 2026-10-20 (DB-role split blocked by the provider, documented) |
+| 7 | Shared rate limiting | Needs CI (1) and the request context (3) | ✅ 2026-10-20 (shared Postgres store; Upstash optional) |
+| 8 | Feature boundaries | Last: it is the shape the rest produce | 🟡 rules enforced; the `features/` reorg is not started |
 
 Reference documents: [`architecture-review.md`](architecture-review.md) (findings
 A1–A9), [`security-environment.md`](security-environment.md),
@@ -282,8 +282,29 @@ cannot disagree. Preview counts as hosted because its URL is public too. Local
 `next dev`/`next start` (and therefore the Playwright suite, and the compose stack)
 is unchanged. Covered by three unit cases including the forbidden combination.
 
-Still open in this phase: `scripts/with-prod-env.sh`, removing
-`.env.production.local`, `gitleaks` in CI, and split database roles.
+**Items 2 and 3 shipped 2026-10-20.**
+
+- **`scripts/with-prod-env.sh`** is now the only sanctioned way to reach
+  production. It *reads* the env file instead of sourcing it, refuses anything that
+  does not point at `db.prisma.io`, prints the target host, hands the child process
+  only those variables plus PATH/HOME (`env -i`), and supports `--dry-run`/
+  `--print`. `.env.production.local` is gone from the repository; the values live in
+  `~/.config/kairos/production.env` (mode 600). Verified against the live database
+  (`prisma migrate status` → 7/7, "schema is up to date") with no production
+  variables left in the shell.
+- **Secret scanning** is `.gitleaks.toml` (allowlists by path only: avatar artwork
+  is base64 PNG; docs and tests hold placeholders), a `secrets` CI job that scans
+  every commit, and a pre-commit hook (`.githooks/pre-commit` + `scripts/install-hooks.sh`).
+  Verified both ways: 62 commits scanned clean, and a planted `sk_live_…` key fails
+  both the hook and the job.
+
+**Item 4 — split database roles — is blocked by the provider.** `prisma/roles.sql`
+is written and verified on a local PostgreSQL (a DML-only role cannot `CREATE TABLE`
+or `TRUNCATE`; all 30 integration tests pass as that role), but Prisma Postgres
+answers `ERROR: restricted superuser cannot create roles`. The finding is now
+documented as accepted risk with compensating controls — the app contains **no**
+dynamic SQL at all, which `scripts/check-boundaries.sh` keeps true — in
+[`database-roles.md`](database-roles.md).
 
 ---
 
@@ -322,11 +343,25 @@ Playwright config sets it: a spec suite makes more requests a minute than any
 person), and it is **ignored on a hosted deployment** by the same rule as the auth
 switch.
 
-Verified: 5 integration cases (the limit, a second account unaffected, buckets
-independent, window expiry, the fail-open policy) and a live check on a built app
-— 10 backups allowed, the 11th `429` with `Retry-After: 3600`. Open: step 3
-(provision Upstash and set the two variables in Vercel) and step 4 (Supabase auth
-limits).
+**Step 3 decided and shipped 2026-10-20 — without Upstash.** The open question in
+`rate-limiting.md` §9.2 was whether a second vendor is worth it; the answer is no.
+The limiter now has a **PostgreSQL store** (`RateLimitCounter`, one atomic
+`ON CONFLICT … RETURNING` per request) that a hosted deployment selects
+automatically, so per-account limits are shared across instances with no new
+account, no new secret and no new outage mode. In-process memory remains for local
+runs; Upstash is still one environment variable away if the database ever becomes
+the bottleneck.
+
+The atomicity claim is tested rather than asserted: twenty simultaneous requests
+against a 5-per-minute bucket are admitted exactly five times. Live check on a
+built app: 10 × `/api/backup` `200`, the 11th `429` with `Retry-After: 3600`, and
+the counter row visible in the table. The health probe now covers the new table, so
+a missing migration is a 503 rather than silently unlimited.
+
+**Step 4** is `scripts/check-auth-limits.sh`: it reports the GoTrue limits through
+the Supabase Management API and can set the recommended values (`--apply`). It needs
+a personal access token, so the dashboard steps are documented in
+`rate-limiting.md` §8.3 for the account holder to run.
 
 ---
 
@@ -342,6 +377,36 @@ rules that make the dependency direction real:
 **Acceptance.** `services/statistics.ts` no longer reaches into task internals;
 the rules are enforced in CI; the graph in `architecture-review.md` §1 can be
 redrawn with feature boxes.
+
+**Partially shipped 2026-10-20 — the rules, not the directory reorg.**
+
+The three requested rules are in `eslint.config.mjs`, plus the dependency
+direction that was implicit before:
+
+| Scope | Forbidden |
+| --- | --- |
+| `src/lib/**` | `@/server/**`, `@/components/**`, `@prisma/client` |
+| `src/components/**` | `@prisma/client`, `@/server/db` |
+| `src/server/services/**` | `@/server/actions/**`, `@/app/**` |
+| everything under `src/` | `@/server/services/<name>/<file>` — a service is entered through its `index.ts` |
+
+Each message says *why*, because a lint error that only says "restricted" teaches
+nobody. `scripts/check-boundaries.sh` covers what a lint rule cannot see: dynamic
+SQL anywhere in `src/` (only the rate-limit counter's parameterised statement is
+allowed) and a production env file reappearing in the tree. It runs in the `quality`
+job.
+
+Verified by planting one violation per rule: `lib` → `@/server/db`, `components` →
+`@/server/services/tasks/query`, `services` → `@/server/actions/tasks` each fail
+lint; a `$queryRawUnsafe` and a stray `.env.production.local` each fail the script.
+One real violation surfaced and was fixed: `lib/request-context.ts` imported
+`SettingsRecord` from a service, so the type moved to `types/kairos.ts` (the service
+re-exports it, so no call site changed).
+
+**Not started:** the `src/features/<name>/` directory reorg (A4) and the
+`habits.ts` split (A7). The rules above are the cheap half of the phase and they
+make that move safe to do later; doing the move now would touch every import in the
+app for no behavioural gain.
 
 ---
 
