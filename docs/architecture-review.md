@@ -54,15 +54,15 @@ Severity is about how likely a change is to silently break something else.
 
 | # | Severity | Finding | Consequence |
 | --- | --- | --- | --- |
-| A1 | **High** | `server/services/tasks.ts` is 777 lines: create, update, delete, reorder, status, subtree rules, clearing | Every task-shaped feature edits the same file; merge conflicts and accidental cross-feature changes |
-| A2 | **High** | `TaskEvent.metadata` is untyped JSON whose shape is a convention (`{habitId, habitDate}`, `{parentId}`, `{subtask, count, via}`) | Habit streaks, statistics and the grid all depend on keys written by three different writers. Rename one key and history silently reads as "nothing happened" |
-| A3 | **High** | `TENANT_MODELS` in `db.ts` is a hand-maintained `Set` | Forgetting to add a new model leaks cross-tenant reads. `PushSubscription` had to be added by hand this week |
+| A1 | ~~**High**~~ **Resolved** (phase 2) | `server/services/tasks.ts` is 777 lines: create, update, delete, reorder, status, subtree rules, clearing | Every task-shaped feature edits the same file; merge conflicts and accidental cross-feature changes |
+| A2 | ~~**High**~~ **Resolved** (phases 0 + 4) | `TaskEvent.metadata` is untyped JSON whose shape is a convention (`{habitId, habitDate}`, `{parentId}`, `{subtask, count, via}`) | Habit streaks, statistics and the grid all depend on keys written by three different writers. Rename one key and history silently reads as "nothing happened" |
+| A3 | ~~**High**~~ **Resolved** (phase 0) | `TENANT_MODELS` in `db.ts` is a hand-maintained `Set` | Forgetting to add a new model leaks cross-tenant reads. `PushSubscription` had to be added by hand this week |
 | A4 | Medium | Features import each other's services freely: `statistics` → `tasks` + `taxonomy` + `events`, `examples` → `tasks` + `habits`, `backup` → everything | No way to see a feature's real dependencies; a change in `tasks` can break statistics at runtime, not at compile time |
-| A5 | Medium | `ServiceError` lives in `services/tasks.ts` and is imported by `services/push.ts` and every action | The error model depends on the task feature; deleting or moving tasks breaks unrelated code |
+| A5 | ~~Medium~~ **Resolved** (phase 0) | `ServiceError` lives in `services/tasks.ts` and is imported by `services/push.ts` and every action | The error model depends on the task feature; deleting or moving tasks breaks unrelated code |
 | A6 | Medium | `AppData` context is a wide, mutable contract (settings, today, categories, counts, email, authEnabled) | Any shell-level addition touches the layout and every consumer; `useSearch`/`usePanelState`/`useAppData` are three contexts in one file |
 | A7 | Medium | `habits.ts` mixes three concerns: instance generation (a write), board assembly (a read model) and month/trend maths re-exported from `lib` | The file is the only place that knows both scheduling and presentation; hard to test the scheduler alone |
 | A8 | Low | Constants drift: `UNCATEGORIZED_LABEL` existed but was unused; statistics had its own `{id: null, name: "Uncategorized"}` | Two answers to "which category is this?" — exactly what filters then tripped over |
-| A9 | Low | No dependency-direction enforcement in ESLint | Nothing stops `lib` importing a server module, or a component importing Prisma types |
+| A9 | ~~Low~~ **Resolved** (phase 8) | No dependency-direction enforcement in ESLint | Now four `no-restricted-imports` blocks in `eslint.config.mjs` plus `scripts/check-boundaries.sh`; a violating import fails `bun run lint` |
 
 ---
 
@@ -160,9 +160,17 @@ check (done in Phase 0), the ESLint import rules, and the `AppData` split.
 
    This is a 30-line test that makes a whole class of leak impossible.
 5. `RequestContext` (§4) threaded from `requireAuthProfile()` into services.
-6. ESLint `no-restricted-imports`: `lib/**` may not import `server/**`;
-   `components/**` may not import `@prisma/client`; services may not import
-   `components/**`. Three rules, one commit (removes A9).
+6. **Done (phase 8).** ESLint `no-restricted-imports`, four blocks in
+   `eslint.config.mjs`:
+   `lib/**` may not import `server/**`, `components/**` or `@prisma/client`;
+   `components/**` may not import `@prisma/client` or `@/server/db` (services and
+   actions are allowed — server components legitimately read through them);
+   `server/services/**` may not import `server/actions/**` or `app/**`; and no file
+   outside `server/services/**` may import a service's internals
+   (`@/server/services/tasks/edit`), only its entrance. `scripts/check-boundaries.sh`
+   adds the two things a lint rule cannot see: dynamic SQL and a production env
+   file back in the tree. Verified by planting one violation per rule and watching
+   lint fail (removes A9).
 7. Split `AppData` contexts into `SettingsContext`, `CategoriesContext`,
    `CountsContext` — or keep one shape but expose narrow hooks
    (`useCategories()`) so consumers stop depending on the whole object (removes A6).

@@ -9,10 +9,122 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
+/* -------------------------------------------------------------------------- */
+/* Dependency direction                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The architecture this enforces, from `docs/architecture-review.md`:
+ *
+ *     app/**  →  server/actions/**  →  server/services/**  →  lib/**
+ *
+ * Arrows point one way. Each rule below is a boundary a reviewer would otherwise
+ * have to remember, expressed as something CI fails on:
+ *
+ * - `lib/` is pure logic and must stay testable without a database, a request or
+ *   React — so no `server/`, no `components/`, no Prisma client.
+ * - `components/` may call a server action or read through a service (server
+ *   components do), but must never touch Prisma directly: that is where the
+ *   per-user scoping lives, and `scopedPrisma` is the only door to it.
+ * - `server/services/` must not call `server/actions/` — an action is an entry
+ *   point, and a service may not depend on one.
+ * - A service module is entered through its `index.ts` only (`tasks`, not
+ *   `tasks/edit`), which is what lets a service be refactored internally.
+ *
+ * `no-restricted-imports` is a single rule key, so each block lists *all* of its
+ * patterns: ESLint replaces the option array rather than merging it.
+ */
+const DEEP_SERVICE_IMPORT = {
+  group: ["@/server/services/*/*"],
+  message:
+    "A service has one public entrance: import `@/server/services/<name>`, not a file inside it. " +
+    "Reaching into internals makes every refactor of that service a cross-feature change.",
+};
+
+const NO_LIB_TO_SERVER = {
+  group: ["@/server", "@/server/**"],
+  message:
+    "`src/lib` is pure: it must run without a database, a request or React. " +
+    "Move the shared shape to `src/types/` or pass the value in from the caller.",
+};
+
+const NO_LIB_TO_COMPONENTS = {
+  group: ["@/components", "@/components/**"],
+  message: "`src/lib` must not depend on UI. Components import from lib, not the other way round.",
+};
+
+const NO_PRISMA_IN_UI = {
+  group: ["@prisma/client", "@prisma/client/**"],
+  message:
+    "UI and pure modules never talk to Prisma. Query through a service, which applies the per-user scope.",
+};
+
+const NO_DIRECT_DB_IN_UI = {
+  group: ["@/server/db"],
+  message:
+    "`server/db` is where the scoping layer lives. Components read through a service so `scopedPrisma` is never bypassed.",
+};
+
+const NO_SERVICE_TO_ACTIONS = {
+  group: ["@/server/actions", "@/server/actions/**"],
+  message:
+    "Services sit below actions: an action calls a service. Depending upwards inverts the direction and " +
+    "creates a cycle the moment that action uses this service.",
+};
+
+const NO_SERVICE_TO_APP = {
+  group: ["@/app", "@/app/**"],
+  message: "Routes call services; services never import a route or a page.",
+};
+
+const restricted = (patterns) => ["error", { patterns }];
+
+const boundaries = [
+  // Baseline for every file, including those not covered by a narrower block.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: { "no-restricted-imports": restricted([DEEP_SERVICE_IMPORT]) },
+  },
+  {
+    files: ["src/lib/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": restricted([
+        DEEP_SERVICE_IMPORT,
+        NO_LIB_TO_SERVER,
+        NO_LIB_TO_COMPONENTS,
+        NO_PRISMA_IN_UI,
+      ]),
+    },
+  },
+  {
+    files: ["src/components/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": restricted([
+        DEEP_SERVICE_IMPORT,
+        NO_PRISMA_IN_UI,
+        NO_DIRECT_DB_IN_UI,
+      ]),
+    },
+  },
+  {
+    files: ["src/server/services/**/*.ts"],
+    rules: {
+      // Deliberately *not* DEEP_SERVICE_IMPORT: the files of one service import
+      // each other through their `@/server/services/<name>/<file>` paths, and a
+      // pattern cannot say "a different service". Cross-service deep imports stay
+      // possible in principle; they are rare, and visible in review.
+      "no-restricted-imports": restricted([NO_SERVICE_TO_ACTIONS, NO_SERVICE_TO_APP]),
+    },
+  },
+];
+
 const eslintConfig = [
   {
     ignores: [
+      // Any Next build directory: `.next` normally, `.next-e2e` when the e2e suite
+      // builds somewhere else so it does not fight a running dev server.
       ".next/**",
+      ".next-*/**",
       "node_modules/**",
       "coverage/**",
       "playwright-report/**",
@@ -23,6 +135,7 @@ const eslintConfig = [
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...boundaries,
 ];
 
 export default eslintConfig;

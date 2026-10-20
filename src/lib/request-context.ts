@@ -9,7 +9,7 @@
 
 import { todayDateOnly } from "@/lib/dates";
 import { asUserId, type UserId } from "@/lib/ids";
-import type { SettingsRecord } from "@/server/services/settings";
+import type { SettingsRecord } from "@/types/kairos";
 
 export type RequestContext = {
   readonly userId: UserId;

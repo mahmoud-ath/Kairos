@@ -69,6 +69,16 @@ export type SettingsDTO = {
   reminderHour: number;
 };
 
+/**
+ * The settings one request works from.
+ *
+ * The same shape the client sees (`SettingsDTO`), named for the server side. It
+ * lives here rather than in `server/services/settings.ts` so that `lib/` can
+ * describe a request context without importing from `server/` — the boundary rule
+ * in eslint.config.mjs enforces that direction.
+ */
+export type SettingsRecord = SettingsDTO;
+
 /** The parts of the profile a person can change themselves. */
 export type ProfileDTO = {
   nickname: string | null;
