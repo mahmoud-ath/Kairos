@@ -5,6 +5,8 @@ node_modules/
 
 # Next.js
 .next/
+# Temporary build directory used when the e2e suite builds beside a dev server.
+.next-*/
 out/
 build/
 next-env.d.ts

@@ -156,7 +156,13 @@ hand once more. **Expected:** `"candidates":0`, because the row is gone.
 
    ```bash
    cat > migrate-prod.ts <<'EOF'
-   const env = await Bun.file(".env.production.local").text();
+   import { homedir } from "node:os";
+   import { join } from "node:path";
+
+   // Outside the repository on purpose: see docs/security-environment.md.
+   const envPath = process.env.KAIROS_PROD_ENV_FILE
+     ?? join(homedir(), ".config", "kairos", "production.env");
+   const env = await Bun.file(envPath).text();
    const url = /^DIRECT_URL=(.*)$/m.exec(env)![1].trim().replace(/^["']|["']$/g, "");
    const schema = await Bun.file("prisma/schema.prisma").text();
    await Bun.write("prisma/schema.tmp.prisma", schema.replace(/env\("[A-Z_]+"\)/g, `"${url}"`));
@@ -170,7 +176,9 @@ hand once more. **Expected:** `"candidates":0`, because the row is gone.
 
    > Do **not** use `set -a; . ./.env.production.local` for a one-off command: it
    > exports the production URLs into the shell you keep using, so every later
-   > `prisma` command in that window also hits production.
+   > `prisma` command in that window also hits production. For a plain deploy the
+   > shorter route is `scripts/with-prod-env.sh bunx prisma migrate deploy`, which
+   > does the same thing with one command and no export.
 
    Confirm it took: the output should mention `20261015120000_push_subscriptions`.
 

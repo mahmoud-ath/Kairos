@@ -210,7 +210,7 @@ Files in this repo:
 | File | Purpose | Committed? |
 | --- | --- | --- |
 | `.env` | local development | ❌ ignored |
-| `.env.production.local` | template for the Vercel values | ❌ ignored |
+| `~/.config/kairos/production.env` | production values, **outside the repo**, mode 600 | n/a — not in the repository |
 | `.env.example` | documentation of every variable | ✅ committed |
 
 **Never upload `.env` to Vercel.** It contains `localhost`, which is exactly the
@@ -246,8 +246,12 @@ bug. Uploading it also leaves `NEXT_PUBLIC_APP_URL` pointing at
   `Dockerfile` at all.
 - **Supabase as a database.** You chose Prisma Postgres for the data. Supabase is
   now only relevant as an optional login provider for Step 6.
-- **`.env.production.local` placeholders.** Nothing reads that file
-  automatically; it exists so you have the correct shape to copy from.
+- **`.env.production.local` used to sit in the repo root, and it is gone.**
+  `next start` loaded it, so a local production run silently talked to the live
+  database; `set -a; . ./.env.production.local` exported those URLs into the
+  shell and then every later command in that terminal targeted production. The
+  values now live in `~/.config/kairos/production.env` (mode 600) and reach a
+  command only through `scripts/with-prod-env.sh`.
 
 ---
 

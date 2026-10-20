@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url";
  *
  * These tests create and delete rows, so they must only ever run against a
  * throw-away database. A shell that has `DATABASE_URL` exported for production
- * (for example after `set -a; . ./.env.production.local`) would otherwise point
- * them straight at real user data — which is exactly the mistake this refuses to
- * repeat.
+ * (for example after the old `set -a; . ./.env.production.local`) would otherwise
+ * point them straight at real user data — which is exactly the mistake this
+ * refuses to repeat.
  *
  * `vitest.integration.config.ts` loads `.env`, but it does not overwrite a
  * variable that is already set, so the check has to happen here.

@@ -374,11 +374,11 @@ No Docker? See [Docker & self-hosting](#13-alternatives) below.
 
 Two traps worth knowing now, because both waste a lot of time later:
 
-- **`bun run dev` and `next start` read different files.** Dev loads `.env`; a
-  local production run (`bun run build && bun start`) *also* loads
-  `.env.production.local`, so it talks to the **remote** database. `/api/health`
-  can then answer `503 {"ok":false,"database":"error"}` — expected, not a bug.
-  Use `bun run dev` for local work.
+- **A local production run reads `.env`, not production.** `.env.production.local`
+  used to be loaded by `next start` (so a local build pointed at the live
+  database); that file is gone. Production values live outside the repository in
+  `~/.config/kairos/production.env` and are only used through
+  `scripts/with-prod-env.sh`.
 - **A real environment variable beats a `.env` file.** If you ever ran
   `export DATABASE_URL=…` in a shell, that value wins over `.env.local` for as
   long as the shell lives. The file on disk looks perfectly correct while the app

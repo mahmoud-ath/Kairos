@@ -168,10 +168,12 @@ environment:
 env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_ANON_KEY bun run dev
 ```
 
-> Related trap: `next start` loads `.env.production.local`, not `.env`. So a local
-> production run uses the **remote** `DATABASE_URL`, and `/api/health` returns
-> `503 {"ok":false,"database":"error"}`. That is expected, not a bug — use
-> `bun run dev` for local work.
+> Related trap: `next start` used to load `.env.production.local`, so a local
+> production run pointed at the **remote** `DATABASE_URL` and `/api/health`
+> answered `503 {"ok":false,"database":"error"}`. That file has been removed and
+> now lives outside the repository (`~/.config/kairos/production.env`), reached
+> only through `scripts/with-prod-env.sh` — so a local `next start` uses `.env`
+> and talks to local PostgreSQL.
 
 ---
 
@@ -211,22 +213,16 @@ The column `Settings.nickname` does not exist in the current database.
 Applying the migration is a **required deploy step**, not an optional one:
 
 ```bash
-set -a; . ./.env.production.local; set +a   # production URLs, unquoted
-bunx prisma migrate status                  # what is pending?
-bunx prisma migrate deploy                  # apply it
-unset DATABASE_URL DIRECT_URL               # ⚠️ see below
+scripts/with-prod-env.sh bunx prisma migrate status   # what is pending?
+scripts/with-prod-env.sh bunx prisma migrate deploy   # apply it
 ```
 
-> ⚠️ **`set -a` exports the production URLs into the shell you keep using**, so
-> every later `prisma` command in that session also hits production. If you would
-> rather not do that, inline the URL into a temporary schema instead — same
-> result, no export:
->
-> ```bash
-> sed -E 's|env\("[A-Z_]+"\)|"<direct url>"|g' prisma/schema.prisma > prisma/schema.tmp.prisma
-> bunx prisma migrate deploy --schema prisma/schema.tmp.prisma
-> rm prisma/schema.tmp.prisma
-> ```
+> **Never** use `set -a; . ./.env.production.local; set +a`. It exports the
+> production URLs into the shell you keep using, so every later `prisma` command
+> in that session also hits production. That is how the integration suite once
+> ran against live data. `scripts/with-prod-env.sh` runs **one** command with
+> those variables in a child process and prints the target host first — compare
+> it before typing `yes`.
 
 > ⚠️ **An inline `DATABASE_URL=… bunx prisma …` does *not* override `.env`** — the
 > Prisma CLI prefers the file, so the command silently targets the wrong
@@ -247,8 +243,8 @@ healthy deploy answers `{"ok":true,"database":"ok"}`.
 
 > A placeholder like `<your-user>` *looks* like a connection problem and is not
 > one. Real strings contain a 64-character random username and a password
-> starting with `sk_`. If you are unsure, use the real file rather than retyping:
-> `set -a; . ./.env.production.local; set +a`
+> starting with `sk_`. If you are unsure, use the real file rather than retyping —
+> through the guard, which reads it for you: `scripts/with-prod-env.sh --print bunx prisma migrate status`
 
 ---
 

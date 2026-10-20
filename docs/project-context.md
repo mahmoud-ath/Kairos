@@ -450,8 +450,9 @@ tests/
    overrides `.env.local` for as long as that shell lives.
 
 Files: `.env` (local database), `.env.local` (local Supabase, gitignored),
-`.env.production.local` (real production values, gitignored), `.env.example`
-(template).
+`.env.example` (template). Production values are **not** in the repository: they
+live in `~/.config/kairos/production.env` (mode 600) and reach a command only via
+`scripts/with-prod-env.sh`.
 
 ---
 
@@ -472,9 +473,9 @@ missing config shows an error rather than opening the app.
 
 Two traps:
 
-- **`next start` loads `.env.production.local`**, so a local production run
-  talks to the *remote* database and `/api/health` returns `503`. Use `bun run
-  dev` for local work.
+- **`next start` uses `.env`.** It loaded `.env.production.local` until that file
+  was removed from the repository, which is why a local production run used to
+  answer `503` from `/api/health`: it was talking to the remote database.
 - **Test config-dependent behaviour with a scrubbed environment** or an exported
   variable from earlier will silently win:
 
@@ -518,8 +519,9 @@ integration config aliases it to `tests/integration/server-only.stub.ts`.
 | Supabase Site URL / redirects | app origin + `http://localhost:3000/**` |
 | Google Cloud | OAuth client; redirect URI must be `https://jexeakhohftqqwfjeqkd.supabase.co/auth/v1/callback` |
 
-> **No secrets belong in this file.** Credentials live in `.env.production.local`,
-> the Vercel dashboard, and the Supabase dashboard — all gitignored.
+> **No secrets belong in this file.** Credentials live in the Vercel dashboard,
+> the Supabase dashboard, and `~/.config/kairos/production.env` (outside the
+> repository, mode 600) — never in the working tree.
 
 **Supabase settings do not carry over between projects.** If the project is ever
 recreated, every place the ref appears must be updated — see
@@ -591,7 +593,7 @@ Every one of these cost real time. They are the reason the guide opens with
 | **"Failed to fetch" in localhost *and* production** | the Supabase hostname was **NXDOMAIN** — the project ref did not exist. One dead host, two apparent symptoms | validated the URL before trusting it |
 | Still "Failed to fetch" after the new URL | `.env.local` held the **new key with the old URL** — a mismatched pair | the anon key's `ref` claim must match the URL; added a step to check it |
 | A silent variable loss on Vercel | `vercel env rm` deleted the key, then `vercel env add` stopped at an interactive "looks like a credential" prompt and saved nothing when stdin closed | use `--no-sensitive --value … --yes`; always verify with `vercel env pull` |
-| Local `503` from `/api/health` | `next start` loads `.env.production.local`, so it used the remote database | expected, not a bug — use `bun run dev` |
+| Local `503` from `/api/health` | `next start` loaded `.env.production.local`, so it used the remote database | that file is gone (values now outside the repo); `next start` uses `.env` |
 | Config changes appearing to do nothing | an exported shell variable was overriding `.env.local` | `env -u …` when testing |
 
 ### Diagnostic habits worth keeping
@@ -694,7 +696,7 @@ Every one of these cost real time. They are the reason the guide opens with
 bun install
 bun run dev                       # dev server (uses .env -> local PostgreSQL)
 bun run build                     # prisma generate && next build
-bun run start                     # serve the production build (uses .env.production.local!)
+bun run start                     # serve the production build (uses .env -> local PostgreSQL)
 
 # Quality gates
 bun run typecheck                 # tsc --noEmit
