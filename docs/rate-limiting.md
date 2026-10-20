@@ -255,7 +255,7 @@ shared Redis.
 4. Watch the blocked-count metric for a week before tightening any limit.
 5. Configure Supabase auth limits and, on Pro, Vercel WAF rules.
 
-### 8.1 What step 2 shipped (2026-10-19)
+### 8.1 What step 2 shipped (2026-10-19 / 2026-10-20)
 
 | Piece | Where |
 | --- | --- |
@@ -278,10 +278,75 @@ Two details worth keeping:
   would be a bigger diff than the behaviour is worth, and the default is the safe
   one.
 
-Verified live on a production build (local PostgreSQL, limiter enabled): ten
-`/api/backup` calls returned `200`, the eleventh `429` with `Retry-After: 3600`.
-The action path is covered by `tests/integration/rate-limit.test.ts` (limit,
-second account unaffected, buckets independent, window expiry, fail-open).
+### 8.2 Where the counters live (decided 2026-10-20)
+
+Three stores behind one interface, chosen per request:
+
+| Order | Store | When | Cost per mutation |
+| --- | --- | --- | --- |
+| 1 | **Upstash Redis** (REST) | `UPSTASH_REDIS_REST_URL` + `_TOKEN` set | one command, no database load |
+| 2 | **PostgreSQL** — `RateLimitCounter` | hosted deployment (`VERCEL`/`VERCEL_ENV`) | one round trip on the pooled connection |
+| 3 | **In-process memory** | local `next dev`, compose, Playwright | none |
+
+`KAIROS_RATE_LIMIT_STORE=upstash|postgres|memory` forces one, which is how the
+integration suite exercises the shared paths.
+
+**Why PostgreSQL is the default and not Upstash.** The roadmap left this open
+(§9.2). A second vendor account for one integer per window is a poor trade when the
+database is already there, already monitored, and already on the critical path of
+every request. The table is one row per (bucket, identifier) and the write is a
+single atomic statement:
+
+```sql
+INSERT INTO "RateLimitCounter" ("key","count","resetAt") VALUES (…)
+ON CONFLICT ("key") DO UPDATE SET
+  "count"   = CASE WHEN "RateLimitCounter"."resetAt" <= now THEN 1
+                   ELSE "RateLimitCounter"."count" + 1 END,
+  "resetAt" = CASE WHEN "RateLimitCounter"."resetAt" <= now THEN <new>
+                   ELSE "RateLimitCounter"."resetAt" END
+RETURNING "count","resetAt"
+```
+
+`ON CONFLICT DO UPDATE` locks the row, so twenty simultaneous requests are admitted
+exactly `limit` times — asserted in `tests/integration/rate-limit.test.ts`, not
+assumed. Expired rows are pruned opportunistically (1% of writes).
+
+Upstash remains worth switching to if the database becomes the bottleneck: set the
+two variables, redeploy, done — no code change. Provisioning it:
+
+```bash
+# 1. console.upstash.com → Create database (free tier) → REST API section
+# 2. copy the two values into Vercel for production AND preview
+npx vercel env add UPSTASH_REDIS_REST_URL production --sensitive
+npx vercel env add UPSTASH_REDIS_REST_TOKEN production --sensitive
+# 3. redeploy, then confirm which store answered:
+curl -s https://<your-app>/api/health                     # must stay ok
+#    and in the logs: no "[kairos] rate limit store … failed" lines
+```
+
+### 8.3 Supabase auth limits (step 4)
+
+`/login`, `/register` and password reset talk to Supabase from the browser, so they
+never reach `runAction()`. GoTrue's own limits are the only brake there, and the
+public `/auth/v1/settings` endpoint does **not** expose them — they need the
+Management API:
+
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_… scripts/check-auth-limits.sh          # report
+SUPABASE_ACCESS_TOKEN=sbp_… scripts/check-auth-limits.sh --apply  # recommended
+```
+
+Recommended for this app (a personal-scale product with `mailer_autoconfirm` on):
+
+| Limit | Recommended | Why |
+| --- | --- | --- |
+| Email sent | 10 / hour | the default 30/hour is what an attacker burns to get the project throttled or charged |
+| Sign-ups & sign-ins | 10 / hour | the app is public; this is the only brake on scripted account creation |
+| Token verifications | 30 / hour | default, left alone |
+| Token refreshes | 150 / 5 min | default; a live session refreshes several times an hour |
+
+Verified observably (anon key, 2026-10-20): `email: true`, `google: true`,
+`disable_signup: false`, `mailer_autoconfirm: true`, `anonymous_users: false`.
 
 ---
 

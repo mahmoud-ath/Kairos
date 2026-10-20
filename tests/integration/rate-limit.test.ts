@@ -92,3 +92,52 @@ describe("when the shared store is unreachable", () => {
     logged.mockRestore();
   });
 });
+
+/**
+ * The shared store.
+ *
+ * The reason a database is involved at all is that several instances may serve the
+ * same account at the same moment, so the interesting property is **atomicity**:
+ * twenty simultaneous requests must be admitted exactly `limit` times, not twenty
+ * times minus a few depending on how the reads interleaved.
+ *
+ * The store is selected with an environment variable that is read per call, so
+ * these cases need no separate process.
+ */
+describe("the shared PostgreSQL store", () => {
+  const SHARED = `rate-limit-shared-${process.pid}-${Date.now()}`;
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it("admits exactly the limit under concurrent requests", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-20T09:00:00Z"));
+    vi.stubEnv("KAIROS_RATE_LIMIT_STORE", "postgres");
+
+    const outcomes = await Promise.all(
+      Array.from({ length: 20 }, () => consumeRateLimit(SHARED, "expensive")),
+    );
+    const allowed = outcomes.filter((outcome) => outcome.allowed).length;
+
+    // 5 per minute for the expensive bucket: not "about 5".
+    expect(allowed).toBe(RATE_LIMITS.expensive.limit);
+  });
+
+  it("starts a new window after the reset, and leaves other accounts alone", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-20T10:00:00Z"));
+    vi.stubEnv("KAIROS_RATE_LIMIT_STORE", "postgres");
+
+    for (let i = 0; i < RATE_LIMITS.expensive.limit; i += 1) {
+      await consumeRateLimit(`${SHARED}-window`, "expensive");
+    }
+    expect((await consumeRateLimit(`${SHARED}-window`, "expensive")).allowed).toBe(false);
+    expect((await consumeRateLimit(`${SHARED}-neighbour`, "expensive")).allowed).toBe(true);
+
+    vi.setSystemTime(new Date(Date.now() + RATE_LIMITS.expensive.windowSeconds * 1000 + 1));
+    expect((await consumeRateLimit(`${SHARED}-window`, "expensive")).allowed).toBe(true);
+  });
+});

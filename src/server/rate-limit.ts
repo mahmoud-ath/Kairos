@@ -1,5 +1,6 @@
 import "server-only";
 
+import { prisma } from "@/server/db";
 import { requireAuthProfile } from "@/server/auth";
 import {
   RATE_LIMITS,
@@ -22,19 +23,25 @@ import {
  * a serverless instance remembers nothing between requests, so a shared counter
  * needs an external store.
  *
- * Two stores, one interface:
+ * Three stores, one interface, chosen in this order:
  *
- * - **Upstash Redis** (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`) is
- *   used whenever it is configured. It is plain `fetch` against the REST API —
- *   no client library, so nothing is added to the bundle or the cold start.
- * - **In-process memory** otherwise. That is honest for `next dev`, the compose
- *   stack and the Playwright suite (one process, real limiting), and it is
- *   *useless* on a hosted deployment with several instances — which is why the
- *   fallback logs once instead of pretending to protect anything.
+ * 1. **Upstash Redis** (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`) —
+ *    plain `fetch` against the REST API, so no client library and nothing added to
+ *    the bundle. Best choice if the project already pays for it: one command per
+ *    request and no load on the database.
+ * 2. **PostgreSQL** — a single `RateLimitCounter` table. This is the default on a
+ *    hosted deployment, because the database is already there and a second vendor
+ *    for one integer per window is a poor trade. One round trip per mutation, and
+ *    it inherits the database's availability instead of adding a new dependency.
+ * 3. **In-process memory** — for `next dev`, the compose stack and Playwright. One
+ *    process, so the limits are real; on a hosted deployment they would not be,
+ *    which is why it is never chosen there unless asked for explicitly.
  *
- * **Failure policy: fail open.** If the store is unreachable, requests are
- * allowed and the failure is logged. A limiter that takes the product down when
- * Redis hiccups turns a denial-of-service into an outage; availability wins, and
+ * Force one with `KAIROS_RATE_LIMIT_STORE=upstash|postgres|memory`.
+ *
+ * **Failure policy: fail open.** If the store is unreachable, requests are allowed
+ * and the failure is logged. A limiter that takes the product down when the
+ * database hiccups turns a denial-of-service into an outage; availability wins, and
  * the incident is visible in the logs. See docs/rate-limiting.md.
  */
 
@@ -71,6 +78,57 @@ const memoryStore: RateLimitStore = {
   },
 };
 
+/**
+ * One statement, atomic, no transaction: `ON CONFLICT DO UPDATE` locks the row, so
+ * two overlapping requests cannot both read the same count and both be allowed.
+ *
+ * This is the only raw query in `src/` (see docs/database-roles.md §7): an atomic
+ * "increment or reset and tell me the new value" has no typed Prisma equivalent.
+ * Values are interpolated as **parameters** — no identifier or SQL fragment ever
+ * comes from a caller.
+ *
+ * Note that the counter also rises for a *refused* request. That is deliberate:
+ * `count <= limit` is then the whole decision, and `resetAt` — which is what the
+ * caller is told to wait for — is still never extended by knocking again.
+ */
+const postgresStore: RateLimitStore = {
+  name: "postgres",
+  async hit(key, policy, now) {
+    const resetAt = new Date(now + policy.windowSeconds * 1000);
+    const nowDate = new Date(now);
+
+    const rows = await prisma.$queryRaw<Array<{ count: number; resetAt: Date }>>`
+      INSERT INTO "RateLimitCounter" ("key", "count", "resetAt")
+      VALUES (${key}, 1, ${resetAt})
+      ON CONFLICT ("key") DO UPDATE SET
+        "count" = CASE
+          WHEN "RateLimitCounter"."resetAt" <= ${nowDate} THEN 1
+          ELSE "RateLimitCounter"."count" + 1
+        END,
+        "resetAt" = CASE
+          WHEN "RateLimitCounter"."resetAt" <= ${nowDate} THEN ${resetAt}
+          ELSE "RateLimitCounter"."resetAt"
+        END
+      RETURNING "count", "resetAt"
+    `;
+
+    const row = rows[0];
+
+    // Rare, opportunistic cleanup so expired rows do not accumulate. A failure
+    // here must not affect the request, so it is deliberately not awaited.
+    if (Math.random() < 0.01) {
+      void prisma.rateLimitCounter
+        .deleteMany({ where: { resetAt: { lt: new Date(now - 24 * 60 * 60 * 1000) } } })
+        .catch(() => {});
+    }
+
+    return {
+      allowed: row.count <= policy.limit,
+      resetAt: row.resetAt.getTime(),
+    };
+  },
+};
+
 /** One REST command against Upstash. */
 async function upstash(command: (string | number)[]): Promise<unknown> {
   const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/+$/, "");
@@ -91,7 +149,7 @@ async function upstash(command: (string | number)[]): Promise<unknown> {
   return body.result;
 }
 
-const redisStore: RateLimitStore = {
+const upstashStore: RateLimitStore = {
   name: "upstash",
   async hit(key, policy, now) {
     // One round trip for the common case: INCR also answers "am I over the
@@ -115,18 +173,33 @@ function isHosted(): boolean {
   return Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
 }
 
+function hasUpstash(): boolean {
+  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+}
+
 let warnedAboutMemoryStore = false;
 
 function selectStore(): RateLimitStore {
-  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    return redisStore;
+  switch (process.env.KAIROS_RATE_LIMIT_STORE) {
+    case "upstash":
+      return upstashStore;
+    case "postgres":
+      return postgresStore;
+    case "memory":
+      return memoryStore;
+    default:
+      break;
   }
-  if (isHosted() && !warnedAboutMemoryStore) {
+
+  if (hasUpstash()) return upstashStore;
+  if (isHosted()) return postgresStore;
+
+  if (!warnedAboutMemoryStore) {
     warnedAboutMemoryStore = true;
-    console.warn(
-      "[kairos] rate limiting is using in-process memory, which does not survive " +
-        "between instances on a hosted deployment. Set UPSTASH_REDIS_REST_URL and " +
-        "UPSTASH_REDIS_REST_TOKEN to enable shared limits (docs/rate-limiting.md).",
+    console.info(
+      "[kairos] rate limiting uses in-process memory: correct for a single local " +
+        "process, not shared across instances. A hosted deployment selects the " +
+        "PostgreSQL store automatically (docs/rate-limiting.md).",
     );
   }
   return memoryStore;

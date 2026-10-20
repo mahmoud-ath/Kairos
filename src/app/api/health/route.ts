@@ -21,6 +21,9 @@ const SETTINGS_SCHEMA_PROBE = {
   nickname: true,
   avatarId: true,
   fontScale: true,
+  // Added after the incident where `getSettingsRecord()` selected a column that
+  // had never been migrated; the probe has to cover every column the app reads.
+  reminderHour: true,
 } as const;
 
 /**
@@ -45,6 +48,11 @@ export async function GET() {
     await prisma.category.findFirst({ select: { id: true, icon: true } });
     await prisma.task.findFirst({ select: HABIT_SCHEMA_PROBE.task });
     await prisma.habit.findFirst({ select: HABIT_SCHEMA_PROBE.habit });
+    // The reminder broadcast writes these, and the limiter reads the counter on
+    // every mutation. Both are silent when missing — the limiter fails open and
+    // the cron job just finds no devices — so the probe is what would notice.
+    await prisma.pushSubscription.findFirst({ select: { id: true, lastSentDate: true } });
+    await prisma.rateLimitCounter.findFirst({ select: { key: true, resetAt: true } });
     return NextResponse.json({ ok: true, database: "ok" });
   } catch (error) {
     console.error("[kairos] health check failed", error);

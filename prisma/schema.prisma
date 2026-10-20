@@ -181,3 +181,24 @@ model PushSubscription {
 
   @@index([userId])
 }
+
+/// One fixed-window rate-limit counter.
+///
+/// Global, not tenant-scoped: the key already names the account (or the job), and
+/// the limiter has to work before a request has resolved its settings. This is the
+/// only table the app writes outside a user's slice, which is why it holds a
+/// counter and nothing else — no user id, no request data, no history.
+///
+/// Why a table at all: a serverless instance remembers nothing between requests, so
+/// per-account limits need a shared store. Postgres is already here and the
+/// alternative (Upstash) would be a second account for one integer per window.
+model RateLimitCounter {
+  /// `kairos:rl:<bucket>:<identifier>` — see `rateLimitKey()` in lib/rate-limit.ts.
+  key     String   @id
+  /// Requests accounted for in the current window.
+  count   Int      @default(0)
+  /// When the window opens again. Past values are safe to delete.
+  resetAt DateTime
+
+  @@index([resetAt])
+}
