@@ -69,15 +69,21 @@ the `.local` pattern, which is exactly the gap most repos fall into.
 ```
 .env                    postgresql://kairos:kairos@localhost:5432/kairos   (local dev DB)
 .env.local              Supabase URL + anon key (development project)
-.env.production.local   production DATABASE_URL/DIRECT_URL + push secrets
 ```
 
-⚠️ **`.env.production.local` holds production credentials in plaintext on a dev
-machine.** It is not a code bug and it is not committed, but it has already
-caused an incident: `set -a; . ./.env.production.local` exports the production
-URLs into the *persistent* shell, after which every later `prisma` or test run in
-that terminal targets production. That is how "integration tests ran against
-production" happened. See [`troubleshooting.md`](troubleshooting.md).
+**Fixed 2026-10-20: production values no longer live in the repository.** They are
+in `~/.config/kairos/production.env` (directory 700, file 600), outside the
+working tree, and reach a command only through `scripts/with-prod-env.sh`: it
+reads the file (never sources it), refuses anything that does not point at
+`db.prisma.io`, prints the target host before running, and gives the child
+process **only** those variables — so a stale local `DATABASE_URL` cannot ride
+along and the caller's shell is never polluted.
+
+The history of this finding: `set -a; . ./.env.production.local` had already
+exported the production URLs into a persistent shell once, after which every
+later `prisma` or test run in that terminal targeted production — that is how
+"integration tests ran against production" happened. See
+[`troubleshooting.md`](troubleshooting.md).
 
 ### 2.3 Production (Vercel + Prisma Postgres + Supabase)
 
@@ -98,7 +104,7 @@ not about a bank.
 
 | # | Severity | Finding | Why it matters |
 | --- | --- | --- | --- |
-| F1 | **High** | Production credentials sit in `.env.production.local` on the dev box | One careless `source`, one backup, one screen-share away from a full data compromise. Already caused a cross-environment incident. |
+| F1 | ~~**High**~~ **Fixed 2026-10-20** | Production credentials sat in `.env.production.local` on the dev box | Moved to `~/.config/kairos/production.env` (mode 600, outside the repo) and reachable only through `scripts/with-prod-env.sh`. Residual risk is a plaintext file on the laptop, which is the P2 secret-manager item. |
 | F2 | **High** | `KAIROS_AUTH_DISABLED=true` is honoured with no environment check | A typo in Vercel turns a multi-tenant app into one shared workspace **for everyone on the internet**, and nothing in the app or the health check complains. |
 | F3 | **Medium** | No secret scanning, no pre-commit hook, no dependency audit in CI | Nothing stops the next key from being committed, and nothing tells you when a dependency is vulnerable. |
 | F4 | **Medium** | One database role does everything (`kairos`) | The runtime role can `DROP TABLE`. A SQL-injection-class bug (none known) escalates from "read rows" to "destroy the database". |
@@ -160,31 +166,62 @@ gate on `VERCEL_ENV` (or an explicit `KAIROS_ALLOW_UNAUTHENTICATED=1` opt-in) if
 you still want the Playwright suite to work — it runs `next start` with
 `KAIROS_AUTH_DISABLED=true`.
 
-**P0.2 Stop sourcing production into the shell.** Add a guard script the
-incident notes already recommend, and delete `.env.production.local` from the
-repo root once the values are in Vercel:
+**P0.2 Stop sourcing production into the shell. — Shipped 2026-10-20.**
+`scripts/with-prod-env.sh` is the only sanctioned way to reach production, and
+`.env.production.local` is gone from the repository (the values moved to
+`~/.config/kairos/production.env`, mode 600). The script is stricter than the
+draft below in three ways that matter:
+
+- it **reads** the file line by line instead of sourcing it, so a command
+  accidentally left in that file cannot execute;
+- it hands the child process **only** PATH, HOME and the variables from the file
+  (`env -i`), so an exported local `DATABASE_URL` cannot accompany the command;
+- it refuses a file that the rest of the machine can read (`chmod 600`) and any
+  host that is not `KAIROS_PROD_DB_HOST` (default `db.prisma.io`), and
+  `--dry-run`/`--print` show the target without running anything.
 
 ```bash
-# scripts/with-prod-env.sh — the ONLY sanctioned way to reach production
-set -eu
-env_file="${1:-.env.production.local}"
-[ -f "$env_file" ] || { echo "missing $env_file" >&2; exit 1; }
-# shellcheck disable=SC1090
-. "$env_file"
-case "${DIRECT_URL:-}" in
-  postgres*@db.prisma.io:*) ;;
-  *) echo "ABORT: DIRECT_URL does not look like production" >&2; exit 1 ;;
-esac
-"${@:2}"
+scripts/with-prod-env.sh bunx prisma migrate status   # read-only, proves the chain
+scripts/with-prod-env.sh bunx prisma migrate deploy
+scripts/with-prod-env.sh --dry-run bunx prisma migrate deploy   # checks only
 ```
 
-**P0.3 Secret scanning.** Two layers, both free:
-`.gitignore` already covers the files; add `gitleaks` as a pre-commit hook and as
-a CI job (see [`ci-cd.md`](ci-cd.md)).
+Verified against the live database: `db.prisma.io`, 7/7 migrations, "Database
+schema is up to date", and a shell that still had no production variables
+afterwards.
+
+**P0.3 Secret scanning. — Shipped 2026-10-20.** Three layers, all free:
+
+| Layer | Artifact | Notes |
+| --- | --- | --- |
+| Config | `.gitleaks.toml` | gitleaks' own rules, allowlists **by path only** (avatar artwork is base64 PNG; docs and tests hold placeholders). No rule is disabled |
+| Pre-commit | `.githooks/pre-commit` + `scripts/install-hooks.sh` | scans staged content (`gitleaks git --staged`); warns instead of blocking when gitleaks is not installed, because CI is the enforcement point |
+| CI | `secrets` job | full history (`fetch-depth: 0`), pinned release binary rather than a marketplace action |
+
+Verified both ways: 62 commits scanned clean, and a planted `sk_live_…` key fails
+both the hook and the job. A scanner that only ever reports "clean" is untested.
 
 ### P1 — next iteration
 
-**P1.1 Split the database roles.** Prisma needs DDL only for `migrate`:
+**P1.1 Split the database roles. — Blocked by the provider (2026-10-20).**
+
+`prisma/roles.sql` is written and verified on a local PostgreSQL: the DML-only role
+cannot `CREATE TABLE` (`permission denied for schema public`) or `TRUNCATE`, and
+all 30 integration tests pass connected as it. On Prisma Postgres however:
+
+```
+Error: ERROR: restricted superuser cannot create roles
+```
+
+So the split cannot be applied to the current production database. It is kept as a
+ready artifact (for a self-hosted move), and the risk is documented as accepted with
+compensating controls — the decisive one being that **`src/` contains no dynamic SQL
+at all**, which `scripts/check-boundaries.sh` now enforces in CI. See
+[`database-roles.md`](database-roles.md).
+
+The original plan follows.
+
+Prisma needs DDL only for `migrate`:
 
 ```sql
 CREATE ROLE kairos_app LOGIN PASSWORD '…';
@@ -229,7 +266,7 @@ Order matters: rotate the thing that grants the most access first.
 | 2 | Supabase anon key | Supabase → Settings → API → roll JWT secret | **Every user is signed out.** Announce first |
 | 3 | `KAIROS_CRON_SECRET` | `openssl rand -base64 32` → Vercel → redeploy | Scheduler 401s until the new value is in the cron config |
 | 4 | VAPID pair | `bunx web-push generate-vapid-keys --json` → update three variables → redeploy | **Every subscription is dead**; every device must re-enable notifications |
-| 5 | `.env.production.local` | delete the file, `git log -S` for each value | — |
+| 5 | Production env file | move it out of the repo (`~/.config/kairos/production.env`, mode 600) and rotate anything that was ever echoed | — |
 
 After any rotation, confirm what the running build actually uses:
 
@@ -270,5 +307,7 @@ curl -s  https://kairos-zeta-ivory.vercel.app/api/health                        
    needs an explicit second env var rather than reusing `NODE_ENV`.
 2. Is the health route consumed by anything you control (uptime monitor, Docker
    healthcheck)? That decides whether P1.3 is a header or a body change.
-3. Is `.env.production.local` needed on this machine for `vercel env` operations,
-   or can it be replaced with `vercel env pull` into a temporary file?
+3. ~~Is `.env.production.local` needed on this machine for `vercel env`
+   operations?~~ **Answered 2026-10-20:** it is not; the values live outside the
+   repository and the Vercel CLI talks to the dashboard on its own. `vercel env
+   pull` into a temporary file is the supported way to refresh them.

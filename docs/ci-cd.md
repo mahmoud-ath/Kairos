@@ -18,6 +18,8 @@ describes what to build and why, in the order that removes the most risk first.
 | No CI | `ls -a .github` → no `.github` directory |
 | Deploy | Vercel's Git integration: push to `main` → build → deploy |
 | Checks | all manual, on one laptop: `typecheck`, `lint`, `test`, `test:integration`, `test:e2e` |
+| Secret scanning | none | `secrets` job: gitleaks over full history, plus a pre-commit hook |
+| Repository guards | none | `scripts/check-boundaries.sh` (dynamic SQL, prod env file, script syntax) in the `quality` job |
 | Migrations | manual `prisma migrate deploy` over the **direct** host, by hand |
 | Rollback | Vercel "promote previous deployment" (code only — schema migrations are *not* rolled back) |
 
@@ -57,7 +59,7 @@ would have caught all three before a user saw a 500.
 | Concern | Local | Vercel |
 | --- | --- | --- |
 | Database | `localhost:5432/kairos` (native PG 18 on this machine) | Prisma Postgres, pooled + direct hosts |
-| Env source | `.env`, `.env.local`, `.env.production.local` | dashboard, per environment |
+| Env source | `.env`, `.env.local` | dashboard, per environment |
 | `NEXT_PUBLIC_*` | read at build/start | **frozen at build**, a change needs a redeploy |
 | Process | one `next dev` | many serverless instances |
 | Migrations | you run them | **nothing runs them** |

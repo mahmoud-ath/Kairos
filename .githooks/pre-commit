@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#
+# Pre-commit secret scan.
+#
+# Install once per clone:
+#
+#   git config core.hooksPath .githooks
+#
+# (scripts/install-hooks.sh does that for you.)
+#
+# Design notes:
+#
+# - It scans **staged content**, not the working tree, so a file you edited but did
+#   not stage cannot fail your commit and an ignored `.env` is never read.
+# - If gitleaks is not installed the hook prints how to install it and allows the
+#   commit. A missing developer tool must not block work; CI is the enforcement
+#   point and it always has the binary.
+# - Same config file as CI, so what passes here passes there.
+set -euo pipefail
+
+config="$(git rev-parse --show-toplevel)/.gitleaks.toml"
+
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks_bin="$(command -v gitleaks)"
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  # Fall back to the container, so nobody needs a Go toolchain. `docker info`
+  # matters: a docker CLI with no daemon (a laptop, most CI runners) would
+  # otherwise fail the hook instead of falling through to the warning below.
+  echo "gitleaks is not installed on PATH; using the container image."
+  docker run --rm -v "$(git rev-parse --show-toplevel)":/repo -w /repo \
+    ghcr.io/gitleaks/gitleaks:v8.28.0 git --staged --config /repo/.gitleaks.toml --redact "$@"
+  exit $?
+else
+  cat >&2 <<'MSG'
+⚠ gitleaks is not installed, so the pre-commit secret scan was skipped.
+  Install it:  brew install gitleaks     (or see github.com/gitleaks/gitleaks)
+  CI still scans every commit, so a leak will not reach main.
+MSG
+  exit 0
+fi
+
+exec "$gitleaks_bin" git --staged --config "$config" --redact "$@"

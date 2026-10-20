@@ -2,8 +2,9 @@ name: CI
 
 # Every phase of docs/refactor-roadmap.md lands on this pipeline.
 #
-# Four jobs, each answering a question a laptop check cannot answer in a way that
+# Five jobs, each answering a question a laptop check cannot answer in a way that
 # cannot be forgotten:
+#   secrets      — is a credential about to be committed?
 #   quality      — does it type-check, lint and pass the pure rules?
 #   integration  — does the tenancy boundary still hold against a real Postgres?
 #   e2e          — does the built app still work through a browser?
@@ -32,6 +33,31 @@ env:
   POSTGRES_PASSWORD: kairos
 
 jobs:
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: a credential is a problem the day it is committed, even
+          # if a later commit deleted it.
+          fetch-depth: 0
+
+      # The release binary instead of the marketplace action: no licence, no
+      # third-party action pinned at a moving tag, and the version is explicit.
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.28.0"
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # Allowlists in .gitleaks.toml are by path (avatar artwork is base64 PNG,
+      # docs and tests hold placeholders). No rule is disabled.
+      - name: Scan every commit
+        run: gitleaks git . --config .gitleaks.toml --redact --verbose
+
   quality:
     name: typecheck · lint · unit
     runs-on: ubuntu-latest
@@ -54,6 +80,11 @@ jobs:
       - run: bun run typecheck
 
       - run: bun run lint
+
+      # Things ESLint cannot see: dynamic SQL, a production env file back in the
+      # tree, a script that no longer parses. See scripts/check-boundaries.sh.
+      - name: Repository guards
+        run: bash scripts/check-boundaries.sh
 
       - run: bun run test
 

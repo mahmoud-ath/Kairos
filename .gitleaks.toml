@@ -1,0 +1,52 @@
+# gitleaks — secret scanning for Kairos
+#
+# Two things this file has to get right:
+#
+# 1. **Catch real leaks.** The rule set is gitleaks' own (extend.useDefault), which
+#    covers the shapes this project actually holds: database URLs with passwords,
+#    Supabase JWTs and service-role keys, VAPID private keys (base64url, 43 chars),
+#    and the cron secret.
+# 2. **Not cry wolf.** Kairos ships 34 avatars that are SVG wrappers around
+#    base64 PNGs, plus documentation full of placeholder connection strings. A
+#    scanner that flags those is a scanner everyone learns to ignore, so they are
+#    allowlisted explicitly and narrowly — by path, not by disabling rules.
+#
+# Run locally:  gitleaks detect --source . --config .gitleaks.toml --redact
+# In CI:        the `secrets` job in .github/workflows/ci.yml
+# Pre-commit:   .githooks/pre-commit (install with scripts/install-hooks.sh)
+
+title = "Kairos"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths that legitimately contain high-entropy text or example values"
+
+# Artwork. Every file here is an SVG wrapping a base64-encoded PNG — random-looking
+# by construction, and public by design.
+paths = [
+  # Avatar artwork (base64 PNG payloads).
+  '''public/avatars/.*\.svg''',
+  # The logo mark, same reason.
+  '''public/kairos-logo/.*''',
+  # Documentation and templates: placeholders like `postgresql://user:password@host`
+  # and `sk_…` examples are the point of these files.
+  '''docs/.*\.md''',
+  '''\.env\.example''',
+  '''DEPLOYMENT\.md''',
+  '''DEPLOY_OVERVIEW\.md''',
+  '''VERCEL_ENV_SETUP\.md''',
+  '''README\.md''',
+  '''CONTRIBUTING\.md''',
+  # Tests carry deliberate non-secrets: fake VAPID pairs, dummy request headers,
+  # and "this is not valid JSON" fixtures.
+  '''tests/.*''',
+  # The lockfile is a wall of integrity hashes.
+  '''bun\.lock''',
+  '''package-lock\.json''',
+]
+
+# Nothing is allowlisted by value on purpose: a real secret that appears in these
+# paths would be indistinguishable from a placeholder, and the whole point is that
+# a committed credential fails the build.
