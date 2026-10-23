@@ -286,12 +286,15 @@ export function buildSections<T extends TaskLike>({
     }
 
     case "all": {
-      // Every day that has work, oldest first — so yesterday and earlier days
-      // are visible instead of being folded into a single "overdue" pile.
+      // Every day that has work, latest first: the furthest planned day leads,
+      // then today, then the days that are already behind us — so yesterday and
+      // earlier days are still visible instead of being folded into a single
+      // "overdue" pile. Unscheduled and completed work close the list, because
+      // neither belongs to a day.
       const { dates, byDate, unscheduled } = groupByDay(visible, today);
-      const sections: TaskSection<T>[] = dates.map((date) =>
-        dateSection(date, today, byDate.get(date) ?? []),
-      );
+      const sections: TaskSection<T>[] = [...dates]
+        .sort((a, b) => compareDateOnly(b, a))
+        .map((date) => dateSection(date, today, byDate.get(date) ?? []));
       if (unscheduled.length > 0) {
         sections.push(
           plainSection("unscheduled", "Unscheduled", "unscheduled", unscheduled),

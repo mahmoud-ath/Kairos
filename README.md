@@ -119,8 +119,8 @@ scores (Total Blocking Time especially) are not representative.
 Three views, always in the sidebar:
 
 - **Today** — what you planned for today, plus overdue work in its own section
-- **All Tasks** — every task grouped by day, from the earliest past day
-  (*Yesterday* and earlier) through today and the future, then *Unscheduled*
+- **All Tasks** — every task grouped by day, from the furthest planned day back
+  through today and the earlier days (*Yesterday* and before), then *Unscheduled*
 - **Completed** — finished tasks, newest first
 - **Category views** — overdue / today / future days / unscheduled for one category
 

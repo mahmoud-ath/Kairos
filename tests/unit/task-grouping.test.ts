@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { UNCATEGORIZED_ID } from "@/lib/categories";
+import { compareDateOnly } from "@/lib/dates";
 import {
   buildSections,
   buildViewCounts,
@@ -116,7 +117,7 @@ describe("today view", () => {
 });
 
 describe("all tasks view", () => {
-  it("groups by day, including past days, then unscheduled and completed", () => {
+  it("groups by day, latest day first, then unscheduled and completed", () => {
     const sections = buildSections({
       scope: { kind: "all" },
       tasks: allTasks,
@@ -125,16 +126,30 @@ describe("all tasks view", () => {
     });
 
     expect(sections.map((section) => [section.title, section.kind])).toEqual([
-      ["Wed, Sep 30", "past"],
-      ["Thu, Oct 1", "past"],
-      ["Fri, Oct 2", "past"],
-      ["Yesterday", "past"],
-      ["Today", "today"],
-      ["Tomorrow", "upcoming"],
       ["Fri, Oct 9", "upcoming"],
+      ["Tomorrow", "upcoming"],
+      ["Today", "today"],
+      ["Yesterday", "past"],
+      ["Fri, Oct 2", "past"],
+      ["Thu, Oct 1", "past"],
+      ["Wed, Sep 30", "past"],
       ["Unscheduled", "unscheduled"],
       ["Completed", "completed"],
     ]);
+  });
+
+  it("runs from the furthest day back to the earliest, with no day repeated", () => {
+    const sections = buildSections({
+      scope: { kind: "all" },
+      tasks: allTasks,
+      today: TODAY,
+      includeCompleted: false,
+    });
+    const dates = sections
+      .map((section) => section.date)
+      .filter((date): date is string => date !== null);
+
+    expect(dates).toEqual([...dates].sort(compareDateOnly).reverse());
   });
 
   it("shows yesterday as its own group instead of an overdue pile", () => {
