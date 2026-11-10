@@ -22,9 +22,10 @@ export function Hero() {
         </h1>
 
         <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-          Kairos groups your work by category and date, breaks the big things into
-          subtasks, and shows you where your progress actually comes from — without the
-          labels, priorities and settings that turn a task list into another project.
+          Kairos groups your work by category and date, keeps recurring habits on a month
+          grid, breaks the big things into subtasks, and shows you where your progress
+          actually comes from — without the labels, priorities and settings that turn a
+          task list into another project.
         </p>
 
         <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">

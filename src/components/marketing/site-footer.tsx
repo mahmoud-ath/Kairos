@@ -18,7 +18,8 @@ export function SiteFooter() {
           <div className="max-w-xs">
             <Brand />
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              An open-source task manager that organises work by category and date.
+              An open-source task manager and habit tracker that organises work by
+              category and date.
             </p>
           </div>
 

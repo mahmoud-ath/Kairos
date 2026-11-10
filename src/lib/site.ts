@@ -15,7 +15,7 @@ export const SITE_URL = (
 export const SITE_NAME = "Kairos";
 
 export const SITE_DESCRIPTION =
-  "Kairos is an open-source, self-hosted task manager that organises work by category and date, with subtasks, drag and drop, statistics and JSON backups.";
+  "Kairos is an open-source, self-hosted task manager and habit tracker that organises work by category and date, with subtasks, drag and drop, a month grid for habits, statistics, an optional daily reminder and JSON backups.";
 
 /**
  * Private deployments can opt out of search engines entirely with

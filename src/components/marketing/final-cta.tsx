@@ -9,11 +9,12 @@ export function FinalCta() {
       <div className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
         <div className="rounded-lg border border-border bg-card px-6 py-14 text-center sm:px-12">
           <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Start with one task
+            Start with one task — or one habit
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-muted-foreground">
             Create an account and your workspace is ready. It is free, and it stays
-            yours — every account gets its own private tasks, categories and settings.
+            yours — every account gets its own private tasks, habits, categories and
+            settings.
           </p>
 
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

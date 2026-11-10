@@ -15,10 +15,10 @@ import { SITE_NAME } from "@/lib/site";
  * served identically to signed-out and signed-in visitors and to crawlers.
  */
 
-const TITLE = `${SITE_NAME} — organise your tasks, focus on what matters`;
+const TITLE = `${SITE_NAME} — tasks, habits and a clear view of your week`;
 
 const DESCRIPTION =
-  "Kairos is a free, open-source task manager that organises work by category and date, with subtasks, drag and drop, statistics and JSON backups. Every account gets its own private workspace.";
+  "Kairos is a free, open-source task manager and habit tracker: categories, subtasks, drag and drop, a month grid for habits, statistics, an optional daily reminder and JSON backups. Every account gets its own private workspace.";
 
 export const metadata: Metadata = {
   // `absolute` because the root layout applies a "%s · Kairos" template, which

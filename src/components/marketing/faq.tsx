@@ -22,9 +22,19 @@ const QUESTIONS = [
       "For the hosted version, yes — an email address or a Google account. That account is what gives you a private workspace, so your tasks are kept separate from everyone else's. If you self-host, you run the app against your own database and decide for yourself whether sign-in is required.",
   },
   {
-    question: "Can I self-host it?",
+    question: "Is it a habit tracker as well as a task manager?",
     answer:
-      "Yes. Kairos is a standard Next.js server plus a PostgreSQL database, and the whole thing is MIT licensed. Point it at your own database and deploy it wherever you like — a VPS, a home server, or a container on your own hardware.",
+      "Yes. A habit is a rule — which weekdays it is due, and from which day — and today's instance shows up in Today like any other task. Progress is read from that completion history, which is what makes the month grid, the streak and the 30-day trend possible. Habits are kept out of All Tasks and Completed on purpose: they are not a backlog to clear.",
+  },
+  {
+    question: "Are there reminders?",
+    answer:
+      "One daily reminder, if you want it. Enable notifications on a device and choose the hour in Settings; the hour is read in your account's timezone and the same short message goes out once a day. There are deliberately no per-task reminders and no email digests. Push needs your browser's permission, and a self-hosted copy supplies its own VAPID keys.",
+  },
+  {
+    question: "What can I organise tasks by?",
+    answer:
+      "Categories and dates. A task belongs to one category, can be scheduled for a day, can carry a due date, and can have one level of subtasks. Categories carry a colour and an icon, and anything you have not filed yet collects in an Uncategorized bucket. There are deliberately no labels and no priorities: the category is the only grouping, which is what keeps the decision about what to do next quick.",
   },
   {
     question: "Is my data private?",
@@ -32,9 +42,14 @@ const QUESTIONS = [
       "Each account has its own private workspace, and that separation is enforced in the data layer rather than only in the interface — one account cannot read another's tasks. On the hosted version your tasks live in a PostgreSQL database operated by the service; they are not stored only on your device. If you would rather keep every byte on hardware you control, self-host.",
   },
   {
-    question: "What can I organise tasks by?",
+    question: "Can I self-host it?",
     answer:
-      "Categories and dates. A task belongs to one category, can be scheduled for a day, can carry a due date, and can have one level of subtasks. There are deliberately no labels and no priorities: the category is the only grouping, which is what keeps the decision about what to do next quick.",
+      "Yes. Kairos is a standard Next.js server plus a PostgreSQL database, and the whole thing is MIT licensed. Point it at your own database and deploy it wherever you like — a VPS, a home server, or a container on your own hardware. Backups are plain JSON, so moving data in and out is a file, not a migration project.",
+  },
+  {
+    question: "Does it work offline?",
+    answer:
+      "No. Every screen is rendered from your database, so Kairos needs a connection. That is a deliberate trade: the alternative is a sync engine and the conflict resolution that comes with it. The JSON export means your data is never trapped, and a backup can be re-imported into any Kairos instance.",
   },
 ] as const;
 

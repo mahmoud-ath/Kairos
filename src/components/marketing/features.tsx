@@ -1,77 +1,79 @@
 import {
   BarChart3,
+  BellRing,
   CalendarDays,
-  Code2,
+  Command,
   Download,
   FolderTree,
-  GripVertical,
   ListTree,
-  Palette,
+  Repeat,
   ShieldCheck,
 } from "lucide-react";
 
 /**
  * Feature list.
  *
- * Every entry describes something the app actually does today. There are no
- * testimonials, user counts, benchmarks or security claims — and nothing about
- * recurring tasks, reminders, notifications, calendar sync, teams,
- * collaboration, labels, priorities or attachments, none of which exist.
+ * Every entry describes something the app actually does today, including the
+ * parts added after this page was first written: habits, the daily reminder,
+ * icons and colours on categories, and keyboard shortcuts. There are still no
+ * testimonials, user counts or benchmarks — and nothing about calendar sync,
+ * teams, collaboration, labels, priorities, attachments, email digests or
+ * per-task reminders, none of which exist.
  */
 const FEATURES = [
   {
     icon: CalendarDays,
     title: "Today, and everything else",
     description:
-      "Today shows what is due now. All Tasks shows the rest, grouped by day, with anything undated collected at the end under Unscheduled.",
+      "Today shows what is due now. All Tasks lists the rest grouped by day, latest first, with anything undated collected at the end under Unscheduled.",
+  },
+  {
+    icon: Repeat,
+    title: "Habits that come back on their own",
+    description:
+      "Pick the weekdays a habit should happen and today's instance appears in Today. A missed day is simply missing, never a backlog — and a month grid with a 30-day trend shows the streak.",
   },
   {
     icon: FolderTree,
-    title: "Organised by category and date",
+    title: "Categories with a colour and an icon",
     description:
-      "Group work by category and schedule it across past, present and future days. There is no inbox to triage first.",
+      "One category per task, each with its own colour and icon in the sidebar. Work you have not filed yet collects in an Uncategorized bucket instead of disappearing.",
   },
   {
     icon: ListTree,
-    title: "Subtasks, one level deep",
+    title: "Subtasks and drag and drop",
     description:
-      "Break a task into subtasks and watch the counter move as you finish them. A subtask keeps its parent's category.",
-  },
-  {
-    icon: GripVertical,
-    title: "Drag and drop",
-    description:
-      "Reorder tasks and move them between days with the pointer — or from the keyboard, which the drag handles support too.",
+      "Break a task into one level of subtasks — they inherit the parent's category — then reorder with the pointer or the keyboard. Dropping a task onto another nests it.",
   },
   {
     icon: BarChart3,
-    title: "Completion tracking",
+    title: "Statistics that explain the week",
     description:
-      "Every completion is recorded, so the statistics page can show where your progress actually came from instead of just a total.",
+      "A completion donut, a 7- or 30-day history and a breakdown by category, so you can see where the week went instead of just a total. Habit check-ins are counted apart from tasks.",
   },
   {
-    icon: Palette,
-    title: "Theme and preferences",
+    icon: BellRing,
+    title: "A reminder at the hour you choose",
     description:
-      "Light, dark or follow your system, plus your timezone and which day your week starts — applied consistently across the app.",
+      "Switch on one daily push notification and pick the hour — it is read in your own timezone. Nothing is sent until you enable it on a device, there are no per-task pings, and it stops with one tap.",
+  },
+  {
+    icon: Command,
+    title: "Keyboard-first, and filterable",
+    description:
+      "Shift + T for Today, Shift + H for Habits, / to filter, n for a new task, ? for the full list — all of it also works with a pointer, and the filter box sits in the top bar.",
   },
   {
     icon: Download,
-    title: "JSON backup and export",
+    title: "JSON backup that includes habits",
     description:
-      "Export tasks, subtasks, categories, history and settings as a versioned JSON file, and import it back. Your data stays portable.",
+      "Export tasks, subtasks, habits, categories, history and settings as one versioned JSON file, then import it back. Nothing is locked in.",
   },
   {
     icon: ShieldCheck,
-    title: "Your own private workspace",
+    title: "Private by construction, open source",
     description:
-      "Each account gets its own tasks, categories and settings. That separation is enforced in the data layer, not just hidden in the interface.",
-  },
-  {
-    icon: Code2,
-    title: "Open source and self-hostable",
-    description:
-      "MIT licensed. Use the hosted version, or run your own copy against your own PostgreSQL database and keep everything in-house.",
+      "Each account gets its own workspace, and that separation is enforced in the data layer rather than only hidden in the interface. MIT licensed: use the hosted version, or run your own against your own PostgreSQL.",
   },
 ] as const;
 
@@ -86,7 +88,8 @@ export function Features() {
           </h2>
           <p className="mt-3 text-base leading-relaxed text-muted-foreground">
             Kairos is deliberately small. It keeps the parts that help you decide what to
-            do next, and leaves out the parts that turn a task list into another project.
+            do next — a day view, habits, categories and a weekly read — and leaves out
+            the parts that turn a task list into another project.
           </p>
         </div>
 
