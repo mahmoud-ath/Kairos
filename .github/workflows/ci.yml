@@ -38,7 +38,7 @@ jobs:
     name: secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history: a credential is a problem the day it is committed, even
           # if a later commit deleted it.
@@ -63,7 +63,7 @@ jobs:
     name: dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -93,7 +93,7 @@ jobs:
     name: typecheck · lint · unit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -143,7 +143,7 @@ jobs:
       DATABASE_URL: postgresql://kairos:kairos@localhost:5432/kairos
       DIRECT_URL: postgresql://kairos:kairos@localhost:5432/kairos
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -194,7 +194,7 @@ jobs:
       DIRECT_URL: postgresql://kairos:kairos@localhost:5432/kairos_e2e
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3211
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -247,7 +247,7 @@ jobs:
       DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
       DIRECT_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
