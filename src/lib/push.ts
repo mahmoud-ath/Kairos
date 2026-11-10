@@ -142,6 +142,34 @@ export function isValidPushEndpoint(value: unknown): value is string {
   }
 }
 
+/**
+ * The push services Kairos is willing to deliver to.
+ *
+ * `isValidPushEndpoint` only proves a value *looks* like an endpoint; it says
+ * nothing about where it points. A subscription is a URL this server POSTs to
+ * later, so without this list any account could aim the sender at a host of its
+ * own choosing — a blind SSRF primitive reachable through "send test".
+ *
+ * Every browser that implements Web Push hands out an endpoint on one of these
+ * providers, so this narrows what the server will contact without narrowing what
+ * a real device can register. A leading dot matches any subdomain.
+ */
+export const PUSH_SERVICE_HOSTS = [
+  "fcm.googleapis.com", // Chrome, Edge, Android
+  "updates.push.services.mozilla.com", // Firefox
+  "web.push.apple.com", // Safari
+  ".notify.windows.com", // Windows Notification Service
+] as const;
+
+/** Is this endpoint hosted by a provider Kairos actually delivers to? */
+export function isKnownPushService(value: unknown): value is string {
+  if (!isValidPushEndpoint(value)) return false;
+  const host = new URL(value).hostname.toLowerCase();
+  return PUSH_SERVICE_HOSTS.some((allowed) =>
+    allowed.startsWith(".") ? host.endsWith(allowed) : host === allowed,
+  );
+}
+
 const BASE64_PATTERN = /^[A-Za-z0-9_\-+/]+=*$/;
 
 /**

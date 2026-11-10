@@ -113,6 +113,40 @@ not about a bank.
 | F7 | **Low** | Backup export is a plaintext JSON of everything | Correct as a feature; worth stating explicitly that the file is as sensitive as the database. |
 | F8 | **Low** | `KAIROS_ALLOWED_EMAILS` is still documented although the app is public | The handbook warns about it; the variable remains one copy-paste from locking out real users. |
 
+**Status 2026-11-09** — F2 is fixed (`isUnauthenticatedModeEnabled()` refuses the
+switch on any Vercel deployment). F3 is closed: gitleaks runs as a pre-commit hook
+and a CI job, and dependencies are now audited in CI with Dependabot on top. See
+§2.5 for the scan that closed them.
+
+### 2.5 Audit of 2026-11-09 (pre-launch)
+
+Run before announcing the app publicly. Tools: `gitleaks git .` (69 commits),
+Semgrep (`p/typescript`, `p/react`, `p/nextjs`, `p/owasp-top-ten`, `p/secrets`,
+`p/nodejsscan`), `bun audit`, the integration suite, and `curl` probes against
+the production deployment.
+
+**Verified, no action:** secret history clean · Semgrep's six findings triaged to
+false positives (two `Math.random` uses that are not security decisions, a
+client-side password-match compare, two linear anchored regexes, `LOCAL_USER_ID`)
+· every Server Action resolves the tenant from the session · 12/12 cross-tenant
+integration tests pass · `/api/cron/*` 401 without the secret · no privileged key
+in the client bundle · one parameterised `$queryRaw`.
+
+**Fixed in this pass:** `next` 15.5.27 → **15.5.28** (clears the critical
+image-optimizer RCE and the unauthenticated Server Action DoS) · Web Push
+endpoints are now restricted to known providers (`PUSH_SERVICE_HOSTS`), closing a
+blind SSRF reachable from "send test" · `.env` / `.env.local` moved to mode 600 ·
+`bun audit --prod --audit-level=critical` added to CI · Dependabot configured for
+bun, GitHub Actions and Docker · `SECURITY.md` added.
+
+**Accepted risks (documented, not fixed):**
+
+| # | Finding | Why it is accepted |
+| --- | --- | --- |
+| A1 | `zod@3.25.76` — CVE-2023-54404 (memory growth validating oversized arrays) | The advisory needs an *unbounded* array schema. Every array in `lib/backup.ts` is length-bounded (500 / 50 000 / 500 000) and the Server Action body is capped at 1 MB by Next, so the worst input is far below the amplification the advisory describes. Upgrading to zod 4 is a separate, code-touching migration. |
+| A2 | `postcss` advisories via `next` | A build-time CSS parser; no request in production feeds it attacker-controlled CSS. |
+| A3 | Supabase `mailer_autoconfirm: true` | **Operator action, not code:** email confirmation and CAPTCHA are dashboard settings. Until they are on, anyone can register an address they do not own. Tracked in §4 P0. |
+
 ---
 
 ## 3. Research grounding

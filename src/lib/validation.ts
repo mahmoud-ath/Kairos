@@ -18,6 +18,7 @@ import {
 } from "@/lib/constants";
 import { DATE_ONLY_PATTERN, isValidDateOnly, isValidTimeZone } from "@/lib/dates";
 import {
+  isKnownPushService,
   isValidPushEndpoint,
   isValidReminderHour,
   isValidSubscriptionKey,
@@ -328,7 +329,10 @@ export const pushSubscriptionSchema = z.object({
   endpoint: z
     .string()
     .trim()
-    .refine(isValidPushEndpoint, "That is not a valid notification endpoint."),
+    .refine(isValidPushEndpoint, "That is not a valid notification endpoint.")
+    // Shape only says "an https URL". Delivery is a server-side POST, so the host
+    // must be a real push provider or the endpoint becomes an SSRF primitive.
+    .refine(isKnownPushService, "That device's push service is not supported."),
   p256dh: z
     .string()
     .trim()

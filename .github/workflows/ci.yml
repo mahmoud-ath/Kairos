@@ -5,6 +5,7 @@ name: CI
 # Five jobs, each answering a question a laptop check cannot answer in a way that
 # cannot be forgotten:
 #   secrets      — is a credential about to be committed?
+#   dependencies — is a runtime package on a known advisory right now?
 #   quality      — does it type-check, lint and pass the pure rules?
 #   integration  — does the tenancy boundary still hold against a real Postgres?
 #   e2e          — does the built app still work through a browser?
@@ -57,6 +58,36 @@ jobs:
       # docs and tests hold placeholders). No rule is disabled.
       - name: Scan every commit
         run: gitleaks git . --config .gitleaks.toml --redact --verbose
+
+  dependencies:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Blocks on critical runtime advisories only.
+      #
+      # `--prod` is deliberate: the dev-only stacks (Vitest, tinypool, esbuild,
+      # Vite) cannot reach a deployment, and a permanently red build for those
+      # teaches people to ignore this job. A critical runtime advisory — the class
+      # that produced the Next.js image-optimizer RCE — fails here.
+      - name: Audit runtime dependencies
+        run: bun audit --prod --audit-level=critical
+
+      # The rest is reported, not enforced. Two high findings are accepted and
+      # documented in docs/security-environment.md §2.4: zod's array-issue
+      # accumulation (every imported array is length-bounded and the Server Action
+      # body is capped at 1 MB) and PostCSS (compile-time only, no runtime parser).
+      - name: Report remaining advisories
+        continue-on-error: true
+        run: bun audit --prod --audit-level=high
 
   quality:
     name: typecheck · lint · unit

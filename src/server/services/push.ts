@@ -11,6 +11,7 @@ import {
   REMINDER_TTL_SECONDS,
   REMINDER_TOPIC,
   isExpiredSubscriptionStatus,
+  isKnownPushService,
   isReminderHourDue,
   isValidPushEndpoint,
   isValidSubscriptionKey,
@@ -214,6 +215,13 @@ export async function subscribeDevice(
     !isValidSubscriptionKey(input.auth, "auth")
   ) {
     throw new ServiceError("That notification subscription is not valid.");
+  }
+
+  // Shape is not enough here: the endpoint is where the broadcast will POST, so
+  // it has to belong to a real push service. Otherwise any account could turn
+  // this server into a request sender pointed at its own host (blind SSRF).
+  if (!isKnownPushService(input.endpoint)) {
+    throw new ServiceError("That device's push service is not supported.");
   }
 
   const row = await prisma.pushSubscription.upsert({

@@ -1,0 +1,57 @@
+# Keep the two surfaces that actually caused incidents in this repo up to date.
+#
+# History that justifies each entry:
+#   - every outage so far was a schema drift, not a dependency — but the Next.js
+#     advisories of 2026 (Server Action DoS, image-optimizer RCE) were found only
+#     by a manual `bun audit`, so runtime packages now have an owner;
+#   - the CI actions are pinned by tag, and a stale action is a stale runner.
+#
+# Dependabot reads the text `bun.lock` (supported since Bun 1.1.39).
+
+version: 2
+
+updates:
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Africa/Casablanca"
+    open-pull-requests-limit: 5
+    # Security updates always open immediately, whatever the cooldown below.
+    groups:
+      # One PR for the patch-level noise, so a security PR stays legible.
+      patches:
+        applies-to: version-updates
+        update-types: ["patch"]
+      minor:
+        applies-to: version-updates
+        update-types: ["minor"]
+    ignore:
+      # Majors are deliberate, code-touching events here (Prisma 8 is a rewrite,
+      # zod 4 changes error-map APIs, Next 16 changes caching). They get a branch
+      # and a migration note, not a bot PR.
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "zod"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"

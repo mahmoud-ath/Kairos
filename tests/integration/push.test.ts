@@ -36,7 +36,7 @@ const alice = `test-push-alice-${randomUUID()}`;
 const bob = `test-push-bob-${randomUUID()}`;
 
 /** Every endpoint this suite creates, so its own rows can be told apart. */
-const PREFIX = "https://push.example.test/";
+const PREFIX = "https://fcm.googleapis.com/fcm/send/kairos-test-";
 
 /** The timezone the tests reason in — the reminder's home, and UTC+1 outside Ramadan. */
 const CASABLANCA = "Africa/Casablanca";
@@ -164,6 +164,21 @@ describe("device ownership", () => {
     await expect(
       subscribeDevice(alice, { endpoint: `${PREFIX}broken`, p256dh, auth: "" }),
     ).rejects.toThrow(/not valid/i);
+  });
+
+  it("refuses an https endpoint that is not a push service", async () => {
+    // Well formed, but the server would end up POSTing to it — the SSRF vector.
+    await expect(
+      subscribeDevice(alice, {
+        endpoint: "https://169.254.169.254/latest/meta-data/",
+        p256dh,
+        auth,
+      }),
+    ).rejects.toThrow(/push service is not supported/i);
+    await expect(
+      subscribeDevice(alice, { endpoint: "https://internal.example/notify", p256dh, auth }),
+    ).rejects.toThrow(/push service is not supported/i);
+    expect(await scopedPrisma(alice).pushSubscription.count()).toBe(0);
   });
 });
 

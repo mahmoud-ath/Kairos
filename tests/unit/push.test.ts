@@ -14,6 +14,7 @@ import {
   REMINDER_URL,
   formatReminderHour,
   isExpiredSubscriptionStatus,
+  isKnownPushService,
   isReminderHourDue,
   isRetryableDelivery,
   isValidPushEndpoint,
@@ -64,6 +65,23 @@ describe("push endpoints", () => {
   it("accepts an https endpoint from a push service", () => {
     expect(isValidPushEndpoint("https://fcm.googleapis.com/fcm/send/abc-123")).toBe(true);
     expect(isValidPushEndpoint("https://updates.push.services.mozilla.com/wpush/v2/xyz")).toBe(true);
+  });
+
+  it("names the providers delivery is allowed to reach", () => {
+    expect(isKnownPushService("https://fcm.googleapis.com/fcm/send/abc-123")).toBe(true);
+    expect(isKnownPushService("https://updates.push.services.mozilla.com/wpush/v2/xyz")).toBe(true);
+    expect(isKnownPushService("https://web.push.apple.com/QGVsbG8")).toBe(true);
+    expect(isKnownPushService("https://wns2-par02p.notify.windows.com/w/?token=abc")).toBe(true);
+  });
+
+  it("refuses a well-formed endpoint on somebody else's host", () => {
+    // These are the ones that would turn the broadcast into an SSRF primitive.
+    expect(isKnownPushService("https://169.254.169.254/latest/meta-data/")).toBe(false);
+    expect(isKnownPushService("https://internal.example/notify")).toBe(false);
+    expect(isKnownPushService("https://localhost:3000/x")).toBe(false);
+    // A lookalike domain must not pass a suffix test.
+    expect(isKnownPushService("https://fcm.googleapis.com.evil.test/x")).toBe(false);
+    expect(isKnownPushService("https://notify.windows.com.evil.test/x")).toBe(false);
   });
 
   it("refuses anything that is not one", () => {
