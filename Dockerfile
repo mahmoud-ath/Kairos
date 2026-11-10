@@ -13,7 +13,7 @@
 # ---------------------------------------------------------------------------
 # Build base: Node 22 + Bun (install/scripts) + openssl for the Prisma engines
 # ---------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS build-base
+FROM node:26-bookworm-slim AS build-base
 ENV NEXT_TELEMETRY_DISABLED=1 \
     BUN_INSTALL=/root/.bun \
     PATH=/root/.bun/bin:$PATH
@@ -60,7 +60,7 @@ RUN bunx prisma generate && bunx next build
 # ---------------------------------------------------------------------------
 # Runtime — no Bun, and nothing beyond the Prisma CLI used for migrations
 # ---------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS runner
+FROM node:26-bookworm-slim AS runner
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000
