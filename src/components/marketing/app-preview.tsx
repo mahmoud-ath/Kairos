@@ -5,6 +5,7 @@ import {
   GripVertical,
   ListTodo,
   Plus,
+  Repeat,
   Search,
 } from "lucide-react";
 
@@ -30,6 +31,8 @@ type PreviewTask = {
   category?: string;
   due?: string;
   subtasks?: string;
+  /** A habit's generated instance for today, marked the way the app marks it. */
+  habit?: boolean;
   done?: boolean;
 };
 
@@ -38,6 +41,7 @@ const SECTIONS: { label: string; tasks: PreviewTask[] }[] = [
     label: "Today",
     tasks: [
       { title: "Draft the Q3 roadmap", category: "Work", subtasks: "2/4", due: "Today" },
+      { title: "Morning walk", category: "Health", habit: true },
       { title: "Review pull requests", category: "Work" },
       { title: "Book the dentist", category: "Personal", due: "Oct 12" },
       { title: "Send the Q3 invoice", category: "Work", done: true },
@@ -59,7 +63,8 @@ const SECTIONS: { label: string; tasks: PreviewTask[] }[] = [
 const CATEGORIES = [
   { name: "Work", color: "#3b82f6", count: 5 },
   { name: "Personal", color: "#22c55e", count: 4 },
-  { name: "Learning", color: "#8b5cf6", count: 3 },
+  { name: "Health", color: "#f97316", count: 1 },
+  { name: "Learning", color: "#8b5cf6", count: 2 },
 ];
 
 /** Seven days of completions, for the progress panel's mini chart. */
@@ -69,7 +74,7 @@ export function AppPreview() {
   return (
     <figure
       role="img"
-      aria-label="Preview of the Kairos workspace: a sidebar listing today, all tasks, completed and categories, a task list grouped by day with subtask counts and categories, and a progress panel showing 7 of 12 tasks complete."
+      aria-label="Preview of the Kairos workspace: a sidebar listing today, all tasks, completed, habits and categories, a task list grouped by day with subtasks, categories and a habit, and a progress panel showing 7 of 12 tasks complete."
       className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"
     >
       <div aria-hidden="true" className="flex min-h-[26rem] text-[13px]">
@@ -81,9 +86,10 @@ export function AppPreview() {
           </div>
 
           <nav className="mt-6 flex flex-col gap-0.5 text-sidebar-foreground">
-            <SidebarRow icon={<CalendarDays className="h-4 w-4" />} label="Today" count={4} active />
+            <SidebarRow icon={<CalendarDays className="h-4 w-4" />} label="Today" count={5} active />
             <SidebarRow icon={<ListTodo className="h-4 w-4" />} label="All Tasks" count={12} />
             <SidebarRow icon={<CircleCheckBig className="h-4 w-4" />} label="Completed" count={7} />
+            <SidebarRow icon={<Repeat className="h-4 w-4" />} label="Habits" count={3} />
           </nav>
 
           <p className="mt-6 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -229,6 +235,13 @@ function TaskRow({ task }: { task: PreviewTask }) {
       {task.subtasks ? (
         <span className="shrink-0 rounded border border-border px-1.5 text-[10px] text-muted-foreground">
           {task.subtasks}
+        </span>
+      ) : null}
+
+      {task.habit ? (
+        <span className="flex shrink-0 items-center gap-1 rounded border border-primary/30 bg-primary/10 px-1.5 text-[10px] font-medium text-primary">
+          <Repeat className="h-2.5 w-2.5" />
+          Habit
         </span>
       ) : null}
 

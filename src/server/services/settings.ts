@@ -2,19 +2,17 @@ import "server-only";
 
 import { DEFAULT_TIMEZONE } from "@/lib/constants";
 import { isValidTimeZone } from "@/lib/dates";
-import type { FontScale, ThemePreference } from "@/types/kairos";
+import type { FontScale, SettingsRecord, ThemePreference } from "@/types/kairos";
 import { prisma, type Prisma } from "@/server/db";
 
 // Settings are keyed by their owner; there is no fixed singleton id any more.
 
-export type SettingsRecord = {
-  theme: ThemePreference;
-  timezone: string;
-  weekStartsOn: number;
-  nickname: string | null;
-  avatarId: string;
-  fontScale: FontScale;
-};
+/**
+ * Re-exported so the many callers of `getSettingsRecord()` did not have to move;
+ * the definition lives in `types/kairos.ts` because `lib/request-context.ts` needs
+ * it and `lib/` may not import from `server/`.
+ */
+export type { SettingsRecord };
 
 /** Best-effort guess of the server's timezone, used only for first-run setup. */
 function detectTimeZone(): string {
@@ -53,6 +51,7 @@ export async function getSettingsRecord(userId: string): Promise<SettingsRecord>
     nickname: settings.nickname ?? null,
     avatarId: settings.avatarId,
     fontScale: settings.fontScale as FontScale,
+    reminderHour: settings.reminderHour,
   };
 }
 
@@ -65,6 +64,7 @@ export async function updateSettings(
     nickname?: string | null;
     avatarId?: string;
     fontScale?: FontScale;
+    reminderHour?: number;
   },
 ) {
   await getSettings(userId);
@@ -75,6 +75,7 @@ export async function updateSettings(
   if (values.nickname !== undefined) data.nickname = values.nickname;
   if (values.avatarId !== undefined) data.avatarId = values.avatarId;
   if (values.fontScale !== undefined) data.fontScale = values.fontScale;
+  if (values.reminderHour !== undefined) data.reminderHour = values.reminderHour;
 
   return prisma.settings.update({ where: { userId }, data });
 }

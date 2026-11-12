@@ -110,6 +110,11 @@ export const PUBLIC_PATHS = [
   // matcher, so this is belt and braces: a browser cannot register a script it is
   // not allowed to fetch, and a worker that 307s to `/login` fails silently.
   "/sw.js",
+  // The generated social card (`src/app/opengraph-image.tsx`). Unlike the other
+  // assets it is a route with no file extension, so the matcher does not skip it:
+  // without this entry `og:image` answers 307 to `/login` and every link preview —
+  // Google's included — shows an empty frame. It contains no account data.
+  "/opengraph-image",
   ...AUTH_PATHS,
 ] as const;
 

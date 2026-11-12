@@ -14,6 +14,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Repeat,
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -116,6 +117,25 @@ function InlineTitleEditor({
       }}
       className={cn("h-7 text-sm", className)}
     />
+  );
+}
+
+/**
+ * Marks a row as the generated instance of a habit.
+ *
+ * The row can be ticked off (that is what completes the habit) but it cannot be
+ * renamed, dated, moved, nested or deleted: all of that is the habit's
+ * configuration, and it lives on the habits page.
+ */
+function HabitBadge() {
+  return (
+    <span
+      title="Created from a habit — change it on the Habits page"
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+    >
+      <Repeat className="h-3 w-3" aria-hidden="true" />
+      Habit
+    </span>
   );
 }
 
@@ -355,8 +375,17 @@ export function TaskRow({
     }
     previousSubtaskCount.current = task.subtasks.length;
   }, [task.subtasks.length]);
+  // A habit instance is only ever ticked off here. Its title, dates, category
+  // and notes are the habit's configuration, which lives on the habits page, so
+  // the row offers no editing and cannot be dragged anywhere.
+  const isHabit = Boolean(task.habitId);
+
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: task.id, data: { type: "task", parentId: null } });
+    useSortable({
+      id: task.id,
+      data: { type: "task", parentId: null },
+      disabled: isHabit,
+    });
 
   const done = task.status === "DONE";
   const category = categories.find((item) => item.id === task.categoryId) ?? null;
@@ -379,20 +408,25 @@ export function TaskRow({
       )}
     >
       <div
-        onClick={() => callbacks.onOpen(task.id)}
-        className="flex cursor-pointer items-start gap-1.5 px-2 py-2.5"
+        onClick={isHabit ? undefined : () => callbacks.onOpen(task.id)}
+        className={cn("flex items-start gap-1.5 px-2 py-2.5", !isHabit && "cursor-pointer")}
       >
-        <button
-          type="button"
-          className="mt-0.5 grid h-7 w-6 shrink-0 cursor-grab place-items-center text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
-          aria-label={`Reorder task ${task.title}`}
-          title="Drag to reorder · drag right onto a task to make it a subtask"
-          onClick={(event) => event.stopPropagation()}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        {isHabit ? (
+          // Keeps a habit row's text aligned with the others, without a handle.
+          <span aria-hidden="true" className="mt-0.5 h-7 w-6 shrink-0" />
+        ) : (
+          <button
+            type="button"
+            className="mt-0.5 grid h-7 w-6 shrink-0 cursor-grab place-items-center text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
+            aria-label={`Reorder task ${task.title}`}
+            title="Drag to reorder · drag right onto a task to make it a subtask"
+            onClick={(event) => event.stopPropagation()}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
 
         <Checkbox
           checked={done}
@@ -404,7 +438,16 @@ export function TaskRow({
 
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {editing ? (
+            {isHabit ? (
+              <span
+                className={cn(
+                  "min-w-0 truncate text-sm font-medium",
+                  done && "text-muted-foreground line-through decoration-muted-foreground/50",
+                )}
+              >
+                {task.title}
+              </span>
+            ) : editing ? (
               <InlineTitleEditor
                 value={task.title}
                 ariaLabel="Task title"
@@ -435,6 +478,8 @@ export function TaskRow({
                 {task.title}
               </button>
             )}
+
+            {isHabit ? <HabitBadge /> : null}
 
             {task.scheduledDate ? (
               <DateChip date={task.scheduledDate} today={today} kind="scheduled" />
@@ -469,6 +514,7 @@ export function TaskRow({
           ) : null}
         </div>
 
+        {isHabit ? null : (
         <div className="flex shrink-0 items-center gap-0.5">
           <NotesButton
             hasNotes={Boolean(task.notes)}
@@ -597,9 +643,10 @@ export function TaskRow({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        )}
       </div>
 
-      {subtaskMode !== "hidden" ? (
+      {isHabit ? null : subtaskMode !== "hidden" ? (
         <div className="pb-2">
           <SubtaskList
             task={task}

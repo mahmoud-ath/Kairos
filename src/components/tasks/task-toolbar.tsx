@@ -14,19 +14,25 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { UNCATEGORIZED_ID } from "@/lib/categories";
+import { UNCATEGORIZED_LABEL } from "@/lib/constants";
+import type { CategoryDTO } from "@/types/kairos";
 
 /**
- * The view header: a summary line and "clear completed".
+ * The view header: a summary line, an optional category filter and
+ * "clear completed".
  *
- * The filter box itself lives in the app top bar, because it narrows whatever
- * page is open — this component reports how many tasks matched it and offers a
- * way to clear it.
+ * The text filter lives in the app top bar, because it narrows whatever page is
+ * open — this component reports how many tasks matched it and offers a way to
+ * clear it. The category filter is handed in by All Tasks only: a category view
+ * is already narrowed to one category, so the control would be a tautology
+ * there.
  *
- * Category and status filter dropdowns were removed: categories have their own
- * views in the sidebar, and the status of a task is visible on the row.
+ * "No category" appears as an ordinary option, not as the absence of a filter,
+ * because that is how the rest of the app treats it (see `lib/categories.ts`).
  */
 export function TaskToolbar({
-  searching,
+  filtering,
   onClearFilter,
   resultCount,
   totalCount,
@@ -34,10 +40,11 @@ export function TaskToolbar({
   clearCompletedCount,
   clearCompletedScope,
   onClearCompleted,
+  categoryFilter,
 }: {
-  /** True while a filter is narrowing the list. */
-  searching: boolean;
-  /** Clears the top bar's filter box. */
+  /** True while any filter is narrowing the list. */
+  filtering: boolean;
+  /** Clears the filters (text and category). */
   onClearFilter: () => void;
   resultCount: number;
   totalCount: number;
@@ -47,6 +54,14 @@ export function TaskToolbar({
   clearCompletedCount: number;
   clearCompletedScope: "all" | "category";
   onClearCompleted: () => Promise<void>;
+  /** Category narrowing; omitted in views that are already one category. */
+  categoryFilter?: {
+    value: string | null;
+    categories: readonly CategoryDTO[];
+    /** Open-task counts per category key, including `UNCATEGORIZED_ID`. */
+    counts: Record<string, number>;
+    onChange: (value: string | null) => void;
+  };
 }) {
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -55,7 +70,7 @@ export function TaskToolbar({
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
-          {searching ? (
+          {filtering ? (
             <>
               <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
               <span className="tabular-nums">
@@ -87,17 +102,40 @@ export function TaskToolbar({
           )}
         </p>
 
-        {clearCompletedCount > 0 ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-muted-foreground hover:text-destructive"
-            onClick={() => setConfirming(true)}
-          >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-            Clear completed
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {categoryFilter ? (
+            <select
+              aria-label="Filter by category"
+              value={categoryFilter.value ?? ""}
+              onChange={(event) =>
+                categoryFilter.onChange(event.target.value === "" ? null : event.target.value)
+              }
+              className="h-8 max-w-48 rounded-md border border-border bg-background px-2 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">All categories</option>
+              {categoryFilter.categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name} ({categoryFilter.counts[category.id] ?? 0})
+                </option>
+              ))}
+              <option value={UNCATEGORIZED_ID}>
+                {UNCATEGORIZED_LABEL} ({categoryFilter.counts[UNCATEGORIZED_ID] ?? 0})
+              </option>
+            </select>
+          ) : null}
+
+          {clearCompletedCount > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-muted-foreground hover:text-destructive"
+              onClick={() => setConfirming(true)}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              Clear completed
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
