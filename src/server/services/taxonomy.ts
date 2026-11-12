@@ -20,14 +20,7 @@ export async function listCategories(userId: string): Promise<CategoryDTO[]> {
     prisma.category.findMany({ orderBy: [{ position: "asc" }, { name: "asc" }] }),
     prisma.task.groupBy({
       by: ["categoryId"],
-      // Generated habit instances belong to Today and are left out, so a
-      // category's sidebar count matches what its view actually lists.
-      where: {
-        parentId: null,
-        status: "TODO",
-        categoryId: { not: null },
-        habitId: null,
-      },
+      where: { parentId: null, status: "TODO", categoryId: { not: null } },
       _count: { _all: true },
     }),
   ]);

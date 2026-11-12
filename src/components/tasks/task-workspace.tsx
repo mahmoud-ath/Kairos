@@ -33,14 +33,12 @@ import {
   type DragIntent,
 } from "@/components/tasks/dnd-utils";
 import { clientTaskId, optimisticReducer, type OptimisticAction } from "@/components/tasks/optimistic";
-import { celebrateCompletion } from "@/components/tasks/celebration";
 import { QuickAdd, type QuickAddValues } from "@/components/tasks/quick-add";
 import { TaskDetailsPanel } from "@/components/tasks/task-details";
 import { TaskSectionView } from "@/components/tasks/task-section";
 import { TaskToolbar } from "@/components/tasks/task-toolbar";
 import { Button } from "@/components/ui/button";
-import { applyFilters, hasActiveFilters } from "@/lib/filters";
-import { categoryFilterLabel } from "@/lib/categories";
+import { applyFilters } from "@/lib/filters";
 import type { WorkspaceProgress } from "@/lib/stats";
 import {
   buildSections,
@@ -97,23 +95,8 @@ export function TaskWorkspace({
 
   // The filter box lives in the top bar; every view is narrowed by the same text.
   const { query, clear: clearFilter } = useSearch();
-  // The category narrowing belongs to this page, so it is local state: it must
-  // not follow the reader into another view. `scope` changes when a different
-  // page renders this component, which resets it.
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const scopeKey = scope.kind === "category" ? `${scope.kind}:${scope.categoryId}` : scope.kind;
-  useEffect(() => {
-    setCategoryFilter(null);
-  }, [scopeKey]);
-  const filters = useMemo(
-    () => ({ query, categoryId: categoryFilter }),
-    [query, categoryFilter],
-  );
-  const filtering = hasActiveFilters(filters);
-  const clearFilters = useCallback(() => {
-    clearFilter();
-    setCategoryFilter(null);
-  }, [clearFilter]);
+  const filters = useMemo(() => ({ query }), [query]);
+  const searching = query.trim().length > 0;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [focusTarget, setFocusTarget] = useState<"notes" | null>(null);
@@ -148,7 +131,6 @@ export function TaskWorkspace({
     () => new Map(categories.map((category) => [category.id, category.name])),
     [categories],
   );
-  const selectedCategoryLabel = categoryFilterLabel(categoryFilter, categories);
 
   const selectedTask = useMemo(
     () => optimisticTasks.find((task) => task.id === selectedId) ?? null,
@@ -180,7 +162,7 @@ export function TaskWorkspace({
    * own — we only have to explain what happened.
    */
   const mutate = useCallback(
-    (action: OptimisticAction, request: () => Promise<ActionResult<unknown>>, onSaved?: () => void) => {
+    (action: OptimisticAction, request: () => Promise<ActionResult<unknown>>) => {
       startTransition(async () => {
         applyOptimistic(action);
         const result = await request();
@@ -188,11 +170,7 @@ export function TaskWorkspace({
           toast.error("Couldn't save your change", {
             description: `${result.error} The list was restored.`,
           });
-          return;
         }
-        // Only once the server accepted it: a celebration followed by "the list
-        // was restored" would contradict itself.
-        onSaved?.();
       });
     },
     [applyOptimistic],
@@ -209,23 +187,12 @@ export function TaskWorkspace({
         subtask.status === "DONE" ? subtask : { ...subtask, status: "DONE", completedAt },
       );
     }
-    mutate(
-      { type: "patch", id: task.id, patch },
-      () => setTaskStatusAction({ id: task.id, status: next }),
-      // One celebration per action, so a parent with subtasks still earns a
-      // single "well done" rather than one per row.
-      next === "DONE"
-        ? () => celebrateCompletion(task.habitId ? "habit" : "task", task.title)
-        : undefined,
+    mutate({ type: "patch", id: task.id, patch }, () =>
+      setTaskStatusAction({ id: task.id, status: next }),
     );
   }
 
   function handleToggleSubtask(parentId: string, subtaskId: string, status: "TODO" | "DONE") {
-    const subtaskTitle =
-      optimisticTasks
-        .find((task) => task.id === parentId)
-        ?.subtasks.find((subtask) => subtask.id === subtaskId)?.title ?? "";
-
     mutate(
       {
         type: "patchSubtask",
@@ -237,7 +204,6 @@ export function TaskWorkspace({
         },
       },
       () => setTaskStatusAction({ id: subtaskId, status }),
-      status === "DONE" ? () => celebrateCompletion("subtask", subtaskTitle) : undefined,
     );
   }
 
@@ -389,7 +355,6 @@ export function TaskWorkspace({
       createdAt: now,
       updatedAt: now,
       completedAt: subtask.completedAt,
-      habitId: null,
       subtasks: [],
     };
     const date =
@@ -481,7 +446,6 @@ export function TaskWorkspace({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       completedAt: null,
-      habitId: null,
       subtasks: [],
     };
 
@@ -515,16 +479,12 @@ export function TaskWorkspace({
     ): DragIntent => {
       const active = findDragItem(optimisticTasks, activeId);
       if (!active) return "invalid";
-      // Habit instances can only be ticked off in place: they are never dragged
-      // and never accept a drop, so they keep their habit's configuration.
-      if (active.task.habitId) return "invalid";
 
       if (overId.startsWith(CATEGORY_PREFIX)) {
         return active.parentId ? "invalid" : "category";
       }
 
       const over = findDragItem(optimisticTasks, overId);
-      if (over?.task.habitId) return "invalid";
 
       if (active.parentId) {
         // Subtasks stay in their parent unless they are clearly pulled out.
@@ -578,9 +538,7 @@ export function TaskWorkspace({
 
     const activeItem = findDragItem(optimisticTasks, activeId);
     if (!activeItem) return;
-    if (activeItem.task.habitId) return;
     const overItem = findDragItem(optimisticTasks, overId);
-    if (overItem?.task.habitId) return;
     const intent: DragIntent =
       handlers.current.resolveIntent?.(activeId, overId, delta.x) ?? "invalid";
 
@@ -741,24 +699,14 @@ export function TaskWorkspace({
           />
 
           <TaskToolbar
-            filtering={filtering}
-            onClearFilter={clearFilters}
+            searching={searching}
+            onClearFilter={clearFilter}
             resultCount={visibleCount}
             totalCount={scopedTasks.length}
             completedCount={completedInScope}
             clearCompletedCount={clearCompletedCount}
             clearCompletedScope={clearCompletedScope}
             onClearCompleted={handleClearCompleted}
-            categoryFilter={
-              scope.kind === "all"
-                ? {
-                    value: categoryFilter,
-                    categories,
-                    counts: counts.byCategory,
-                    onChange: setCategoryFilter,
-                  }
-                : undefined
-            }
           />
         </div>
 
@@ -782,23 +730,17 @@ export function TaskWorkspace({
             <div className="mt-6">
               <EmptyState
                 title={
-                  query.trim()
-                    ? `No tasks on this page match “${query.trim()}”`
-                    : selectedCategoryLabel
-                      ? `No tasks in ${selectedCategoryLabel}`
-                      : emptyTitle
+                  searching ? `No tasks on this page match “${query.trim()}”` : emptyTitle
                 }
                 description={
-                  filtering
-                    ? query.trim()
-                      ? "The filter only looks at the tasks in this view. Clear it to see them all."
-                      : "This view has no tasks in that category. Clear the filter to see everything."
+                  searching
+                    ? "The filter only looks at the tasks in this view. Clear it to see them all."
                     : emptyDescription
                 }
-                workspaceIsEmpty={workspaceIsEmpty && !filtering}
-                onClearFilter={filtering ? clearFilters : undefined}
+                workspaceIsEmpty={workspaceIsEmpty && !searching}
+                onClearFilter={searching ? clearFilter : undefined}
                 onFocusQuickAdd={
-                  filtering
+                  searching
                     ? undefined
                     : () => quickAddRef.current?.querySelector("input")?.focus()
                 }

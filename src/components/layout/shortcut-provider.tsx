@@ -19,7 +19,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SEARCH_INPUT_ID } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import {
-  keyTokens,
   normalizeKey,
   resolveShortcut,
   SEQUENCE_TIMEOUT_MS,
@@ -99,9 +98,6 @@ export function ShortcutProvider({ children }: { children: ReactNode }) {
       case "go-completed":
         router.push("/completed");
         break;
-      case "go-habits":
-        router.push("/habits");
-        break;
       case "go-statistics":
         router.push("/statistics");
         break;
@@ -146,12 +142,7 @@ export function ShortcutProvider({ children }: { children: ReactNode }) {
       if (isTypingTarget(event.target)) return;
       if (document.querySelector('[role="dialog"][data-state="open"]')) return;
 
-      // Shift is part of the binding, so it has to be read here: `event.key`
-      // reports `T` for Shift+T, which would otherwise look like plain `t`.
-      const { shortcut, pending: next } = resolveShortcut(
-        pending.current,
-        keyTokens(event),
-      );
+      const { shortcut, pending: next } = resolveShortcut(pending.current, key);
       pending.current = next;
 
       if (timer.current !== null) window.clearTimeout(timer.current);

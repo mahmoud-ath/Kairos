@@ -3,7 +3,13 @@ import { Poppins } from "next/font/google";
 
 import "./globals.css";
 import { Providers } from "@/components/providers";
-import { SITE_DESCRIPTION, SITE_INDEXABLE, SITE_NAME, SITE_URL } from "@/lib/site";
+import {
+  GOOGLE_SITE_VERIFICATION,
+  SITE_DESCRIPTION,
+  SITE_INDEXABLE,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/site";
 
 // Self-hosted by Next at build time: no request to Google from the browser.
 const poppins = Poppins({
@@ -35,6 +41,10 @@ export const metadata: Metadata = {
   authors: [{ name: "Kairos contributors" }],
   creator: "Kairos contributors",
   category: "productivity",
+  // Proof of ownership for Google Search Console, which reads this tag when it
+  // verifies the property (docs/seo.md). Bing uses the same shape, so another
+  // token could be added next to it.
+  verification: { google: GOOGLE_SITE_VERIFICATION },
   alternates: { canonical: "/" },
   manifest: "/manifest.webmanifest",
   // The official Kairos logo set provides the raster/ICO fallbacks and the iOS
@@ -74,8 +84,11 @@ export const metadata: Metadata = {
     url: "/",
     locale: "en_US",
   },
+  // The card image comes from the `opengraph-image.tsx` file convention, which
+  // Next resolves to an absolute URL through `metadataBase` and reuses for
+  // Twitter when no `twitter-image` is defined — hence only the card type here.
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: TITLE,
     description: SITE_DESCRIPTION,
   },

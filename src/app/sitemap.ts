@@ -3,19 +3,18 @@ import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/site";
 
 /**
- * The pages a crawler may index.
+ * The pages a crawler may index: the landing page, and nothing else.
  *
- * Only the public site is listed. The workspace views are deliberately absent:
- * they require a session, so a crawler following them would only collect a
- * redirect to `/login`, and listing a private URL in a public sitemap invites
- * exactly the indexing the `noindex` in `(app)/layout.tsx` prevents.
+ * The workspace views are deliberately absent. They belong to whoever is signed
+ * in, so there is no public URL to advertise: a crawler following one would only
+ * collect a redirect to `/login` — exactly the indexing the `noindex` in
+ * `(app)/layout.tsx` prevents. `/register` is left out too, so the sitemap
+ * matches what this deployment actually publishes: one marketing page.
+ *
+ * No `lastModified` on purpose. It can only be "whenever this function ran", and
+ * a `<lastmod>` that changes on every request is a signal crawlers learn to
+ * ignore — worse than saying nothing and letting them decide for themselves.
  */
-const VIEWS: MetadataRoute.Sitemap = [
-  { url: siteUrl("/"), changeFrequency: "weekly", priority: 1 },
-  { url: siteUrl("/register"), changeFrequency: "monthly", priority: 0.9 },
-];
-
 export default function sitemap(): MetadataRoute.Sitemap {
-  const lastModified = new Date();
-  return VIEWS.map((view) => ({ ...view, lastModified }));
+  return [{ url: siteUrl("/"), changeFrequency: "weekly", priority: 1 }];
 }

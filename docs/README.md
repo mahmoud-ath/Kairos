@@ -73,6 +73,7 @@ misconfigured part makes *later* steps fail in confusing ways.
 - **Part 1 — [Database and hosting](deployment.md)**: Prisma Postgres + Vercel
 - **Part 2 — [Letting people sign in](auth-setup.md)**: Supabase Auth, email and Google
 - **Optional — [Notifications](notifications.md)**: one generic daily Web Push reminder, VAPID keys, and what Vercel's UTC cron can and cannot promise
+- **Optional — [Publishing to Google](seo.md)**: the Search Console verification tag, `robots.txt`, the one-URL sitemap and the social card
 - **When something breaks — [Troubleshooting](troubleshooting.md)**
 
 ### Engineering analysis (plans, not yet built)

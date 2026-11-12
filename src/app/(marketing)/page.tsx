@@ -5,7 +5,7 @@ import { Features } from "@/components/marketing/features";
 import { FinalCta } from "@/components/marketing/final-cta";
 import { Hero } from "@/components/marketing/hero";
 import { HowItWorks } from "@/components/marketing/how-it-works";
-import { SITE_NAME } from "@/lib/site";
+import { SITE_NAME, SOCIAL_IMAGE } from "@/lib/site";
 
 /**
  * The public landing page.
@@ -15,10 +15,10 @@ import { SITE_NAME } from "@/lib/site";
  * served identically to signed-out and signed-in visitors and to crawlers.
  */
 
-const TITLE = `${SITE_NAME} — tasks, habits and a clear view of your week`;
+const TITLE = `${SITE_NAME} — organise your tasks, focus on what matters`;
 
 const DESCRIPTION =
-  "Kairos is a free, open-source task manager and habit tracker: categories, subtasks, drag and drop, a month grid for habits, statistics, an optional daily reminder and JSON backups. Every account gets its own private workspace.";
+  "Kairos is a free, open-source task manager that organises work by category and date, with subtasks, drag and drop, statistics and JSON backups. Every account gets its own private workspace.";
 
 export const metadata: Metadata = {
   // `absolute` because the root layout applies a "%s · Kairos" template, which
@@ -33,10 +33,15 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     url: "/",
     locale: "en_US",
+    images: [SOCIAL_IMAGE],
   },
-  // "summary" rather than "summary_large_image": there is no social image, and
-  // asking for a large card without one just produces an empty frame.
-  twitter: { card: "summary", title: TITLE, description: DESCRIPTION },
+  // `summary_large_image` because the card above is 1200×630.
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [SOCIAL_IMAGE],
+  },
 };
 
 export default function LandingPage() {

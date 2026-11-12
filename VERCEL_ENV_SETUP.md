@@ -133,6 +133,7 @@ psql "postgres://USER:PASSWORD@db.prisma.io:5432/postgres?sslmode=require" -c '\
 | `DATABASE_URL` | the **pooled** string | yes | the app cannot reach the database at all |
 | `DIRECT_URL` | the **direct** string | for migrations | `prisma migrate` cannot run; the running app is unaffected |
 | `NEXT_PUBLIC_APP_URL` | `https://kairos-zeta-ivory.vercel.app` | recommended | canonical/OG URLs and `sitemap.xml` fall back to `http://localhost:3000` |
+| `GOOGLE_SITE_VERIFICATION` | a Search Console token | optional | only needed to claim a *different* property; the landing page's own token is built in ([docs/seo.md](docs/seo.md)) |
 
 Scope **all three** to **Production, Preview and Development**.
 

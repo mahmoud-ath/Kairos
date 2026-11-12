@@ -486,6 +486,7 @@ version without touching your own databases.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key (auth, §10.9) |
 | `KAIROS_ALLOWED_EMAILS` | Comma-separated sign-in allowlist (auth, §10.9) |
 | `KAIROS_NO_INDEX` | `false` (or `true` for a private deployment) |
+| `GOOGLE_SITE_VERIFICATION` | optional: a Search Console token for a *different* property — the built-in one already verifies the Kairos landing page ([docs/seo.md](docs/seo.md)) |
 
 > `NEXT_PUBLIC_*` values are **inlined at build time** — set them before the first
 > build or they will be `undefined` in the browser bundle.

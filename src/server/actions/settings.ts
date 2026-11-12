@@ -11,7 +11,7 @@ import { runAction } from "@/server/actions/helpers";
 import { exportBackup, importBackup, resetAllData } from "@/server/services/backup";
 import { countCompletions } from "@/server/services/profile";
 import { updateSettings } from "@/server/services/settings";
-import { ServiceError } from "@/server/errors";
+import { ServiceError } from "@/server/services/tasks";
 
 const importInputSchema = z.object({
   json: z.string().min(2, "The file is empty.").max(50_000_000),
@@ -35,7 +35,6 @@ export async function updateSettingsAction(input: unknown): Promise<ActionResult
       nickname: settings.nickname ?? null,
       avatarId: settings.avatarId,
       fontScale: settings.fontScale as SettingsDTO["fontScale"],
-      reminderHour: settings.reminderHour,
     };
   });
 }
@@ -74,33 +73,27 @@ export async function updateProfileAction(input: unknown): Promise<ActionResult<
 export async function importBackupAction(
   input: unknown,
 ): Promise<ActionResult<{ summary: BackupSummary }>> {
-  return runAction(
-    async () => {
-      const userId = await requireUserId();
-      const { json } = importInputSchema.parse(input);
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(json);
-      } catch {
-        throw new Error("The selected file is not valid JSON.");
-      }
-      return importBackup(userId, parsed);
-    },
-    { action: "restoreBackup" },
-  );
+  return runAction(async () => {
+    const userId = await requireUserId();
+    const { json } = importInputSchema.parse(input);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      throw new Error("The selected file is not valid JSON.");
+    }
+    return importBackup(userId, parsed);
+  });
 }
 
 /** Delete every task, category and event; settings return to defaults. */
 export async function resetAllDataAction(input: unknown): Promise<ActionResult<undefined>> {
-  return runAction(
-    async () => {
-      const userId = await requireUserId();
-      resetInputSchema.parse(input);
-      await resetAllData(userId);
-      return undefined;
-    },
-    { action: "resetAllData" },
-  );
+  return runAction(async () => {
+    const userId = await requireUserId();
+    resetInputSchema.parse(input);
+    await resetAllData(userId);
+    return undefined;
+  });
 }
 
 /** Serialize the current database as a versioned JSON backup string. */

@@ -69,9 +69,19 @@ Accounts, sharing and collaboration are explicitly out of scope for v1.
   Graph/Twitter tags; the root layout holds the defaults, `metadataBase`,
   keywords and `WebApplication` structured data.
 - **`robots.txt` and `sitemap.xml`** are generated from the route list
-  (`src/app/robots.ts`, `src/app/sitemap.ts`) using `NEXT_PUBLIC_APP_URL`. Only
-  the shared views are listed — category pages are your own data and are never
-  advertised. A category page that does not exist is `noindex`.
+  (`src/app/robots.ts`, `src/app/sitemap.ts`) using `NEXT_PUBLIC_APP_URL`. The
+  sitemap lists the landing page and nothing else: every other route either
+  needs a session or is a redirect to `/login`, and category pages are your own
+  data and are never advertised. A category page that does not exist is
+  `noindex`.
+- **Google Search Console.** The root layout renders the ownership
+  `<meta name="google-site-verification">` tag from `GOOGLE_SITE_VERIFICATION`
+  (`src/lib/site.ts`), and `src/app/opengraph-image.tsx` generates the 1200×630
+  card that Open Graph and Twitter share. Claiming the property and submitting
+  the sitemap is step-by-step in **[docs/seo.md](docs/seo.md)**.
+- **Preview deployments are not indexable.** On Vercel, a build whose
+  `VERCEL_ENV` is not `production` serves `Disallow: /`, so copies of the public
+  site cannot compete with it in search results.
 - **A web app manifest** (`public/manifest.webmanifest`) describes the app name,
   theme colours and start URL for browsers and install prompts.
 - **Security headers** (`next.config.ts`): a Content Security Policy that only
@@ -320,6 +330,7 @@ All configuration is environment based; see `.env.example`.
 | `KAIROS_PORT`         | `3000`                   | Compose: the host port.                                      |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000`  | Absolute origin used for canonical links, `sitemap.xml` and social metadata. Set it before serving a real domain. |
 | `KAIROS_NO_INDEX`     | `false`                  | `true` sends `Disallow: /` to every crawler (private deployment). |
+| `GOOGLE_SITE_VERIFICATION` | the built-in Kairos token | Search Console ownership token rendered as `<meta name="google-site-verification">`; set it only to claim a different property ([docs/seo.md](docs/seo.md)). |
 
 Theme, timezone and the first day of the week are stored **in the database**
 (Settings) so they apply to date grouping on the server, not just in the UI. The

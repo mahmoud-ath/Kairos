@@ -39,60 +39,19 @@ model Task {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   completedAt   DateTime?
-  // Set when this task is one day's generated instance of a habit. Such a task
-  // is configured on the Habits page, only ever appears in Today, and its
-  // completion is what "the habit was done that day" means.
-  habitId       String?
-  // Date-only (UTC midnight) of the day this instance belongs to. Kept apart
-  // from `scheduledDate` so a habit day is stable no matter how a later edit
-  // moves the task.
-  habitDate     DateTime?
 
   category Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   parent   Task?       @relation("TaskToSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
   subtasks Task[]      @relation("TaskToSubtasks")
   events   TaskEvent[]
-  habit    Habit?      @relation(fields: [habitId], references: [id], onDelete: Cascade)
 
   // Every index leads with userId, because every query filters on it.
-  @@unique([habitId, habitDate])
   @@index([userId, parentId, position])
   @@index([userId, categoryId, parentId])
   @@index([userId, status])
   @@index([userId, scheduledDate])
   @@index([userId, dueDate])
   @@index([userId, completedAt])
-  @@index([userId, habitId, habitDate])
-}
-
-/// A habit is the *recipe* for a repeating task; each day it is due, a Task is
-/// generated from it and appears in Today. The habit stores no progress of its
-/// own: "done" is derived from the generated tasks' completion history.
-model Habit {
-  id         String   @id @default(cuid())
-  userId     String
-  title      String
-  notes      String?
-  categoryId String?
-  // Weekday numbers the habit is due on (0 = Sunday … 6 = Saturday), comma
-  // separated. The default is every day. Stored as a string so the rule stays a
-  // plain application concern (see `src/lib/habits.ts`).
-  days       String   @default("0,1,2,3,4,5,6")
-  position   Int      @default(0)
-  // A paused habit keeps its history but stops generating new days.
-  paused     Boolean  @default(false)
-  // Date-only (UTC midnight) of the day the habit started. Days before it are
-  // neither due nor missed, so a habit created today does not read as a week of
-  // failures against its progress.
-  startDate  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  tasks    Task[]
-
-  @@index([userId, position])
-  @@index([userId, paused])
 }
 
 model Category {
@@ -106,8 +65,7 @@ model Category {
   position  Int      @default(0)
   createdAt DateTime @default(now())
 
-  tasks  Task[]
-  habits Habit[]
+  tasks Task[]
 
   // Names are unique per user, not globally: two people may both have "Work".
   @@unique([userId, name])
@@ -144,61 +102,5 @@ model Settings {
   // Root font size, applied to <html>. Every Tailwind size is in rem, so this
   // scales the whole interface together (see FONT_SCALES in lib/constants).
   fontScale    String   @default("default") // compact | default | large | larger
-  // Hour of the day (0-23 **in this account's own timezone**) the daily reminder
-  // is sent at. One shared job serves everybody, so the hour is matched per
-  // account rather than by running a job per account — see §20 of the docs.
-  reminderHour Int      @default(1)
   updatedAt    DateTime @updatedAt
-}
-
-/// One device's Web Push registration.
-///
-/// Only the daily reminder uses it: a device registers itself once, and the row
-/// is what lets the scheduled job reach it. The browser's keys are stored
-/// because they are the *only* way to encrypt a payload to that device — losing
-/// them means the subscription has to be created again from the client.
-model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
-  /// Push service URL issued by the browser. It is a capability — whoever holds
-  /// it can write a notification to that device — so it is never logged and
-  /// never written to a backup file.
-  ///
-  /// Unique globally, because a browser profile has exactly one subscription per
-  /// VAPID key: when the same device signs in as another account and enables the
-  /// reminder again, the row is handed over rather than duplicated. Two rows for
-  /// one device would deliver every reminder twice.
-  endpoint  String   @unique
-  /// The browser's public key and auth secret, used to encrypt the payload.
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now())
-  /// Date-only (`YYYY-MM-DD`) of the last reminder delivered to this device, in
-  /// the reminder's own timezone (Africa/Casablanca); `null` means none yet.
-  /// This is what stops a re-run — a retry, or two overlapping invocations — from
-  /// sending the same day's reminder twice.
-  lastSentDate String?
-
-  @@index([userId])
-}
-
-/// One fixed-window rate-limit counter.
-///
-/// Global, not tenant-scoped: the key already names the account (or the job), and
-/// the limiter has to work before a request has resolved its settings. This is the
-/// only table the app writes outside a user's slice, which is why it holds a
-/// counter and nothing else — no user id, no request data, no history.
-///
-/// Why a table at all: a serverless instance remembers nothing between requests, so
-/// per-account limits need a shared store. Postgres is already here and the
-/// alternative (Upstash) would be a second account for one integer per window.
-model RateLimitCounter {
-  /// `kairos:rl:<bucket>:<identifier>` — see `rateLimitKey()` in lib/rate-limit.ts.
-  key     String   @id
-  /// Requests accounted for in the current window.
-  count   Int      @default(0)
-  /// When the window opens again. Past values are safe to delete.
-  resetAt DateTime
-
-  @@index([resetAt])
 }
