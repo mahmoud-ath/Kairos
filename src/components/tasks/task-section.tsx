@@ -54,7 +54,13 @@ export function TaskSectionView({
           {section.title}
         </h2>
         <span className="text-xs tabular-nums text-muted-foreground">
-          {section.kind === "completed" ? section.tasks.length : openCount}
+          {section.kind === "completed"
+            ? // A shortened completed group says so: "10 of 137" on All Tasks,
+              // where only the latest completions are previewed.
+              section.total !== undefined && section.total > section.tasks.length
+              ? `${section.tasks.length} of ${section.total}`
+              : section.tasks.length
+            : openCount}
         </span>
       </header>
 

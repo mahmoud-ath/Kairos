@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { WEEKDAY_LABELS } from "@/lib/constants";
 import { listTimeZones } from "@/lib/dates";
 import type { SettingsDTO } from "@/types/kairos";
@@ -22,14 +23,22 @@ import { updateSettingsAction } from "@/server/actions/settings";
  * The timezone decides which calendar day "Today" means, so it is stored with
  * all date-only values rather than applied per request. The appearance controls
  * live in the profile panel above.
+ *
+ * The last section is a plain on/off preference: the top bar's JSON task
+ * export/import tools stay hidden until they are switched on here.
  */
 export function PreferencesForm({ settings }: { settings: SettingsDTO }) {
   const [timezone, setTimezone] = useState(settings.timezone);
   const [weekStartsOn, setWeekStartsOn] = useState(settings.weekStartsOn);
+  const [dataToolsEnabled, setDataToolsEnabled] = useState(settings.dataToolsEnabled);
   const [saving, setSaving] = useState(false);
   const timeZones = listTimeZones();
 
-  async function save(patch: { timezone?: string; weekStartsOn?: number }) {
+  async function save(patch: {
+    timezone?: string;
+    weekStartsOn?: number;
+    dataToolsEnabled?: boolean;
+  }) {
     setSaving(true);
     const result = await updateSettingsAction(patch);
     setSaving(false);
@@ -103,6 +112,37 @@ export function PreferencesForm({ settings }: { settings: SettingsDTO }) {
       <p className="text-xs text-muted-foreground">
         {saving ? "Saving…" : "Saved automatically"}
       </p>
+
+      {/* Header tools — a preference about the interface, not about the data. */}
+      <div className="flex flex-col gap-3 border-t border-border pt-4">
+        <div>
+          <h2 className="text-sm font-semibold">Header tools</h2>
+          <p className="text-xs text-muted-foreground">
+            Optional controls shown in the top bar on every page.
+          </p>
+        </div>
+
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="settings-data-tools">Task export &amp; import (JSON)</Label>
+            <p className="text-xs text-muted-foreground">
+              Adds an export/import menu to the top bar. Export saves your tasks and
+              subtasks as a JSON file; import adds tasks from such a file to this
+              workspace (it never deletes anything). The full workspace backup stays
+              available below.
+            </p>
+          </div>
+          <Switch
+            id="settings-data-tools"
+            checked={dataToolsEnabled}
+            onCheckedChange={(checked) => {
+              setDataToolsEnabled(checked);
+              void save({ dataToolsEnabled: checked });
+            }}
+            aria-label="Show task export and import in the header"
+          />
+        </div>
+      </div>
     </section>
   );
 }

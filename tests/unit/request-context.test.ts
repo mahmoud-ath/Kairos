@@ -15,6 +15,7 @@ const SETTINGS: SettingsRecord = {
   avatarId: "spark",
   fontScale: "default",
   reminderHour: 21,
+  dataToolsEnabled: false,
 };
 
 describe("the request context", () => {

@@ -3,6 +3,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 
 import { dateToDateOnly } from "@/lib/dates";
+import type { TransferSubtask, TransferTask } from "@/lib/task-transfer";
 import type {
   CategoryDTO,
   SubtaskDTO,
@@ -50,6 +51,47 @@ export function serializeSubtask(task: {
     status: task.status as TaskStatus,
     position: task.position,
     completedAt: task.completedAt ? task.completedAt.toISOString() : null,
+  };
+}
+
+/**
+ * A subtask as it travels in a transfer file.
+ *
+ * No id and no position: an import creates the row, and the order in the array
+ * is the order it lands in (see `lib/task-transfer.ts`).
+ */
+export function serializeTransferSubtask(subtask: {
+  title: string;
+  status: string;
+  completedAt: Date | null;
+}): TransferSubtask {
+  return {
+    title: subtask.title,
+    status: subtask.status as TaskStatus,
+    completedAt: subtask.completedAt ? subtask.completedAt.toISOString() : null,
+  };
+}
+
+/** A top-level task as it travels in a transfer file (category by *name*). */
+export function serializeTransferTask(task: {
+  title: string;
+  notes: string | null;
+  status: TaskStatus;
+  category: string | null;
+  scheduledDate: string | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  subtasks: TransferSubtask[];
+}): TransferTask {
+  return {
+    title: task.title,
+    notes: task.notes,
+    status: task.status,
+    category: task.category,
+    scheduledDate: task.scheduledDate,
+    dueDate: task.dueDate,
+    completedAt: task.completedAt,
+    subtasks: task.subtasks,
   };
 }
 

@@ -40,7 +40,7 @@ export async function WorkspacePage({
   if (includeHabitInstances) await ensureHabitInstances(ctx);
 
   const [tasks, statistics] = await Promise.all([
-    listTasks(ctx.userId, { includeHabits: includeHabitInstances }),
+    listTasks(ctx.userId, includeHabitInstances),
     getStatistics(ctx, { scope, windowDays }),
   ]);
 

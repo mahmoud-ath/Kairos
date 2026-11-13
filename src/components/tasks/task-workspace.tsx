@@ -36,6 +36,7 @@ import { clientTaskId, optimisticReducer, type OptimisticAction } from "@/compon
 import { celebrateCompletion } from "@/components/tasks/celebration";
 import { QuickAdd, type QuickAddValues } from "@/components/tasks/quick-add";
 import { TaskDetailsPanel } from "@/components/tasks/task-details";
+import { TaskPagination } from "@/components/tasks/task-pagination";
 import { TaskSectionView } from "@/components/tasks/task-section";
 import { TaskToolbar } from "@/components/tasks/task-toolbar";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ import { categoryFilterLabel } from "@/lib/categories";
 import type { WorkspaceProgress } from "@/lib/stats";
 import {
   buildSections,
+  COMPLETED_PAGE_SIZE,
   defaultCategoryId,
   defaultScheduledDate,
   selectScopedTasks,
@@ -121,6 +123,11 @@ export function TaskWorkspace({
   const [optimisticTasks, applyOptimistic] = useOptimistic(tasks, optimisticReducer);
   const [, startTransition] = useTransition();
 
+  // The Completed view is the only one that pages: it is a history, and a
+  // history is read newest-first rather than scrolled through in one go.
+  const isCompletedView = scope.kind === "completed";
+  const [page, setPage] = useState(1);
+
   // Completed tasks are always part of the list (in their own section); the view
   // itself is what decides which tasks exist here.
   const includeCompleted = true;
@@ -149,6 +156,40 @@ export function TaskWorkspace({
     [categories],
   );
   const selectedCategoryLabel = categoryFilterLabel(categoryFilter, categories);
+
+  // The section list is what the reader sees. In the Completed view it holds the
+  // whole history, so it is sliced by page before rendering; All Tasks narrows
+  // its own Completed group to a preview (`COMPLETED_PREVIEW_LIMIT`).
+  const completedTotal = useMemo(
+    () =>
+      sections.reduce(
+        (total, section) =>
+          total + (section.kind === "completed" ? (section.total ?? section.tasks.length) : 0),
+        0,
+      ),
+    [sections],
+  );
+  const pageCount = Math.max(1, Math.ceil(completedTotal / COMPLETED_PAGE_SIZE));
+  // Clamp rather than store: deleting the last task on the last page must not
+  // leave the reader on a page that no longer exists.
+  const currentPage = Math.min(page, pageCount);
+  const pagedSections = useMemo(() => {
+    if (!isCompletedView) return sections;
+    return sections.map((section) => {
+      if (section.kind !== "completed") return section;
+      const start = (currentPage - 1) * COMPLETED_PAGE_SIZE;
+      return {
+        ...section,
+        tasks: section.tasks.slice(start, start + COMPLETED_PAGE_SIZE),
+        total: section.tasks.length,
+      };
+    });
+  }, [sections, isCompletedView, currentPage]);
+
+  // A new filter or view starts at the first page again.
+  useEffect(() => {
+    setPage(1);
+  }, [scopeKey, query, categoryFilter]);
 
   const selectedTask = useMemo(
     () => optimisticTasks.find((task) => task.id === selectedId) ?? null,
@@ -763,7 +804,7 @@ export function TaskWorkspace({
         </div>
 
         <div className="mt-2 flex flex-col">
-          {sections.map((section) => (
+          {pagedSections.map((section) => (
             <TaskSectionView
               key={section.key}
               section={section}
@@ -777,6 +818,16 @@ export function TaskWorkspace({
               {...rowCallbacks}
             />
           ))}
+
+          {isCompletedView ? (
+            <TaskPagination
+              page={currentPage}
+              pageCount={pageCount}
+              total={completedTotal}
+              pageSize={COMPLETED_PAGE_SIZE}
+              onPageChange={setPage}
+            />
+          ) : null}
 
           {visibleTasks.length === 0 ? (
             <div className="mt-6">

@@ -5,6 +5,7 @@ import { compareDateOnly } from "@/lib/dates";
 import {
   buildSections,
   buildViewCounts,
+  COMPLETED_PREVIEW_LIMIT,
   defaultCategoryId,
   defaultScheduledDate,
   isHabitTask,
@@ -236,6 +237,62 @@ describe("category view", () => {
       "date:2026-10-09",
       "unscheduled",
     ]);
+  });
+});
+
+describe("the completed preview in All Tasks", () => {
+  // Fourteen completions, one per hour, so "newest first" is unambiguous.
+  const manyDone = Array.from({ length: 14 }, (_, index) =>
+    task({
+      id: `done-${index}`,
+      status: "DONE",
+      completedAt: `2026-10-01T${String(index).padStart(2, "0")}:00:00.000Z`,
+      position: index,
+    }),
+  );
+
+  it("previews only the most recent completions", () => {
+    const sections = buildSections({
+      scope: { kind: "all" },
+      tasks: manyDone,
+      today: TODAY,
+      includeCompleted: true,
+    });
+    const completed = sections.find((section) => section.kind === "completed");
+
+    expect(completed?.tasks).toHaveLength(COMPLETED_PREVIEW_LIMIT);
+    expect(completed?.tasks[0].id).toBe("done-13");
+    // The true total travels with the shortened group so the count can say
+    // "10 of 14" rather than lying about the size of the history.
+    expect(completed?.total).toBe(14);
+  });
+
+  it("leaves the whole history in the Completed view", () => {
+    const sections = buildSections({
+      scope: { kind: "completed" },
+      tasks: manyDone,
+      today: TODAY,
+      includeCompleted: true,
+    });
+    expect(sections[0].tasks).toHaveLength(14);
+    expect(sections[0].total).toBeUndefined();
+  });
+
+  it("does not label a short history as shortened", () => {
+    const sections = buildSections({
+      scope: { kind: "all" },
+      tasks: manyDone.slice(0, 3),
+      today: TODAY,
+      includeCompleted: true,
+    });
+    const completed = sections.find((section) => section.kind === "completed");
+
+    expect(completed?.tasks).toHaveLength(3);
+    expect(completed?.total).toBeUndefined();
+  });
+
+  it("still measures every completion when the scope is counted", () => {
+    expect(selectScopedTasks({ kind: "all" }, manyDone, TODAY)).toHaveLength(14);
   });
 });
 

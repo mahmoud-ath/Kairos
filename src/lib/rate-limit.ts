@@ -42,7 +42,13 @@ export const RATE_LIMITS: Record<RateLimitBucket, RateLimitPolicy> = {
 };
 
 /** Actions that are cheap to call and expensive to serve. */
-const EXPENSIVE_ACTIONS = new Set(["loadExampleTasks", "restoreBackup", "resetAllData"]);
+const EXPENSIVE_ACTIONS = new Set([
+  "loadExampleTasks",
+  "restoreBackup",
+  "resetAllData",
+  // An import can write thousands of rows in one transaction.
+  "importTasks",
+]);
 
 /** Which bucket an action belongs to. Pure, so the mapping is unit-tested. */
 export function bucketForAction(action: string): RateLimitBucket {

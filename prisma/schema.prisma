@@ -148,6 +148,10 @@ model Settings {
   // is sent at. One shared job serves everybody, so the hour is matched per
   // account rather than by running a job per account — see §20 of the docs.
   reminderHour Int      @default(1)
+  // Reveals the JSON export/import tools for tasks in the top bar. Off by
+  // default: most people never move their tasks between workspaces, and the
+  // row stays uncluttered for them. The full backup stays on the settings page.
+  dataToolsEnabled Boolean @default(false)
   updatedAt    DateTime @updatedAt
 }
 

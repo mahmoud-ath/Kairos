@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { CATEGORY_COLORS } from "@/lib/constants";
 import { DEFAULT_CATEGORY_ICON } from "@/lib/category-icons";
 import type { CategoryDTO } from "@/types/kairos";
@@ -14,7 +16,7 @@ import { scopedPrisma, type Prisma } from "@/server/db";
  */
 
 /** Categories in display order, with the number of unfinished tasks each holds. */
-export async function listCategories(userId: string): Promise<CategoryDTO[]> {
+export const listCategories = cache(async (userId: string): Promise<CategoryDTO[]> => {
   const prisma = scopedPrisma(userId);
   const [categories, counts] = await Promise.all([
     prisma.category.findMany({ orderBy: [{ position: "asc" }, { name: "asc" }] }),
@@ -45,7 +47,7 @@ export async function listCategories(userId: string): Promise<CategoryDTO[]> {
     position: category.position,
     openTaskCount: countByCategory.get(category.id) ?? 0,
   }));
-}
+});
 
 export async function getCategory(userId: string, id: string) {
   const prisma = scopedPrisma(userId);

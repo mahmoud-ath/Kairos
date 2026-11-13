@@ -67,6 +67,13 @@ export type SettingsDTO = {
   fontScale: FontScale;
   /** Hour of the day (0-23, in this account's timezone) for the daily reminder. */
   reminderHour: number;
+  /**
+   * Whether the top bar offers the JSON task export/import tools.
+   *
+   * Off by default. The tools move *tasks* (and their subtasks) between
+   * workspaces; the full workspace backup stays on the settings page.
+   */
+  dataToolsEnabled: boolean;
 };
 
 /**

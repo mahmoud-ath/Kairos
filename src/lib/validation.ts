@@ -247,6 +247,8 @@ export const updateSettingsSchema = z.object({
   weekStartsOn: z.number().int().min(0).max(6).optional(),
   fontScale: fontScaleSchema.optional(),
   reminderHour: reminderHourSchema.optional(),
+  // The header's task export/import tools. A plain on/off preference.
+  dataToolsEnabled: z.boolean().optional(),
 });
 
 /** Nickname and avatar. Locked-avatar rules are enforced in the service/action. */

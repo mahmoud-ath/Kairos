@@ -39,6 +39,12 @@ export type TaskSection<T extends TaskLike = TaskLike> = {
   /** The date this group represents, otherwise `null`. */
   date: string | null;
   tasks: T[];
+  /**
+   * How many tasks the group held before it was shortened for display.
+   * `undefined` means `tasks` is the whole group. The Completed view pages
+   * through it; All Tasks only previews its most recent entries.
+   */
+  total?: number;
 };
 
 export type ViewScope =
@@ -53,7 +59,27 @@ export type GroupOptions<T extends TaskLike> = {
   today: string;
   /** Whether completed tasks are part of the current filter selection. */
   includeCompleted: boolean;
+  /**
+   * Whether All Tasks shortens its Completed group to the latest
+   * `COMPLETED_PREVIEW_LIMIT` entries. On by default, because that is what the
+   * page shows; counters and statistics turn it off so they still see the whole
+   * history (see `selectScopedTasks`).
+   */
+  previewCompleted?: boolean;
 };
+
+/**
+ * How many completed tasks All Tasks *previews* at the end of its list.
+ *
+ * All Tasks is a plan of what is left to do, so the finished work is a footnote
+ * there: the ten most recent completions, with the true total shown next to
+ * them. The full, pageable history lives in the Completed view — nothing is
+ * hidden, it just moved to the page that is about it.
+ */
+export const COMPLETED_PREVIEW_LIMIT = 10;
+
+/** How many completed tasks one page of the Completed view holds. */
+export const COMPLETED_PAGE_SIZE = 20;
 
 /**
  * A task is overdue when it is unfinished and either its deadline or its
@@ -137,19 +163,24 @@ function dateSection<T extends TaskLike>(
 }
 
 /** Completed tasks are ordered by completion time, newest first. */
-function completedSection<T extends TaskLike>(tasks: readonly T[]): TaskSection<T> {
+function completedSection<T extends TaskLike>(
+  tasks: readonly T[],
+  limit?: number,
+): TaskSection<T> {
   const sorted = [...tasks].sort((a, b) => {
     const aTime = a.completedAt ? Date.parse(a.completedAt) : 0;
     const bTime = b.completedAt ? Date.parse(b.completedAt) : 0;
     if (aTime !== bTime) return bTime - aTime;
     return a.id < b.id ? -1 : 1;
   });
+  const shown = limit === undefined ? sorted : sorted.slice(0, limit);
   return {
     key: "completed",
     title: "Completed",
     kind: "completed",
     date: null,
-    tasks: sorted,
+    tasks: shown,
+    total: shown.length === sorted.length ? undefined : sorted.length,
   };
 }
 
@@ -249,6 +280,7 @@ export function buildSections<T extends TaskLike>({
   tasks,
   today,
   includeCompleted,
+  previewCompleted = true,
 }: GroupOptions<T>): TaskSection<T>[] {
   // Habit instances are in scope for Today only, whatever list is handed in.
   const inScope: readonly T[] =
@@ -300,7 +332,11 @@ export function buildSections<T extends TaskLike>({
           plainSection("unscheduled", "Unscheduled", "unscheduled", unscheduled),
         );
       }
-      if (done.length > 0) sections.push(completedSection(done));
+      if (done.length > 0) {
+        sections.push(
+          completedSection(done, previewCompleted ? COMPLETED_PREVIEW_LIMIT : undefined),
+        );
+      }
       return sections;
     }
 
@@ -334,9 +370,15 @@ export function selectScopedTasks<T extends TaskLike>(
   tasks: readonly T[],
   today: string,
 ): T[] {
-  return buildSections({ scope, tasks, today, includeCompleted: true }).flatMap(
-    (section) => section.tasks,
-  );
+  // No preview limit: callers count and measure what is in scope, and a
+  // truncated list would silently under-report the history.
+  return buildSections({
+    scope,
+    tasks,
+    today,
+    includeCompleted: true,
+    previewCompleted: false,
+  }).flatMap((section) => section.tasks);
 }
 
 export type ViewCounts = {

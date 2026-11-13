@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { DEFAULT_TIMEZONE } from "@/lib/constants";
 import { isValidTimeZone } from "@/lib/dates";
 import type { FontScale, SettingsRecord, ThemePreference } from "@/types/kairos";
@@ -42,7 +44,14 @@ export async function getSettings(
   });
 }
 
-export async function getSettingsRecord(userId: string): Promise<SettingsRecord> {
+/**
+ * The serialized settings for one request.
+ *
+ * Memoised with React's `cache` so the layout, the page and any action in the
+ * same request share one read. Mutations still go straight to the database — a
+ * per-request cache cannot hide a write from the next render.
+ */
+export const getSettingsRecord = cache(async (userId: string): Promise<SettingsRecord> => {
   const settings = await getSettings(userId);
   return {
     theme: settings.theme as ThemePreference,
@@ -52,8 +61,9 @@ export async function getSettingsRecord(userId: string): Promise<SettingsRecord>
     avatarId: settings.avatarId,
     fontScale: settings.fontScale as FontScale,
     reminderHour: settings.reminderHour,
+    dataToolsEnabled: settings.dataToolsEnabled,
   };
-}
+});
 
 export async function updateSettings(
   userId: string,
@@ -65,6 +75,7 @@ export async function updateSettings(
     avatarId?: string;
     fontScale?: FontScale;
     reminderHour?: number;
+    dataToolsEnabled?: boolean;
   },
 ) {
   await getSettings(userId);
@@ -76,6 +87,7 @@ export async function updateSettings(
   if (values.avatarId !== undefined) data.avatarId = values.avatarId;
   if (values.fontScale !== undefined) data.fontScale = values.fontScale;
   if (values.reminderHour !== undefined) data.reminderHour = values.reminderHour;
+  if (values.dataToolsEnabled !== undefined) data.dataToolsEnabled = values.dataToolsEnabled;
 
   return prisma.settings.update({ where: { userId }, data });
 }

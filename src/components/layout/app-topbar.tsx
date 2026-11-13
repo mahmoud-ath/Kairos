@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useAppData, useSearch } from "@/components/app-data";
 import { AvatarArt } from "@/components/layout/avatar";
 import { ShortcutTrigger } from "@/components/layout/shortcut-provider";
+import { TaskTransferMenu } from "@/components/layout/task-transfer-menu";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -95,6 +96,10 @@ export function AppTopbar({ onOpenNav }: { onOpenNav?: () => void }) {
       {/* Area 3 — workspace actions. */}
       <div className="flex shrink-0 items-center gap-0.5">
         <ShortcutTrigger />
+
+        {/* Opt-in: settings → Dates / Header tools. Hidden otherwise, so the bar
+            keeps to what the account actually uses. */}
+        {settings.dataToolsEnabled ? <TaskTransferMenu /> : null}
 
         {/* The span keeps the tooltip and the menu trigger off one element. */}
         <Tooltip>
