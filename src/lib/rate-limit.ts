@@ -44,6 +44,7 @@ export const RATE_LIMITS: Record<RateLimitBucket, RateLimitPolicy> = {
 /** Actions that are cheap to call and expensive to serve. */
 const EXPENSIVE_ACTIONS = new Set([
   "loadExampleTasks",
+  "removeExampleData",
   "restoreBackup",
   "resetAllData",
   // An import can write thousands of rows in one transaction.

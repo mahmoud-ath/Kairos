@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Download, RotateCcw, Upload } from "lucide-react";
+import { AlertTriangle, Download, RotateCcw, Sparkles, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { parseBackupText, type BackupSummary } from "@/lib/backup";
+import { removeExampleDataAction } from "@/server/actions/examples";
 import { importBackupAction, resetAllDataAction } from "@/server/actions/settings";
 
 /**
@@ -44,6 +45,8 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetPhrase, setResetPhrase] = useState("");
   const [resetting, setResetting] = useState(false);
+  const [examplesOpen, setExamplesOpen] = useState(false);
+  const [removingExamples, setRemovingExamples] = useState(false);
 
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -94,6 +97,22 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
     toast.success("All data deleted");
   }
 
+  async function confirmRemoveExamples() {
+    setRemovingExamples(true);
+    const result = await removeExampleDataAction();
+    setRemovingExamples(false);
+    if (!result.ok) {
+      toast.error("Couldn't remove the example data", { description: result.error });
+      return;
+    }
+    setExamplesOpen(false);
+    const tasks = result.data?.tasks ?? 0;
+    const habits = result.data?.habits ?? 0;
+    toast.success("Example data removed", {
+      description: `Deleted ${tasks} sample task${tasks === 1 ? "" : "s"} and ${habits} sample habit${habits === 1 ? "" : "s"}.`,
+    });
+  }
+
   return (
     <section className="flex flex-col gap-4 rounded-lg border border-border bg-card px-4 py-4">
       <div>
@@ -126,6 +145,29 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
           className="hidden"
           onChange={handleFile}
         />
+      </div>
+
+      {/* The sample workspace can be removed on its own: trying Kairos out should
+          not leave demo tasks behind once the person starts for real. */}
+      <div className="flex items-start gap-2 rounded-md border border-border px-3 py-2">
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Example data</p>
+          <p>
+            Removes the tasks, habits, categories and history created by “Load example data”.
+            They are recognised by their built-in titles, so anything you renamed or added
+            yourself is kept.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-1 h-7 px-2"
+            onClick={() => setExamplesOpen(true)}
+          >
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+            Remove example data
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2">
@@ -222,6 +264,30 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={examplesOpen} onOpenChange={setExamplesOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove the example data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The sample tasks, their subtasks, the sample habits and their completion
+              history are deleted. Tasks you created or renamed yourself are not touched.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removingExamples}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removingExamples}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmRemoveExamples();
+              }}
+            >
+              {removingExamples ? "Removing…" : "Remove example data"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
         <AlertDialogContent>

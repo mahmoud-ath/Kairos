@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { CategorySelect } from "@/components/tasks/selects";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TITLE_MAX_LENGTH } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,11 @@ export type QuickAddValues = {
 };
 
 /**
- * Press Enter to create a task — there is no button.
+ * Create a task from the top of any view.
+ *
+ * Pressing Enter still submits, which is how the field is normally used; the
+ * button exists for touch screens and for anyone who expects to see one. Both
+ * paths run the same `onSubmit`, so the two can never drift apart.
  *
  * The view supplies the defaults: a category page defaults to that category and
  * Today defaults the planned date to today.
@@ -107,6 +112,16 @@ export function QuickAdd({
           onCreate={onCreateCategory}
           className="h-9 max-w-44"
         />
+
+        <Button
+          type="submit"
+          size="sm"
+          className="h-9"
+          disabled={saving || title.trim().length === 0}
+        >
+          <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+          {saving ? "Adding…" : "Add task"}
+        </Button>
       </div>
 
       {error ? (
