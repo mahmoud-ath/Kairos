@@ -62,6 +62,7 @@ export function HabitTrend({
             <Link
               key={window}
               href={rangeHref(window)}
+              prefetch={false}
               aria-current={window === trendWindow ? "true" : undefined}
               className={cn(
                 "rounded px-2 py-1 text-xs transition-colors",

@@ -151,7 +151,7 @@ export function HabitsView({
           <h1 className="text-base font-semibold tracking-tight">Habits</h1>
           <p className="max-w-prose text-sm text-muted-foreground">
             Each day a habit is due, Kairos creates the task for you and puts it in{" "}
-            <Link href="/today" className="font-medium text-foreground underline">
+            <Link href="/today" prefetch={false} className="font-medium text-foreground underline">
               Today
             </Link>
             . Ticking it off there is what marks the habit done — or tick it straight
@@ -425,7 +425,7 @@ function HabitTodayStatus({
     );
   }
   return (
-    <Link href="/today" className="text-xs text-muted-foreground hover:text-foreground">
+    <Link href="/today" prefetch={false} className="text-xs text-muted-foreground hover:text-foreground">
       Waiting in Today →
     </Link>
   );

@@ -311,7 +311,7 @@ export function HabitMonthGrid({
 
           {!isCurrentMonth || (activeView === "week" && !isCurrentWeek) ? (
             <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
-              <Link href={thisMonthHref} onClick={() => setWeekIndex(null)}>
+              <Link href={thisMonthHref} prefetch={false} onClick={() => setWeekIndex(null)}>
                 This month
               </Link>
             </Button>

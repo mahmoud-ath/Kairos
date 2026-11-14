@@ -63,6 +63,10 @@ function CategoryRow({
       <Link
         href={`/categories/${category.id}`}
         onClick={onNavigate}
+        // No prefetch: every workspace route is dynamic, so a prefetch is a full
+        // server render (settings, categories, counters) against a remote
+        // database. See the note on the main nav below.
+        prefetch={false}
         className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-sidebar-accent focus-visible:bg-sidebar-accent"
       >
         <CategoryGlyph icon={category.icon} color={category.color} className="h-3.5 w-3.5" />
@@ -214,6 +218,14 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <p className="text-sm font-semibold tracking-tight">Kairos</p>
       </div>
 
+      {/* Prefetching is off for every link in the shell.
+          The workspace routes are dynamic, so a prefetch is a full server render:
+          the app layout alone reads settings, categories, task summaries and
+          habits, and each query is a round trip to PostgreSQL (~130 ms on a
+          hosted database). Loading one page used to fire five of those renders at
+          once, which is what exhausted Prisma's connection pool in production
+          (`P2024`). Navigation still feels immediate — the route's skeleton from
+          `(app)/loading.tsx` shows while the one render it needs happens. */}
       <nav aria-label="Views" className="flex flex-col gap-0.5 px-3 pb-2">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
@@ -224,6 +236,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               key={item.href}
               href={item.href}
               onClick={onNavigate}
+              prefetch={false}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
@@ -272,6 +285,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <Link
             href="/statistics"
             onClick={onNavigate}
+            prefetch={false}
             aria-current={pathname === "/statistics" ? "page" : undefined}
             className={cn(
               "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
@@ -284,6 +298,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <Link
             href="/settings"
             onClick={onNavigate}
+            prefetch={false}
             aria-current={pathname === "/settings" ? "page" : undefined}
             className={cn(
               "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",

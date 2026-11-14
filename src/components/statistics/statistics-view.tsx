@@ -155,6 +155,7 @@ export function StatisticsView({
             <Link
               key={days}
               href={`/statistics?range=${days}`}
+              prefetch={false}
               aria-current={data.windowDays === days ? "page" : undefined}
               className={cn(
                 "rounded px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",

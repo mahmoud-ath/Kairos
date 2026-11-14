@@ -106,7 +106,11 @@ export function ProgressPanelContent({
       </div>
 
       <Button variant="outline" size="sm" asChild>
-        <Link href={statisticsHref}>Open statistics</Link>
+        {/* No prefetch: a workspace route is a dynamic render, and prefetching it
+            from every page would re-run the app layout against the database. */}
+        <Link href={statisticsHref} prefetch={false}>
+          Open statistics
+        </Link>
       </Button>
     </div>
   );
