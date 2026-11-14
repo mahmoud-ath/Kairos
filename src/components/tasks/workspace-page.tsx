@@ -35,8 +35,9 @@ export async function WorkspacePage({
 }) {
   const ctx = await getRequestContext();
 
-  // Generated here as well as in the layout, so this render is guaranteed to see
-  // the instances it is about to list (the two may run concurrently).
+  // The layout runs this too; it is memoised per request, so whichever reaches
+  // it first does the work and the other reuses the result — this render is
+  // still guaranteed to see the instances it is about to list.
   if (includeHabitInstances) await ensureHabitInstances(ctx);
 
   const [tasks, statistics] = await Promise.all([

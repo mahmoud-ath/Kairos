@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import {
   addDays,
   addMonths,
@@ -209,14 +211,26 @@ export async function deleteHabit(ctx: RequestContext, id: string): Promise<Habi
  * Make sure today's habit instances exist — and that no other day's linger.
  *
  * Called on every workspace render, so it is written to be idempotent and, on
- * the common path, read-only: the work is decided from two cheap reads and the
- * write transaction is only opened when something actually changed.
+ * the common path, read-only: the work is decided from two cheap reads and
+ * nothing is written unless something actually changed.
  *
  * A day that is over and was never completed is simply dropped, because a habit
  * is not a backlog — a missed day is missing from the history, not waiting to be
  * done late. Completed instances are kept: they are the record.
+ *
+ * **Memoised per request** (React's `cache`): the app layout and the Today page
+ * both call it, and they used to pay for the two reads twice.
+ *
+ * **No interactive transaction.** The three statements below are each idempotent,
+ * so they are run one at a time instead of inside `$transaction`. That matters
+ * under serverless concurrency: a transaction holds its connection *and* its row
+ * locks until commit, and two overlapping renders of the same user (the layout
+ * plus a prefetched route) would block on each other's locks — long enough for
+ * Prisma's pool to time out, which surfaced in production as a 500 (`P2024`).
+ * Losing atomicity costs nothing here: a half-applied run is simply finished by
+ * the next render.
  */
-export async function ensureHabitInstances(ctx: RequestContext): Promise<void> {
+export const ensureHabitInstances = cache(async (ctx: RequestContext): Promise<void> => {
   const { userId, today } = ctx;
   const prisma = scopedPrisma(userId);
   const todayDate = dateOnlyToDate(today);
@@ -254,35 +268,37 @@ export async function ensureHabitInstances(ctx: RequestContext): Promise<void> {
 
   if (create.length === 0 && removeToday.length === 0 && missedCount === 0) return;
 
-  await prisma.$transaction(async (tx) => {
-    if (missedCount > 0) {
-      await tx.task.deleteMany({
-        where: { habitId: { not: null }, habitDate: { lt: todayDate }, status: "TODO" },
-      });
-    }
-    if (removeToday.length > 0) {
-      await tx.task.deleteMany({ where: { id: { in: removeToday.map((row) => row.id) } } });
-    }
-    if (create.length > 0) {
-      await tx.task.createMany({
-        data: create.map((habit) => ({
-          userId,
-          title: habit.title,
-          notes: habit.notes,
-          categoryId: habit.categoryId,
-          habitId: habit.id,
-          habitDate: todayDate,
-          // The instance is planned for the day it belongs to, which is what
-          // makes it appear in Today and nowhere else.
-          scheduledDate: todayDate,
-          position: habit.position,
-          status: "TODO",
-        })),
-        skipDuplicates: true,
-      });
-    }
-  });
-}
+  // Insert first: `skipDuplicates` makes it `ON CONFLICT DO NOTHING`, so two
+  // renders racing on the same day cannot collide on the habit/day unique index.
+  if (create.length > 0) {
+    await prisma.task.createMany({
+      data: create.map((habit) => ({
+        userId,
+        title: habit.title,
+        notes: habit.notes,
+        categoryId: habit.categoryId,
+        habitId: habit.id,
+        habitDate: todayDate,
+        // The instance is planned for the day it belongs to, which is what
+        // makes it appear in Today and nowhere else.
+        scheduledDate: todayDate,
+        position: habit.position,
+        status: "TODO",
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  if (removeToday.length > 0) {
+    await prisma.task.deleteMany({ where: { id: { in: removeToday.map((row) => row.id) } } });
+  }
+
+  if (missedCount > 0) {
+    await prisma.task.deleteMany({
+      where: { habitId: { not: null }, habitDate: { lt: todayDate }, status: "TODO" },
+    });
+  }
+});
 
 /* -------------------------------------------------------------------------- */
 /* Progress                                                                   */

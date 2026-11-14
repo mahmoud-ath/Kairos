@@ -17,6 +17,45 @@ const globalForPrisma = globalThis as unknown as {
   kairosPrisma?: PrismaClient;
 };
 
+/**
+ * Pool settings for a serverless deployment.
+ *
+ * Vercel starts a new function instance whenever it likes, and each instance
+ * opens its own pool. Prisma's defaults (a limit of `num_cpus * 2 + 1`, so five
+ * here) are meant for a long-lived process: a handful of concurrent renders —
+ * the app shell plus the routes the sidebar prefetches — can fill them, and the
+ * next query then waits ten seconds for a connection and fails with `P2024`.
+ *
+ * Two connections per instance and a longer wait are the documented shape for a
+ * pooled Postgres behind a serverless platform (see `docs/deployment.md` §3.2).
+ * Docker and local development keep Prisma's defaults: one container holds one
+ * pool for its whole life, where the defaults are correct.
+ *
+ * Values already present in the URL always win, so an operator can tune this
+ * from the environment without touching code.
+ */
+function serverlessDatasourceUrl(): string | undefined {
+  const url = process.env.DATABASE_URL;
+  if (!url || !process.env.VERCEL) return undefined;
+  // Accelerate (`prisma+postgres://`) and other schemes manage their own pool.
+  if (!/^postgres(ql)?:\/\//i.test(url)) return undefined;
+
+  try {
+    const parsed = new URL(url);
+    if (!parsed.searchParams.has("connection_limit")) {
+      parsed.searchParams.set("connection_limit", "2");
+    }
+    if (!parsed.searchParams.has("pool_timeout")) {
+      parsed.searchParams.set("pool_timeout", "20");
+    }
+    return parsed.toString();
+  } catch {
+    // A URL the runtime cannot parse is left exactly as it is: Prisma's own
+    // error message is more useful than one thrown here.
+    return undefined;
+  }
+}
+
 function createClient() {
   // Only DATABASE_URL is checked. Verified: Prisma Client does not validate
   // `directUrl` when it is constructed — that variable is read by the Prisma CLI
@@ -30,6 +69,7 @@ function createClient() {
   }
 
   return new PrismaClient({
+    datasourceUrl: serverlessDatasourceUrl(),
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 }
