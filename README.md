@@ -203,12 +203,10 @@ sign-in entirely for local work, set `KAIROS_AUTH_DISABLED=true`.
 guide for Vercel + PostgreSQL + Supabase Auth, including the checks for the
 failures that cost the most time.
 
-Open <http://localhost:3000>. The workspace starts empty: use the quick-add
-field, or press **Load example tasks** on the first-run screen. Demo data is
-only ever created when you ask for it, and only into an empty database. The
-set is three categories and eight tasks: two of them have subtasks, one has
-no dates at all, one is already finished, and one is late on purpose so the
-*Overdue* section is visible from the first screen.
+Open <http://localhost:3000>. The workspace starts empty and stays yours: there is
+no sample data, no seeded categories and nothing created behind your back — the
+quick-add field above the list is the whole first screen. The JSON backup in
+Settings is how a workspace is moved in and out.
 
 ### Useful scripts
 

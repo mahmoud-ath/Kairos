@@ -32,7 +32,7 @@ function localDate(offsetDays = 0): string {
 }
 
 test.describe("task workflow", () => {
-  test("reset to the first-run state, load examples, then work a task", async ({ page }) => {
+  test("reset to the first-run state, then work a task", async ({ page }) => {
     const title = "Write the Kairos release notes";
 
     // --- first run ---------------------------------------------------------
@@ -45,17 +45,29 @@ test.describe("task workflow", () => {
 
     await page.goto("/today");
     await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
-    // Nothing is created silently: the example data is an explicit choice.
-    const loadExamples = page.getByRole("button", { name: "Load example data" });
-    await expect(loadExamples).toBeVisible();
-    await loadExamples.click();
-    await expect(
-      page.getByRole("button", { name: "Open task Draft the Q4 roadmap" }),
-    ).toBeVisible();
+    // A fresh workspace is just the quick-add field: no demo data is offered,
+    // and no empty-state block explains that there is nothing yet.
+    await expect(page.getByRole("button", { name: "Load example data" })).toHaveCount(0);
+    await expect(page.getByText("Nothing planned for today")).toHaveCount(0);
 
-    // There is no Inbox, and All Tasks lists yesterday separately.
+    // There is no Inbox, and All Tasks groups work by day.
     await expect(page.getByRole("link", { name: /Inbox/ })).toBeHidden();
     await page.goto("/tasks");
+
+    const todayInput = await quickAdd(page);
+    await todayInput.fill("Start the day");
+    await todayInput.press("Enter");
+    await expect(page.getByRole("button", { name: "Open task Start the day" })).toBeVisible();
+
+    // Clearing the planned date files a task under Unscheduled instead.
+    const undatedInput = await quickAdd(page);
+    await page.getByLabel("Planned date").fill("");
+    await undatedInput.fill("Someday: learn to sail");
+    await undatedInput.press("Enter");
+    await expect(
+      page.getByRole("button", { name: "Open task Someday: learn to sail" }),
+    ).toBeVisible();
+
     await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Unscheduled", exact: true })).toBeVisible();
 
@@ -71,10 +83,10 @@ test.describe("task workflow", () => {
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Yesterday", exact: true })).toBeVisible();
 
-    // --- capture: Enter only, no button -------------------------------------
+    // --- capture: Enter and the Add task button -----------------------
     await page.goto("/today");
     const quickAddInput = await quickAdd(page);
-    await expect(page.getByRole("button", { name: "Add", exact: true })).toBeHidden();
+    await expect(page.getByRole("button", { name: "Add task", exact: true })).toBeVisible();
     await quickAddInput.fill(title);
     await quickAddInput.press("Enter");
     await expect(page.getByRole("button", { name: `Open task ${title}` })).toBeVisible();

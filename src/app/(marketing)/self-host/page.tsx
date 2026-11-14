@@ -175,7 +175,7 @@ export default function SelfHostPage() {
               <p>
                 Kairos is published on the loopback interface, so it is not reachable from
                 your network unless you change that. Your workspace starts empty: add a
-                task, or load the example data from the empty screen.
+                task with the quick-add field and it is saved straight away.
               </p>
               <CodeBlock label="Browser" code="http://127.0.0.1:3000" />
             </Step>

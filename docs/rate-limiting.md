@@ -17,7 +17,7 @@ because a rate limiter bolted onto `/api/*` would protect almost nothing.
 
 | Entry point | Method | Auth | What abuse looks like |
 | --- | --- | --- | --- |
-| Server Actions (`src/server/actions/*`) | POST, any app route | session | Flooding `createTask`, `loadExampleTasks`, `restoreBackup`, `setHabitDay` — writes and DB load |
+| Server Actions (`src/server/actions/*`) | POST, any app route | session | Flooding `createTask`, `restoreBackup`, `setHabitDay` — writes and DB load |
 | `/api/backup` | GET | session | Repeated full-workspace export: memory + DB + bandwidth |
 | `/api/cron/daily-reminder` | GET | shared secret | Already gated; a leaked secret lets someone spam every device |
 | `/api/health` | GET | none | Cheap; probing only |
@@ -85,7 +85,7 @@ many IPs would sail through.
 | Class | Identifier | Limit | Rationale |
 | --- | --- | --- | --- |
 | Mutations | `user:<id>` | 60 / minute, 1 000 / hour | A human types ~5 tasks/min at most; batches and drag-reorder bursts still fit |
-| Expensive mutations (`loadExampleTasks`, `restoreBackup`, `resetAllData`) | `user:<id>` | 5 / minute, 20 / hour | Each one writes the whole workspace |
+| Expensive mutations (`restoreBackup`, `resetAllData`, `importTasks`) | `user:<id>` | 5 / minute, 20 / hour | Each one writes the whole workspace |
 | Backup export | `user:<id>` | 10 / hour | Rare, heavy |
 | Anonymous fallback (no session) | `ip:<addr>` | 20 / minute | Only the auth pages and `/` are anonymous |
 | Cron endpoint | shared | 6 / hour | It is a daily job; anything more is a mistake or a replay |
@@ -118,7 +118,7 @@ export function retryAfterSeconds(resetAt: number, now: number): number {
 
 /** Which policy an action name falls under. Pure, so the mapping is unit-tested. */
 export function policyForAction(name: string): RateLimitPolicy {
-  if (name === "loadExampleTasks" || name === "restoreBackup" || name === "resetAllData") {
+  if (name === "restoreBackup" || name === "resetAllData" || name === "importTasks") {
     return RATE_LIMITS.expensive;
   }
   return RATE_LIMITS.mutation;
@@ -272,8 +272,8 @@ Two details worth keeping:
   the action body asks again; uncached, that would be two Supabase round trips per
   mutation. React `cache` and not a module variable — a serverless instance is
   reused across accounts.
-- **Only three actions declare a bucket.** `loadExampleTasks`, `restoreBackup` and
-  `resetAllData` pass `{ action: … }` to `runAction`; everything else is a
+- **Only a few actions declare a bucket.** `restoreBackup`, `resetAllData` and
+  `importTasks` pass `{ action: … }` to `runAction`; everything else is a
   `mutation`. The name is optional on purpose: labelling dozens of call sites
   would be a bigger diff than the behaviour is worth, and the default is the safe
   one.

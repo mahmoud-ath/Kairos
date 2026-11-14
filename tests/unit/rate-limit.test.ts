@@ -16,7 +16,7 @@ const T0 = 1_000_000;
 
 describe("which bucket an action belongs to", () => {
   it("treats workspace-wide writes as expensive", () => {
-    expect(bucketForAction("loadExampleTasks")).toBe("expensive");
+    expect(bucketForAction("importTasks")).toBe("expensive");
     expect(bucketForAction("restoreBackup")).toBe("expensive");
     expect(bucketForAction("resetAllData")).toBe("expensive");
   });

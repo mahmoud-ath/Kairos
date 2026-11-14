@@ -1031,18 +1031,12 @@ filled line through a single week of noise invites the wrong conclusion.
 
 ### Sample data
 
-“Load example data” seeds three habits with **six weeks of hand-written
-history** — one kept up, one that improved, one that faded out — so the grid, the
-streaks and the chart all have something honest to show, including missed days
-and a real trend. The patterns are literal strings in
-`src/server/services/examples.ts` ("x" done, "." skipped), each ending today,
-and today is always left open so Today still has its work waiting. Completion is
-recorded as `completed` events with `{ habitId, habitDate }` metadata, never as
-task rows: a missed day simply has no record, exactly as it would in real use.
-
-Example data goes into an **empty** workspace only, and the guard counts habits
-too — otherwise the button would be offered again after a wipe that left habits
-behind.
+Kairos ships **no** sample data. An empty workspace shows the quick-add field and
+nothing else: no demo tasks, no seeded categories, no empty-state block offering
+to fill the database with examples. The earlier `loadExampleTasks` loader (three
+categories, eight tasks, three habits with six weeks of hand-written history) was
+removed for that reason — a first-run screen should not stand between a person
+and their first task. `git log` has it if a demo is ever wanted again.
 
 ### Statistics are about tasks, the habits page is about habits
 

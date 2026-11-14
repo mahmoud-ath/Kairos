@@ -8,7 +8,6 @@ import {
   useEffect,
   useMemo,
   useOptimistic,
-  useRef,
   useState,
   useTransition,
 } from "react";
@@ -209,7 +208,6 @@ export function TaskWorkspace({
   const nestTargetId = dragState.intent === "nest" ? dragState.overId : null;
 
   const router = useRouter();
-  const quickAddRef = useRef<HTMLDivElement>(null);
 
   /* ---------------------------------------------------------------------- */
   /* Mutations                                                              */
@@ -772,7 +770,7 @@ export function TaskWorkspace({
           </div>
         </header>
 
-        <div className="mt-4 flex flex-col gap-3" ref={quickAddRef}>
+        <div className="mt-4 flex flex-col gap-3">
           <QuickAdd
             categories={categories}
             defaultCategoryId={defaultCategoryId(scope)}
@@ -829,7 +827,10 @@ export function TaskWorkspace({
             />
           ) : null}
 
-          {visibleTasks.length === 0 ? (
+          {/* A brand-new workspace shows nothing here: the quick-add field above
+              is the whole story, and an empty-state block only got in the way of
+              the first task. */}
+          {visibleTasks.length === 0 && !workspaceIsEmpty ? (
             <div className="mt-6">
               <EmptyState
                 title={
@@ -846,13 +847,7 @@ export function TaskWorkspace({
                       : "This view has no tasks in that category. Clear the filter to see everything."
                     : emptyDescription
                 }
-                workspaceIsEmpty={workspaceIsEmpty && !filtering}
                 onClearFilter={filtering ? clearFilters : undefined}
-                onFocusQuickAdd={
-                  filtering
-                    ? undefined
-                    : () => quickAddRef.current?.querySelector("input")?.focus()
-                }
               />
             </div>
           ) : null}

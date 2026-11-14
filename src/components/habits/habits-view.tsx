@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BookOpenCheck,
   Check,
   Flame,
   MoreHorizontal,
@@ -17,7 +16,6 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { useAppData } from "@/components/app-data";
 import { HabitDialog } from "@/components/habits/habit-dialog";
 import { HabitMonthGrid } from "@/components/habits/habit-month-grid";
 import { HabitTrend } from "@/components/habits/habit-trend";
@@ -54,7 +52,6 @@ import type {
   HabitMonth,
   HabitProgress,
 } from "@/types/kairos";
-import { loadExampleTasksAction } from "@/server/actions/examples";
 import { deleteHabitAction, updateHabitAction } from "@/server/actions/habits";
 import { createCategoryAction } from "@/server/actions/taxonomy";
 
@@ -89,13 +86,11 @@ export function HabitsView({
   today: string;
 }) {
   const router = useRouter();
-  const { counts } = useAppData();
   const [, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<HabitDTO | null>(null);
   const [deleting, setDeleting] = useState<HabitDTO | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [loadingExamples, setLoadingExamples] = useState(false);
 
   // A paused habit keeps its history but is not tracked: it drops out of the
   // grid and the trend, and its card offers to resume it.
@@ -109,25 +104,7 @@ export function HabitsView({
     `/habits?month=${monthParamValue(month.first)}&range=${window}`;
   const thisMonthHref = `/habits?range=${trendWindow}`;
 
-  // Example data can only be loaded into a workspace with nothing in it.
-  const workspaceIsEmpty = counts.open === 0 && counts.completed === 0;
-
   const refresh = () => startTransition(() => router.refresh());
-
-  /** Sample data, so a new workspace can see the tracker with something in it. */
-  async function loadExamples() {
-    setLoadingExamples(true);
-    const result = await loadExampleTasksAction();
-    setLoadingExamples(false);
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success(
-      `Loaded ${result.data?.habits ?? 0} example habits with six weeks of history`,
-    );
-    refresh();
-  }
 
   /** Creating a category inside the dialog also updates the sidebar. */
   async function handleCreateCategory(name: string): Promise<CategoryDTO | null> {
@@ -203,17 +180,6 @@ export function HabitsView({
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             New habit
           </Button>
-          {workspaceIsEmpty ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadExamples}
-              disabled={loadingExamples}
-            >
-              <BookOpenCheck className="mr-1.5 h-3.5 w-3.5" />
-              {loadingExamples ? "Loading…" : "Load example habits"}
-            </Button>
-          ) : null}
         </div>
       ) : (
         <>
