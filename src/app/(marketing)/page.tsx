@@ -5,6 +5,7 @@ import { Features } from "@/components/marketing/features";
 import { FinalCta } from "@/components/marketing/final-cta";
 import { Hero } from "@/components/marketing/hero";
 import { HowItWorks } from "@/components/marketing/how-it-works";
+import { SelfHostTeaser } from "@/components/marketing/self-host-teaser";
 import { SITE_NAME, SOCIAL_IMAGE } from "@/lib/site";
 
 /**
@@ -18,7 +19,7 @@ import { SITE_NAME, SOCIAL_IMAGE } from "@/lib/site";
 const TITLE = `${SITE_NAME} — organise your tasks, focus on what matters`;
 
 const DESCRIPTION =
-  "Kairos is a free, open-source task manager that organises work by category and date, with subtasks, drag and drop, statistics and JSON backups. Every account gets its own private workspace.";
+  "Kairos is a free, open-source task manager that organises work by category and date, with subtasks, drag and drop, statistics and JSON backups. Every account gets its own private workspace — or run it yourself with one Docker Compose command.";
 
 export const metadata: Metadata = {
   // `absolute` because the root layout applies a "%s · Kairos" template, which
@@ -50,6 +51,7 @@ export default function LandingPage() {
       <Hero />
       <Features />
       <HowItWorks />
+      <SelfHostTeaser />
       <Faq />
       <FinalCta />
     </>

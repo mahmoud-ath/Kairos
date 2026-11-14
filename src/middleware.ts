@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   isAuthPath,
   isEmailAllowed,
+  isMarketingPath,
   isPublicPath,
   isUnauthenticatedModeEnabled,
   LANDING_PATH,
@@ -111,15 +112,24 @@ export async function middleware(request: NextRequest) {
   // Same rule as `server/auth.ts`, and it is ignored on a hosted deployment.
   const authDisabled = isUnauthenticatedModeEnabled();
 
-  // The landing page is public, so it is served before anything else is
-  // considered: no session refresh, and no Supabase configuration required. Its
-  // content is static, so middleware passing through keeps it prerenderable.
-  if (pathname === LANDING_PATH) {
+  // The marketing pages are public, so they are served before anything else is
+  // considered: no session refresh, and no Supabase configuration required. Their
+  // content is static, so middleware passing through keeps them prerenderable.
+  if (isMarketingPath(pathname)) {
     // A visitor who is already signed in belongs in their workspace, not on the
     // marketing page. Nobody is verified unless a session cookie is actually
     // present, so the common case costs one string test — and with no Supabase
     // project at all the landing page still renders, signed out.
-    if (url && anonKey && !authDisabled && hasSessionCookie(request)) {
+    //
+    // Only the landing page does this: a guide page is content the visitor asked
+    // for, so it is served to everybody.
+    if (
+      pathname === LANDING_PATH &&
+      url &&
+      anonKey &&
+      !authDisabled &&
+      hasSessionCookie(request)
+    ) {
       const { user, response } = await resolveSession(request, url, anonKey);
       if (user && isEmailAllowed(user.email)) {
         return copyCookies(response, NextResponse.redirect(new URL("/today", request.url)));

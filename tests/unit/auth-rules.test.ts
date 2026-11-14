@@ -6,9 +6,11 @@ import {
   isAuthPath,
   isEmailAllowed,
   isHostedDeployment,
+  isMarketingPath,
   isPublicPath,
   isUnauthenticatedModeEnabled,
   LANDING_PATH,
+  MARKETING_PATHS,
   PUBLIC_PATHS,
   safeNextPath,
 } from "@/lib/auth-rules";
@@ -86,6 +88,17 @@ describe("isPublicPath", () => {
   it("serves the landing page to anyone, signed in or out", () => {
     expect(LANDING_PATH).toBe("/");
     expect(isPublicPath(LANDING_PATH)).toBe(true);
+  });
+
+  it("serves the marketing pages without a session", () => {
+    // The Docker guide is static content, like the landing page: a signed-out
+    // visitor must never be bounced to `/login` for reading it.
+    for (const path of MARKETING_PATHS) {
+      expect(isMarketingPath(path)).toBe(true);
+      expect(isPublicPath(path)).toBe(true);
+    }
+    expect(isMarketingPath("/self-host/")).toBe(true);
+    expect(isMarketingPath("/today")).toBe(false);
   });
 
   it("serves the routes that exist before a session does", () => {

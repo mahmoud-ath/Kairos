@@ -73,7 +73,7 @@ const FEATURES = [
     icon: ShieldCheck,
     title: "Private by construction, open source",
     description:
-      "Each account gets its own workspace, and that separation is enforced in the data layer rather than only hidden in the interface. MIT licensed: use the hosted version, or run your own against your own PostgreSQL.",
+      "Each account gets its own workspace, and that separation is enforced in the data layer rather than only hidden in the interface. MIT licensed: use the hosted version, or run your own with one Docker Compose command against your own PostgreSQL.",
   },
 ] as const;
 

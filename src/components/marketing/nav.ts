@@ -13,6 +13,12 @@ export const MARKETING_NAV = [
   { href: "#faq", label: "FAQ" },
 ] as const;
 
+/**
+ * Standalone public pages — real routes, not anchors into the landing page, so
+ * they keep working from `/login` and `/self-host` as well as from `/`.
+ */
+export const MARKETING_PAGES = [{ href: "/self-host", label: "Self-host" }] as const;
+
 /** Taken from `git remote -v`, so it points at the real repository. */
 export const REPOSITORY_URL = "https://github.com/mahmoud-ath/Kairos";
 

@@ -2,7 +2,12 @@ import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 import { Brand } from "@/components/marketing/brand";
-import { LICENSE_URL, MARKETING_NAV, REPOSITORY_URL } from "@/components/marketing/nav";
+import {
+  LICENSE_URL,
+  MARKETING_NAV,
+  MARKETING_PAGES,
+  REPOSITORY_URL,
+} from "@/components/marketing/nav";
 
 /**
  * Public footer.
@@ -37,6 +42,16 @@ export function SiteFooter() {
                     >
                       {link.label}
                     </a>
+                  </li>
+                ))}
+                {MARKETING_PAGES.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      className="rounded text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {link.label}
+                    </Link>
                   </li>
                 ))}
               </ul>

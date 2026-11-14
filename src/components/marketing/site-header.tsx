@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Brand } from "@/components/marketing/brand";
-import { MARKETING_NAV } from "@/components/marketing/nav";
+import { MARKETING_NAV, MARKETING_PAGES } from "@/components/marketing/nav";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 
@@ -32,6 +32,15 @@ export function SiteHeader() {
               // Root-relative, so the same header works on `/login` as well as
               // on the landing page: `#features` alone would go nowhere there.
               href={`/${link.href}`}
+              className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {link.label}
+            </Link>
+          ))}
+          {MARKETING_PAGES.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
               className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               {link.label}
@@ -75,6 +84,16 @@ export function SiteHeader() {
               <Link
                 key={link.href}
                 href={`/${link.href}`}
+                onClick={() => setOpen(false)}
+                className="rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                {link.label}
+              </Link>
+            ))}
+            {MARKETING_PAGES.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
                 onClick={() => setOpen(false)}
                 className="rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               >

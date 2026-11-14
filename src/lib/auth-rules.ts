@@ -86,6 +86,16 @@ export function safeNextPath(value: string | null | undefined): string {
 /** The public landing page. No session, and no Supabase project required. */
 export const LANDING_PATH = "/";
 
+/**
+ * Static marketing pages, served exactly like the landing page: no session
+ * refresh, no Supabase project, and no redirect for a signed-in visitor.
+ *
+ * Keep this list in step with `src/app/(marketing)` — a page added there without
+ * an entry here is protected by the gate, which would make it answer 307 to
+ * `/login` for everyone who is signed out.
+ */
+export const MARKETING_PATHS = [LANDING_PATH, "/self-host"] as const;
+
 /** Pages that only make sense while signed out. */
 export const AUTH_PATHS = ["/login", "/register"] as const;
 
@@ -96,7 +106,8 @@ export const AUTH_PATHS = ["/login", "/register"] as const;
  * so they must never redirect to themselves.
  */
 export const PUBLIC_PATHS = [
-  LANDING_PATH,
+  // The landing page and the self-hosting guide.
+  ...MARKETING_PATHS,
   // Uptime checks run before a session exists.
   "/api/health",
   // Where Supabase returns the browser after Google sign-in or an email
@@ -131,6 +142,12 @@ function normalizePath(pathname: string): string {
 export function isPublicPath(pathname: string): boolean {
   const path = normalizePath(pathname);
   return PUBLIC_PATHS.some((candidate) => candidate === path);
+}
+
+/** True for the statically rendered marketing pages (`MARKETING_PATHS`). */
+export function isMarketingPath(pathname: string): boolean {
+  const path = normalizePath(pathname);
+  return (MARKETING_PATHS as readonly string[]).includes(path);
 }
 
 export function isAuthPath(pathname: string): boolean {

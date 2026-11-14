@@ -44,7 +44,7 @@ const QUESTIONS = [
   {
     question: "Can I self-host it?",
     answer:
-      "Yes. Kairos is a standard Next.js server plus a PostgreSQL database, and the whole thing is MIT licensed. Point it at your own database and deploy it wherever you like — a VPS, a home server, or a container on your own hardware. Backups are plain JSON, so moving data in and out is a file, not a migration project.",
+      "Yes, and Docker Compose makes it one command. Clone the repository, copy .env.example to .env, and run docker compose up -d --build: that builds the app, starts PostgreSQL beside it, applies the database migrations and serves Kairos on 127.0.0.1. Data lives on a named volume, and upgrades are a rebuild and a restart. The full guide — configuration, health checks, backups and what to do before exposing it to the internet — is on the Docker guide page.",
   },
   {
     question: "Does it work offline?",
