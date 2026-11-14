@@ -25,6 +25,9 @@ prisma/dev.db-journal
 
 # Backups (private user data)
 *.kairos.json
+# The names the app itself downloads: the full backup and the tasks-only file.
+kairos-backup-*.json
+kairos-tasks-*.json
 backups/
 
 # Environment / secrets

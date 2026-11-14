@@ -13,9 +13,9 @@ Desktop layout:
 │ Kairos        │  All Tasks                                 │  Progress       │
 │               │  [ search ]  [ category ]      Clear done  │  62%  12 of 19  │
 │  Today    7   │  ┌──────────────────────────────────────┐  │  ▓▓▓▓▓▓░░░░░░   │
-│  All Tasks 19 │  │ +  Add a task and press Enter…       │  │                 │
+│  All Tasks 19 │  │ +  Add a task…   [ Add task ]        │  │                 │
 │  Completed 12 │  └──────────────────────────────────────┘  │  Completed  12  │
-│               │  YESTERDAY  1                              │  Remaining   7  │
+│  Habits   2   │  YESTERDAY  1                              │  Remaining   7  │
 │               │  ⠿ ☐ Send the invoice         Due Oct 2    │                 │
 │  CATEGORIES   │  TODAY  5                                  │  Completed/day  │
 │  ● Work   4   │  ⠿ ☐ Draft the roadmap       2/4  Work     │  ▁▃▅▂▇▅▆        │
@@ -40,9 +40,9 @@ workspace, and that separation is enforced in the query layer, not in the UI.
 
 - The sign-in gate is **on by default and fails closed**: a deployment that is not
   configured returns an error instead of serving one shared workspace.
-- **`/` is public.** The landing page is static marketing content — no session, no
-  database query, no workspace data — served identically to signed-out and
-  signed-in visitors. Everything else is behind the gate.
+- **`/` and `/self-host` are public.** The marketing pages are static — no
+  session, no database query, no workspace data — and are served identically to
+  signed-out and signed-in visitors. Everything else is behind the gate.
 - Configure Supabase Auth before sharing a URL — see
   **[docs/auth-setup.md](docs/auth-setup.md)**.
 - `KAIROS_AUTH_DISABLED=true` removes the gate entirely (local development and the
@@ -52,11 +52,13 @@ workspace, and that separation is enforced in the query layer, not in the UI.
   you change `KAIROS_BIND_HOST`, you are responsible for putting authentication
   in front of it (a reverse proxy with basic auth, Tailscale, WireGuard, …).
 - Exported backups contain your full task history. Treat them as private data
-  and never commit them to a repository.
-- **Search engines.** The views are indexable by default (`robots.txt` allows
-  crawling but never `/api/`), so anyone can find the app if it is reachable from
-  the internet. A private deployment can opt out completely with
-  `KAIROS_NO_INDEX=true`, which serves `Disallow: /`.
+  and never commit them to a repository (`.gitignore` covers `backups/` and the
+  export filenames).
+- **Search engines.** Only the marketing pages are advertised. `robots.txt`
+  disallows `/api/`, `/login`, `/auth/` and every workspace view, and the `(app)`
+  layout sends `noindex` as well. A private deployment can keep the whole site
+  out of search engines with `KAIROS_NO_INDEX=true`, which serves
+  `Disallow: /`.
 
 Accounts, sharing and collaboration are explicitly out of scope for v1.
 
@@ -70,9 +72,9 @@ Accounts, sharing and collaboration are explicitly out of scope for v1.
   keywords and `WebApplication` structured data.
 - **`robots.txt` and `sitemap.xml`** are generated from the route list
   (`src/app/robots.ts`, `src/app/sitemap.ts`) using `NEXT_PUBLIC_APP_URL`. The
-  sitemap lists the landing page and nothing else: every other route either
-  needs a session or is a redirect to `/login`, and category pages are your own
-  data and are never advertised. A category page that does not exist is
+  sitemap lists the landing page and the Docker guide (`/self-host`) and nothing
+  else: every other route either needs a session or redirects to `/login`, and
+  category pages are your own data. A category page that does not exist is
   `noindex`.
 - **Google Search Console.** The root layout renders the ownership
   `<meta name="google-site-verification">` tag from `GOOGLE_SITE_VERIFICATION`
@@ -111,7 +113,8 @@ scores (Total Blocking Time especially) are not representative.
 
 **Tasks**
 
-- Create, edit, complete, reopen and delete tasks; inline title editing
+- Create a task from the quick-add field with Enter or the **Add task** button,
+  then edit, complete, reopen and delete it; inline title editing
 - Notes: click anywhere on a task (or its notes icon) to write plain-text notes
 - One optional **category**; create new categories inline from the sidebar, the
   quick-add field or the details panel
@@ -126,18 +129,42 @@ scores (Total Blocking Time especially) are not representative.
 
 **Views**
 
-Three views, always in the sidebar:
+The sidebar holds four views, then one entry per category:
 
-- **Today** — what you planned for today, plus overdue work in its own section
-- **All Tasks** — every task grouped by day, from the furthest planned day back
-  through today and the earlier days (*Yesterday* and before), then *Unscheduled*
-- **Completed** — finished tasks, newest first
+- **Today** — what you planned for today. Late work is deliberately *not* piled
+  up here: it stays in All Tasks under the day that made it late, and in the
+  progress panel's counters. Today is a plan for the day, not a backlog.
+- **All Tasks** — every task grouped by day, newest day first, back through today
+  and the earlier days (*Yesterday* and before), then *Unscheduled*. The
+  **Completed** group at the end previews only the 10 most recent completions.
+- **Completed** — the whole history, newest first, **paged** 20 per page
+- **Habits** — the repeating work, with its month grid and 30-day trend
 - **Category views** — overdue / today / future days / unscheduled for one category
+
+**Habits**
+
+- A habit is a rule — which weekdays it is due, and from which day — and every
+  due day generates a task in Today. Ticking that task off is what "the habit was
+  done" means.
+- A missed day is simply missing, never a backlog: unfinished instances from
+  earlier days are dropped, while completed ones are history and are kept.
+- Month grid with per-day status, a streak and a 30-day trend, plus pause/resume.
+- Habit instances never reach All Tasks, Completed or the category counters —
+  they are not a queue to clear.
+
+**Reminders**
+
+- One optional **daily Web Push** reminder at an hour you choose, read in your
+  account's timezone, enabled per device in Settings and switched off again with
+  one tap. No per-task pings, no email, and nothing is sent until a device opts
+  in (see **[docs/notifications.md](docs/notifications.md)**).
 
 **Finding things**
 
-- Search across titles and notes
-- Clear completed tasks (with confirmation)
+- One filter box in the top bar narrows whatever view is open — it matches titles
+  and notes, case-insensitively, and every word must match
+- A category filter in All Tasks (with *Uncategorized* as a real option)
+- Clear completed tasks (with confirmation), scoped to the view you are in
 
 **Statistics**
 
@@ -148,9 +175,18 @@ Three views, always in the sidebar:
 
 **Settings**
 
-- Light, dark and system themes; timezone; first day of the week
-- Manage categories
-- Versioned JSON export and import, plus “reset all data”
+- Nickname, avatar (the later ones unlock with lifetime completions) and password
+- Light, dark and system themes; a four-step text size; timezone; first day of
+  the week
+- One daily reminder, at the hour you choose, per device
+- Categories: create, rename, recolour, change the icon, reorder and delete —
+  deleting one moves its tasks to Uncategorized rather than deleting them
+- **Header tools** (off by default): a JSON export/import menu in the top bar for
+  the task list alone. Export downloads `kairos-tasks-YYYY-MM-DD.json`; import
+  **adds** those tasks (categories matched by name, unknown ones created) and
+  never deletes anything.
+- Versioned JSON export and import of the whole workspace — tasks, subtasks,
+  habits, categories, history and settings — plus “reset all data”
 
 **Your data, your database**
 
@@ -170,6 +206,8 @@ Three views, always in the sidebar:
 | Mutations      | Server Actions with Zod validation and optimistic UI          |
 | Drag and drop  | dnd-kit (pointer **and** keyboard sensors)                     |
 | Charts         | Recharts                                                       |
+| Reminders      | Web Push (VAPID) from one scheduled route, at most once a day per account |
+| Rate limiting  | Fixed-window counters in PostgreSQL, Upstash optional          |
 | Tests          | Vitest (unit) + Playwright (end-to-end)                        |
 | Packaging      | Docker + Docker Compose with a persistent volume               |
 
@@ -233,7 +271,9 @@ cp .env.example .env          # set the Supabase pair, or KAIROS_AUTH_DISABLED=t
 docker compose up -d --build
 ```
 
-Open <http://127.0.0.1:3000>.
+Open <http://127.0.0.1:3000>. The same steps, explained in more depth —
+configuration, health checks, updates and what to do before exposing the port —
+are served by the app itself at **`/self-host`**.
 
 What the container does and how it is configured:
 
@@ -248,9 +288,10 @@ What the container does and how it is configured:
   inlined by `next build`, so Compose passes them from `.env` as **build
   arguments** — change them and run `docker compose up -d --build`. A plain
   `docker compose up -d` reuses the existing image and silently keeps the old
-  values. With none set, every route but `/` answers 500 and the health check
-  stays 503; set `KAIROS_AUTH_DISABLED=true` to run without sign-in (keep the
-  port on `127.0.0.1` if you do — everyone then shares one workspace).
+  values. With none set, every route but the static marketing pages answers 500
+  and the health check stays 503; set `KAIROS_AUTH_DISABLED=true` to run without
+  sign-in (keep the port on `127.0.0.1` if you do — everyone then shares one
+  workspace).
 - **One instance.** The app is not designed to be scaled horizontally.
 - The container runs as the unprivileged `node` user.
 
@@ -282,7 +323,7 @@ versioned JSON format.
 ### JSON export / import (recommended)
 
 1. Open **Settings → Backup & data → Export JSON**. The browser downloads
-   `kairos-backup-YYYY-MM-DD.json` containing tasks, subtasks, categories,
+   `kairos-backup-YYYY-MM-DD.json` containing tasks, subtasks, habits, categories,
    history events and settings.
 2. To restore, choose **Import JSON**, pick the file, and review the summary that
    appears (counts, timezone, and any warnings). Importing **replaces** the
@@ -291,14 +332,23 @@ versioned JSON format.
    than one level all fail before anything is written.
 
 Exported files are private user data: keep them out of repositories (`.gitignore`
-already excludes `*.kairos.json` and `backups/`).
+already excludes `backups/`, `*.kairos.json`, `kairos-backup-*.json` and
+`kairos-tasks-*.json`).
 
-> **Upgrading from an earlier build.** The bundled migration
-> `20261005090000_drop_priority_and_labels` removes the label tables and the
-> `priority` column (categories are now the only grouping, and priorities are
-> gone). Export a backup first if you want to keep that data. Backups made by the
-> earlier version are still importable: their labels and priorities are ignored,
-> and the import summary tells you so.
+> **Older backup files.** The format is versioned (currently **v3**, which added
+> habits and the habit link on a generated task). Files written by v1 and v2 are
+> still accepted: labels and priorities no longer exist, so those fields are
+> ignored and the import summary says so. Every reference between tasks,
+> subtasks, categories and habits is checked before anything is written.
+
+### Tasks-only transfer
+
+For moving a task list rather than a whole workspace, switch on **Settings →
+Header tools** and the top bar gains an export/import menu. Its file
+(`kairos-tasks-YYYY-MM-DD.json`) holds tasks and subtasks only — no ids, no
+settings, no history — and categories travel by **name**. Importing adds what is
+in the file and never deletes anything, so it is safe to run twice or into a
+workspace that already has the same tasks.
 
 ### Database-level snapshot
 
@@ -329,31 +379,38 @@ All configuration is environment based; see `.env.example`.
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000`  | Absolute origin used for canonical links, `sitemap.xml` and social metadata. Set it before serving a real domain. |
 | `KAIROS_NO_INDEX`     | `false`                  | `true` sends `Disallow: /` to every crawler (private deployment). |
 | `GOOGLE_SITE_VERIFICATION` | the built-in Kairos token | Search Console ownership token rendered as `<meta name="google-site-verification">`; set it only to claim a different property ([docs/seo.md](docs/seo.md)). |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | unset | Web Push key pair and the contact the push services get. Unset = Settings says notifications are not configured for this deployment. |
+| `KAIROS_CRON_SECRET` (or `CRON_SECRET` on Vercel) | unset | Shared secret the reminder broadcast requires; with none set, every call is refused. |
+| `KAIROS_RATE_LIMIT_DISABLED` | `false` | `true` turns the limiter off — for test suites and scripts only, and ignored on a hosted deployment. |
+| `KAIROS_RATE_LIMIT_STORE` | auto | `upstash`, `postgres` or `memory`. Unset lets the app decide: Upstash when configured, PostgreSQL on a hosted deployment, memory locally ([docs/rate-limiting.md](docs/rate-limiting.md)). |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | unset | Optional shared store for the rate-limit counters. |
 
-Theme, timezone and the first day of the week are stored **in the database**
-(Settings) so they apply to date grouping on the server, not just in the UI. The
-theme is applied instantly and saved to the account, so it follows you into
-another browser; a browser that has never chosen one follows the operating
-system. `light`, `dark` and `system` are available from **Settings → Profile**,
-from the sidebar, and from the site header.
+Theme, text size, timezone, week start, reminder hour and the header-tools switch
+are stored **in the database** (Settings), so they apply to date grouping on the
+server as well as to what you see, and they follow you into another browser. The
+theme is applied instantly; a browser that has never chosen one follows the
+operating system. `light`, `dark` and `system` are available from **Settings →
+Profile**, from the sidebar, and from the site header. The text size is a root
+font size, so it scales the whole interface — text, rows and controls together.
 
 ### Keyboard shortcuts
 
 | Keys | Action |
 | --- | --- |
-| `g` `t` | Today |
-| `g` `a` | All Tasks |
-| `g` `c` | Completed |
-| `g` `s` | Statistics |
-| `g` `,` | Settings |
-| `/` | Focus the task search |
+| `Shift` + `T` | Today |
+| `Shift` + `A` | All Tasks |
+| `Shift` + `C` | Completed |
+| `Shift` + `H` | Habits |
+| `Shift` + `S` | Statistics |
+| `Shift` + `I` | Settings |
+| `/` | Focus the filter box |
 | `n` | New task |
 | `t` | Switch between light and dark |
 | `?` | Show this list |
 
-A sequence waits about a second for its second key. Shortcuts are ignored while
-you are typing in a field or while a dialog is open; `Esc` leaves the field.
-Everything that moves honours `prefers-reduced-motion`.
+Navigation is one modifier plus one key, so it never waits for a second press.
+Shortcuts are ignored while you are typing in a field or while a dialog is open;
+`Esc` leaves the field. Everything that moves honours `prefers-reduced-motion`.
 
 ### Sessions
 
@@ -394,6 +451,18 @@ A few decisions worth knowing before reading the code:
   The activity charts read events, so reopening a task today does not erase the
   day it was finished. Each task counts at most once per day, no matter how often
   its checkbox is toggled.
+- **Habits are generated rows, not a flag on a task.** Every due day creates an
+  ordinary task carrying `habitId` and `habitDate`; ticking it off is what “the
+  habit was done” means. Streak, month grid and trend are derived from that
+  history, so pausing or deleting a habit never rewrites the past. The instances
+  are created idempotently on render (`ensureHabitInstances`, `ON CONFLICT DO
+  NOTHING`) and are hidden from every view except Today and Habits.
+- **Serverless-friendly data access.** Workspace routes are dynamic, so every
+  render reads settings, categories, counters and habit instances. In-app links
+  are therefore **not prefetched** (`prefetch={false}`): a prefetch is a full
+  render against the database, and a page that prefetched five routes at once
+  exhausted Prisma's connection pool on Vercel. Hosted deployments also cap the
+  client at two connections per instance with a 20 s wait (`src/server/db.ts`).
 - **Categories vs. deletion.** Deleting a category moves its tasks to
   Uncategorized (`onDelete: SetNull`), so tasks are never deleted as a side
   effect.
@@ -408,62 +477,94 @@ A few decisions worth knowing before reading the code:
 ```
 src/
 ├── app/
-│   ├── (app)/                 # authenticated-free app shell routes
-│   │   ├── today/ tasks/ completed/
+│   ├── (marketing)/           # public site: / and /self-host (the Docker guide)│   ├── (auth)/                # /login, /register
+│   ├── auth/callback/         # where Supabase returns after sign-in
+│   ├── (app)/                 # signed-in shell (layout = sidebar + top bar)
+│   │   ├── today/ tasks/ completed/ habits/
 │   │   ├── categories/[id]/ statistics/ settings/
-│   │   └── layout.tsx         # sidebar + shell, loaded once
-│   ├── api/backup/            # JSON export download
-│   ├── api/health/            # container health check
-│   └── globals.css            # design tokens (light + dark)
+│   │   └── loading.tsx error.tsx
+│   ├── api/
+│   │   ├── backup/            # full-workspace JSON download
+│   │   ├── tasks/export/      # tasks-only transfer file
+│   │   ├── cron/daily-reminder/
+│   │   └── health/            # container health check
+│   └── globals.css robots.ts sitemap.ts opengraph-image.tsx
 ├── components/
-│   ├── tasks/                 # workspace, rows, details panel, optimistic state
-│   ├── layout/                # sidebar, progress panel, mobile drawer
-│   ├── categories/ statistics/ settings/
+│   ├── tasks/                 # workspace, rows, details, pagination, optimistic state
+│   ├── habits/                # month grid, trend, habit dialog
+│   ├── layout/                # sidebar, top bar, progress panel, transfer menu
+│   ├── marketing/ settings/ statistics/ categories/
 │   └── ui/                    # shadcn/ui primitives
 ├── lib/                       # pure, testable rules
-│   ├── dates.ts               # date-only handling and timezone "today"
+│   ├── dates.ts               # date-only handling and timezone “today”
 │   ├── views.ts               # grouping rules for every view
 │   ├── ordering.ts            # position/ordering maths
 │   ├── task-rules.ts          # subtask constraints
-│   ├── filters.ts stats.ts validation.ts backup.ts
+│   ├── habits.ts avatars.ts push.ts shortcuts.ts
+│   ├── filters.ts stats.ts validation.ts backup.ts task-transfer.ts
+│   └── rate-limit.ts auth-rules.ts site.ts
 ├── server/
 │   ├── services/              # database + business rules (server only)
-│   └── actions/               # Server Actions (validate → service → revalidate)
+│   ├── actions/               # Server Actions (validate → service → revalidate)
+│   └── db.ts auth.ts rate-limit.ts
+├── middleware.ts              # session refresh + the access gate
 └── types/
 prisma/
 ├── schema.prisma
 └── migrations/                # committed, applied on start
 tests/
-├── unit/                      # grouping, subtask rules, ordering, backups, stats
+├── unit/                      # views, subtasks, ordering, backups, habits, stats, …
+├── integration/               # per-account isolation against a real PostgreSQL
 └── e2e/                       # Playwright: workflow, drag and drop, backups
 ```
+
+---
+
+## Documentation
+
+| Document | What it covers |
+| --- | --- |
+| [docs/README.md](docs/README.md) | the step-by-step deployment walkthrough |
+| [docs/deployment.md](docs/deployment.md) | the deployment runbook in depth |
+| [docs/auth-setup.md](docs/auth-setup.md), [docs/supabase-auth.md](docs/supabase-auth.md) | sign-in configuration and the session model |
+| [docs/multi-user.md](docs/multi-user.md) | how per-account isolation is enforced |
+| [docs/notifications.md](docs/notifications.md) | the daily reminder and Web Push |
+| [docs/rate-limiting.md](docs/rate-limiting.md) | the limits, the buckets and where the counters live |
+| [docs/seo.md](docs/seo.md) | metadata, the sitemap and Search Console |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | the failures worth knowing about |
 
 ---
 
 ## Testing
 
 ```bash
-bun run typecheck   # tsc
-bun run lint        # eslint
-bun test            # 67 unit tests: date grouping, subtask rules, ordering,
-                    # backup validation (incl. v1 files), statistics, dates
-bun run test:e2e    # builds, then runs Playwright against a throw-away database
+bun run typecheck        # tsc
+bun run lint             # eslint
+bun run test             # 311 unit tests across 23 files
+bun run test:integration # per-account isolation, against a local PostgreSQL
+bun run test:e2e         # builds, then drives the app against a throw-away database
 ```
 
-Unit tests cover the pure rules in `src/lib`. The Playwright suite drives the
-real application and covers:
+The unit suite covers the pure rules in `src/lib` — date grouping and every view,
+subtask rules, ordering, filters, statistics, habits, avatars, push scheduling,
+shortcut matching, import validation (backup v1–v3 and the tasks-only format),
+the rate-limit policy and the access matrix. The integration suite needs a local
+PostgreSQL and refuses to run against a remote host. The Playwright suite drives
+the real application and covers:
 
-- the main workflow: Enter creates a task, it survives a reload, notes are saved
-  by clicking a task, subtasks can be added and ticked without completing the
-  parent, the parent can be completed and reopened, then deleted and undone
-- the first-run experience: reset all data, load the example tasks, and the All
-  Tasks view showing *Yesterday*, *Today* and *Unscheduled* groups
-- quick category creation from the sidebar
+- the first-run experience: a fresh workspace is the quick-add field and nothing
+  else — no sample data, no empty-state block — then a task created with Enter
+  survives a reload, and All Tasks groups work under *Today*, *Yesterday* and
+  *Unscheduled*
+- notes saved from the details panel, a subtask added and ticked without
+  completing the parent, then the parent completed, reopened, deleted and undone
+- quick category creation from the sidebar and inline from the quick-add picker
 - drag and drop: reordering persists, dropping into a date group changes the
   planned date, dragging a task right nests it, and a subtask can be pulled back
   out
-- backup: export → wipe → import round-trips tasks, subtasks, categories and
-  counters; an invalid file is rejected without touching the data
+- backup: the spec builds its own workspace (a category, a task with notes and a
+  subtask, a completed task and a habit), exports, wipes, imports, and checks
+  every row came back; an invalid file is rejected without touching the data
 - statistics, settings, the export endpoint and the health check
 
 ---
@@ -471,12 +572,17 @@ real application and covers:
 ## Limitations (v1)
 
 - Accounts are individual — there is no sharing, no teams, no collaboration.
-- One instance with one PostgreSQL database. Horizontal scaling is not supported.
+- One instance with one PostgreSQL database. Horizontal scaling is not supported;
+  the app is built for a personal workspace, and serverless deployments keep a
+  small connection pool per instance.
 - One level of subtasks, and one category per task. Labels and priorities were
   removed from the product; a task is grouped by its category and dates.
-- No recurring tasks, reminders, notifications or calendar sync.
+- Repeating work exists only as a **habit** — a weekday rule with one instance per
+  day. There are no arbitrary repeat rules and no calendar sync.
+- One daily reminder per account, and no per-task notifications, email digests or
+  webhooks.
 - Subtasks have a title and a status only (no notes, dates or categories).
-- All top-level tasks are loaded for the current page and grouped in the browser;
+- All top-level tasks for the current page are loaded and grouped in the browser;
   this is comfortable for personal volumes and keeps the UI responsive.
 - Undo is available for deletions and for failed saves, not for edits.
 
