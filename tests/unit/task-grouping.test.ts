@@ -217,7 +217,7 @@ describe("category view", () => {
     expect(ids).toEqual(["categorized"]);
   });
 
-  it("groups a category into overdue, today, upcoming and unscheduled", () => {
+  it("groups a category by day, latest first, exactly like All Tasks", () => {
     const categorizedTasks = [
       task({ id: "c-overdue", categoryId: "cat-1", scheduledDate: "2026-10-02" }),
       task({ id: "c-today", categoryId: "cat-1", scheduledDate: TODAY }),
@@ -231,12 +231,41 @@ describe("category view", () => {
       today: TODAY,
       includeCompleted: false,
     });
+    // No merged "Overdue" bucket: the late task sits under the day it is late for.
     expect(sections.map((section) => section.key)).toEqual([
-      "overdue",
-      "today",
       "date:2026-10-09",
+      "date:2026-10-04",
+      "date:2026-10-02",
       "unscheduled",
     ]);
+    const sameAsAllTasks = buildSections({
+      scope: { kind: "all" },
+      tasks: categorizedTasks.filter((candidate) => candidate.categoryId === "cat-1"),
+      today: TODAY,
+      includeCompleted: false,
+    });
+    expect(sections.map((section) => section.key)).toEqual(
+      sameAsAllTasks.map((section) => section.key),
+    );
+  });
+
+  it("anchors a late task to its deadline, like All Tasks", () => {
+    const late = [
+      task({
+        id: "late-by-due",
+        categoryId: "cat-1",
+        scheduledDate: "2026-09-28",
+        dueDate: "2026-10-03",
+      }),
+    ];
+    const sections = buildSections({
+      scope: { kind: "category", categoryId: "cat-1" },
+      tasks: late,
+      today: TODAY,
+      includeCompleted: false,
+    });
+    expect(sections[0]?.key).toBe("date:2026-10-03");
+    expect(sections[0]?.tasks.map((entry) => entry.id)).toEqual(["late-by-due"]);
   });
 });
 

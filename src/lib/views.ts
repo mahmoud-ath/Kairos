@@ -184,55 +184,6 @@ function completedSection<T extends TaskLike>(
   };
 }
 
-type Buckets<T extends TaskLike> = {
-  overdue: T[];
-  today: T[];
-  upcoming: Map<string, T[]>;
-  upcomingDates: string[];
-  unscheduled: T[];
-};
-
-/** Split tasks into overdue / today / future-dated / unscheduled buckets. */
-export function bucketByDate<T extends TaskLike>(
-  tasks: readonly T[],
-  today: string,
-): Buckets<T> {
-  const overdue: T[] = [];
-  const todayTasks: T[] = [];
-  const upcoming = new Map<string, T[]>();
-  const unscheduled: T[] = [];
-
-  for (const task of tasks) {
-    if (isTaskOverdue(task, today)) {
-      overdue.push(task);
-      continue;
-    }
-    const anchor = taskAnchorDate(task);
-    if (!anchor) {
-      unscheduled.push(task);
-      continue;
-    }
-    const comparison = compareDateOnly(anchor, today);
-    if (comparison === 0) {
-      todayTasks.push(task);
-    } else if (comparison > 0) {
-      const bucket = upcoming.get(anchor) ?? [];
-      bucket.push(task);
-      upcoming.set(anchor, bucket);
-    } else {
-      unscheduled.push(task);
-    }
-  }
-
-  return {
-    overdue,
-    today: todayTasks,
-    upcoming,
-    upcomingDates: [...upcoming.keys()].sort(compareDateOnly),
-    unscheduled,
-  };
-}
-
 /** Group tasks by the day they belong to (past days included). */
 function groupByDay<T extends TaskLike>(
   tasks: readonly T[],
@@ -253,6 +204,35 @@ function groupByDay<T extends TaskLike>(
   }
 
   return { dates: [...byDate.keys()].sort(compareDateOnly), byDate, unscheduled };
+}
+
+/**
+ * Date-grouped sections, latest day first.
+ *
+ * Shared by All Tasks and a category view so both read the same way: the
+ * furthest planned day leads, then today, then the days already behind us — a
+ * late task sits under the day that makes it late instead of being collected
+ * into a single "Overdue" pile — followed by unscheduled and completed work.
+ */
+function dateGroupedSections<T extends TaskLike>(
+  visible: readonly T[],
+  done: readonly T[],
+  today: string,
+  previewCompleted: boolean,
+): TaskSection<T>[] {
+  const { dates, byDate, unscheduled } = groupByDay(visible, today);
+  const sections: TaskSection<T>[] = [...dates]
+    .sort((a, b) => compareDateOnly(b, a))
+    .map((date) => dateSection(date, today, byDate.get(date) ?? []));
+  if (unscheduled.length > 0) {
+    sections.push(plainSection("unscheduled", "Unscheduled", "unscheduled", unscheduled));
+  }
+  if (done.length > 0) {
+    sections.push(
+      completedSection(done, previewCompleted ? COMPLETED_PREVIEW_LIMIT : undefined),
+    );
+  }
+  return sections;
 }
 
 /** Which completed tasks still belong to a given view. */
@@ -318,48 +298,18 @@ export function buildSections<T extends TaskLike>({
     }
 
     case "all": {
-      // Every day that has work, latest first: the furthest planned day leads,
-      // then today, then the days that are already behind us — so yesterday and
-      // earlier days are still visible instead of being folded into a single
-      // "overdue" pile. Unscheduled and completed work close the list, because
-      // neither belongs to a day.
-      const { dates, byDate, unscheduled } = groupByDay(visible, today);
-      const sections: TaskSection<T>[] = [...dates]
-        .sort((a, b) => compareDateOnly(b, a))
-        .map((date) => dateSection(date, today, byDate.get(date) ?? []));
-      if (unscheduled.length > 0) {
-        sections.push(
-          plainSection("unscheduled", "Unscheduled", "unscheduled", unscheduled),
-        );
-      }
-      if (done.length > 0) {
-        sections.push(
-          completedSection(done, previewCompleted ? COMPLETED_PREVIEW_LIMIT : undefined),
-        );
-      }
-      return sections;
+      // Every day that has work, latest first. Unscheduled and completed work
+      // close the list, because neither belongs to a day.
+      return dateGroupedSections(visible, done, today, previewCompleted);
     }
 
     case "category": {
+      // A category reads exactly like All Tasks, only filtered: same day groups,
+      // same order, so "yesterday" and earlier days are groups rather than one
+      // merged Overdue pile. Its Completed group is the whole history, paged by
+      // the workspace, so a category never hides finished work.
       const scoped = visible.filter((task) => task.categoryId === scope.categoryId);
-      const buckets = bucketByDate(scoped, today);
-      const sections: TaskSection<T>[] = [];
-      if (buckets.overdue.length > 0) {
-        sections.push(plainSection("overdue", "Overdue", "past", buckets.overdue));
-      }
-      if (buckets.today.length > 0) {
-        sections.push(plainSection("today", "Today", "today", buckets.today, today));
-      }
-      for (const date of buckets.upcomingDates) {
-        sections.push(dateSection(date, today, buckets.upcoming.get(date) ?? []));
-      }
-      if (buckets.unscheduled.length > 0) {
-        sections.push(
-          plainSection("unscheduled", "Unscheduled", "unscheduled", buckets.unscheduled),
-        );
-      }
-      if (done.length > 0) sections.push(completedSection(done));
-      return sections;
+      return dateGroupedSections(scoped, done, today, false);
     }
   }
 }
