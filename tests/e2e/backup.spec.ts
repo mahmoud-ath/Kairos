@@ -101,11 +101,15 @@ test("JSON export and import round-trips tasks, subtasks and categories", async 
   await buildWorkspace(page);
   await expectWorkspaceRestored(page);
 
-  // Export: the browser downloads a versioned backup file.
+  // Export: the browser downloads a versioned backup file chosen in a dialog.
   await page.goto("/settings");
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("link", { name: "Export JSON" }).click(),
+    (async () => {
+      await page.getByRole("button", { name: "Export JSON" }).click();
+      await expect(page.getByText("Export a JSON backup")).toBeVisible();
+      await page.getByRole("button", { name: "Download" }).click();
+    })(),
   ]);
   const file = await download.path();
   expect(file).toBeTruthy();
@@ -119,9 +123,9 @@ test("JSON export and import round-trips tasks, subtasks and categories", async 
   // Import: validated, summarised, confirmed, then applied in one transaction.
   await page.goto("/settings");
   await page.locator('input[type="file"]').setInputFiles(file as string);
-  await expect(page.getByText("Replace all data with this backup?")).toBeVisible();
+  await expect(page.getByText("Import this backup?")).toBeVisible();
   await expect(page.getByText("Format version")).toBeVisible();
-  await page.getByRole("button", { name: "Replace data" }).click();
+  await page.getByRole("button", { name: "Import data" }).click();
   await expect(page.getByText("Backup imported")).toBeVisible();
 
   // Everything came back: tasks, subtask, category, habit and completed work.

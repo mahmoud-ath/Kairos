@@ -56,6 +56,10 @@ function validBackup() {
           metadata: null,
         },
       ],
+      // v4: `undefined` on a full backup; written explicitly so a test can set it.
+      scope: undefined as
+        | { kind: "all" | "open" | "category"; categoryId?: string | null; label?: string }
+        | undefined,
     },
   };
 }
@@ -98,8 +102,38 @@ describe("backup validation", () => {
   });
 
   it("rejects an unsupported version", () => {
-    const result = validateBackup({ ...validBackup(), version: 4 });
+    const result = validateBackup({ ...validBackup(), version: 5 });
     expect(result.ok).toBe(false);
+  });
+
+  it("treats a file without a scope as a full backup", () => {
+    const result = validateBackup(validBackup());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.summary.scope).toBeNull();
+    expect(result.summary.partial).toBe(false);
+  });
+
+  it("summarises a partial export and flags it", () => {
+    const backup = validBackup();
+    backup.data.scope = { kind: "category", categoryId: "cat-1", label: "Work" };
+    const result = validateBackup(backup);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.summary.partial).toBe(true);
+    expect(result.summary.scope).toEqual({
+      kind: "category",
+      categoryId: "cat-1",
+      label: "Work",
+    });
+  });
+
+  it("rejects a category export that names no category", () => {
+    const backup = validBackup();
+    backup.data.scope = { kind: "category" };
+    const result = validateBackup(backup);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toMatch(/does not name the category/);
   });
 
   it("rejects invalid JSON", () => {

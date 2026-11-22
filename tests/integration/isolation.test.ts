@@ -152,6 +152,44 @@ describe("multi-user isolation", () => {
     expect((await getSettingsRecord(alice)).theme).toBe("dark");
   });
 
+  /**
+   * Importing is additive by design: choosing the wrong file must never be able
+   * to delete work, and re-importing must not double anything.
+   */
+  it("re-importing a backup adds nothing twice and deletes nothing", async () => {
+    const kept = await createTask(alice, { title: `kept-${randomUUID()}` });
+    const file = await exportBackup(alice);
+    const addedAfterExport = await createTask(alice, {
+      title: `added-after-export-${randomUUID()}`,
+    });
+
+    await importBackup(alice, file);
+
+    const ids = (await listTasks(alice)).map((task) => task.id);
+    expect(ids).toContain(addedAfterExport.id); // the import did not wipe it
+    expect(ids.filter((id) => id === kept.id)).toHaveLength(1); // and did not duplicate
+  });
+
+  it("exports one category, with its subtasks and nothing else", async () => {
+    const category = await createCategory(alice, { name: `Export ${randomUUID()}` });
+    const inside = await createTask(alice, { title: "Inside the category", categoryId: category.id });
+    const outside = await createTask(alice, { title: `Outside ${randomUUID()}` });
+    const child = await createTask(alice, { title: "Child of inside", parentId: inside.id });
+
+    const file = await exportBackup(alice, { scope: "category", categoryId: category.id });
+    const ids = file.data.tasks.map((task) => task.id);
+
+    expect(file.data.scope).toEqual({
+      kind: "category",
+      categoryId: category.id,
+      label: category.name,
+    });
+    expect(ids).toContain(inside.id);
+    expect(ids).toContain(child.id);
+    expect(ids).not.toContain(outside.id);
+    expect(file.data.categories.map((row) => row.id)).toEqual([category.id]);
+  });
+
   it("resets only the requesting user's data", async () => {
     const bobTask = await createTask(bob, { title: `survives-${randomUUID()}` });
 

@@ -280,15 +280,15 @@ test.describe("task workflow", () => {
 
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Export JSON" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Export JSON" })).toBeVisible();
 
     const response = await page.request.get("/api/backup");
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body.format).toBe("kairos-backup");
-    // Bumped to 3 when habits and their history were added; older files are still
-    // accepted on import (see SUPPORTED_BACKUP_VERSIONS).
-    expect(body.version).toBe(3);
+    // Bumped to 4 when a file could describe a partial export; older files are
+    // still accepted on import (see SUPPORTED_BACKUP_VERSIONS).
+    expect(body.version).toBe(4);
     expect(Array.isArray(body.data.tasks)).toBe(true);
     expect(body.data.settings.timezone).toBeTruthy();
     expect(body.data.tasks[0]).not.toHaveProperty("priority");

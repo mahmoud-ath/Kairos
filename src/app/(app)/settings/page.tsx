@@ -24,14 +24,29 @@ export default async function SettingsPage() {
   // The layout already built the context for this request, so this reuses that
   // read rather than fetching the settings row a second time.
   const { userId, email, settings } = await getRequestContext();
-  const [categories, taskCount, completedCount, deviceCount] = await Promise.all([
+  const prisma = scopedPrisma(userId);
+  const [categories, taskCount, completedCount, deviceCount, categoryCounts] = await Promise.all([
     listCategories(userId),
     // Generated habit instances are not part of the task list, so they are not
     // part of the number the backup panel reports either.
-    scopedPrisma(userId).task.count({ where: { parentId: null, habitId: null } }),
+    prisma.task.count({ where: { parentId: null, habitId: null } }),
     countCompletions(userId),
     countDevices(userId),
+    // What the export dialog offers to narrow to: unfinished work per category.
+    prisma.task.groupBy({
+      by: ["categoryId", "status"],
+      where: { parentId: null, habitId: null },
+      _count: { _all: true },
+    }),
   ]);
+
+  const openByCategory: Record<string, number> = {};
+  let openTaskCount = 0;
+  for (const row of categoryCounts) {
+    if (row.status !== "TODO") continue;
+    openTaskCount += row._count._all;
+    if (row.categoryId) openByCategory[row.categoryId] = row._count._all;
+  }
 
   // Only the public half of the VAPID pair reaches the browser, and only when
   // both halves are present and well formed — otherwise the panel explains that
@@ -57,7 +72,11 @@ export default async function SettingsPage() {
         timeZone={settings.timezone}
       />
       <TaxonomyManager categories={categories} />
-      <BackupPanel taskCount={taskCount} />
+      <BackupPanel
+        taskCount={taskCount}
+        categories={categories}
+        exportCounts={{ total: taskCount, open: openTaskCount, openByCategory }}
+      />
     </div>
   );
 }

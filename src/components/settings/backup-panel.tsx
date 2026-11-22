@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Download, RotateCcw, Upload } from "lucide-react";
+import { AlertTriangle, RotateCcw, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -25,18 +25,28 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ExportDialog, type ExportCounts } from "@/components/settings/export-dialog";
 import { parseBackupText, type BackupSummary } from "@/lib/backup";
 import { importBackupAction, resetAllDataAction } from "@/server/actions/settings";
+import type { CategoryDTO } from "@/types/kairos";
 
 /**
  * Export, import and reset.
  *
- * Import validates the whole file (including every cross-reference) before it
- * shows a summary, then replaces the database inside a single transaction.
- * Exported files are private user data — never commit them, and keep them
- * somewhere you trust.
+ * Import validates the whole file (including every cross-reference) and then
+ * summarises it before anything is written. Importing is additive: it creates
+ * what is missing and updates rows it already knows, so choosing the wrong file
+ * can never wipe the workspace.
  */
-export function BackupPanel({ taskCount }: { taskCount: number }) {
+export function BackupPanel({
+  taskCount,
+  categories,
+  exportCounts,
+}: {
+  taskCount: number;
+  categories: CategoryDTO[];
+  exportCounts: ExportCounts;
+}) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<{ json: string; summary: BackupSummary } | null>(null);
   const [errors, setErrors] = useState<string[] | null>(null);
@@ -77,7 +87,7 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
     }
     setPending(null);
     toast.success("Backup imported", {
-      description: `Restored ${result.data?.summary.tasks ?? 0} tasks and ${result.data?.summary.subtasks ?? 0} subtasks.`,
+      description: `Added ${result.data?.summary.tasks ?? 0} tasks and ${result.data?.summary.subtasks ?? 0} subtasks.`,
     });
   }
 
@@ -108,12 +118,7 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" asChild>
-          <a href="/api/backup" download>
-            <Download className="mr-1.5 h-4 w-4" />
-            Export JSON
-          </a>
-        </Button>
+        <ExportDialog categories={categories} counts={exportCounts} />
 
         <Button variant="outline" onClick={() => fileInput.current?.click()}>
           <Upload className="mr-1.5 h-4 w-4" />
@@ -148,14 +153,15 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
         </div>
       </div>
 
-      {/* Import preview: the file is validated before anything is replaced. */}
+      {/* Import preview: the file is validated before anything is written. */}
       <Dialog open={Boolean(pending)} onOpenChange={(open) => !open && setPending(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Replace all data with this backup?</DialogTitle>
+            <DialogTitle>Import this backup?</DialogTitle>
             <DialogDescription>
-              Importing replaces your current tasks, habits, categories, history and settings.
-              This cannot be undone — export a backup first if you are unsure.
+              Importing <span className="font-medium text-foreground">adds</span> what the file
+              contains — tasks, subtasks, categories and habits — and updates rows it already
+              knows. Nothing in your workspace is deleted.
             </DialogDescription>
           </DialogHeader>
 
@@ -163,6 +169,14 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border border-border px-3 py-3 text-sm">
               <dt className="text-muted-foreground">Format version</dt>
               <dd className="text-right tabular-nums">{pending.summary.version}</dd>
+              <dt className="text-muted-foreground">Contents</dt>
+              <dd className="text-right">
+                {pending.summary.scope?.kind === "category"
+                  ? `One category${pending.summary.scope.label ? ` (${pending.summary.scope.label})` : ""}`
+                  : pending.summary.scope?.kind === "open"
+                    ? "Only open tasks"
+                    : "Everything"}
+              </dd>
               <dt className="text-muted-foreground">Exported</dt>
               <dd className="text-right">{pending.summary.exportedAt ?? "unknown"}</dd>
               <dt className="text-muted-foreground">Tasks</dt>
@@ -195,7 +209,7 @@ export function BackupPanel({ taskCount }: { taskCount: number }) {
               Cancel
             </Button>
             <Button onClick={() => void confirmImport()} disabled={importing}>
-              {importing ? "Importing…" : "Replace data"}
+              {importing ? "Importing…" : "Import data"}
             </Button>
           </DialogFooter>
         </DialogContent>

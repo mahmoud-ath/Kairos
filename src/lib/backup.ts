@@ -12,6 +12,9 @@
  *        with a warning in the summary.
  *  - v3: habits (and the habit link on a generated task). Both are optional, so
  *        v1 and v2 files still import unchanged.
+ *  - v4: an optional `scope` describing a partial export (only open tasks, or a
+ *        single category). Imports are additive either way; the scope only tells
+ *        the reader what the file is.
  */
 
 import { z } from "zod";
@@ -20,8 +23,8 @@ import { DATE_ONLY_PATTERN, isValidDateOnly, isValidTimeZone } from "@/lib/dates
 import { NOTES_MAX_LENGTH, NAME_MAX_LENGTH, TITLE_MAX_LENGTH } from "@/lib/constants";
 
 export const BACKUP_FORMAT = "kairos-backup";
-export const BACKUP_VERSION = 3;
-export const SUPPORTED_BACKUP_VERSIONS = [1, 2, 3] as const;
+export const BACKUP_VERSION = 4;
+export const SUPPORTED_BACKUP_VERSIONS = [1, 2, 3, 4] as const;
 
 const dateOnly = z
   .string()
@@ -88,6 +91,21 @@ export const backupEventSchema = z.object({
   metadata: z.string().max(2000).nullable().optional(),
 });
 
+/**
+ * What a file contains.
+ *
+ * - `all`    — everything (a full backup, and the shape of v1–v3 files)
+ * - `open`   — unfinished tasks only
+ * - `category` — one category, with its subtasks
+ */
+export const backupScopeSchema = z.object({
+  kind: z.enum(["all", "open", "category"]),
+  categoryId: z.string().max(64).nullable().optional(),
+  label: z.string().max(80).optional(),
+});
+
+export type BackupScope = z.infer<typeof backupScopeSchema>;
+
 export const backupSettingsSchema = z.object({
   theme: z.enum(["light", "dark", "system"]),
   timezone: z.string().min(1).refine(isValidTimeZone, "Unknown timezone."),
@@ -104,11 +122,13 @@ export const backupDataSchema = z.object({
   /** Legacy (v1): ignored, reported as a warning. */
   labels: z.array(z.unknown()).max(5000).optional(),
   taskLabels: z.array(z.unknown()).max(200000).optional(),
+  /** v4. Absent means a full export (the v1–v3 behaviour). */
+  scope: backupScopeSchema.optional(),
 });
 
 export const backupFileSchema = z.object({
   format: z.literal(BACKUP_FORMAT),
-  version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  version: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
   exportedAt: timestamp.optional(),
   data: backupDataSchema,
 });
@@ -122,6 +142,10 @@ export type BackupEvent = z.infer<typeof backupEventSchema>;
 export type BackupSummary = {
   version: number;
   exportedAt: string | null;
+  /** What the file holds; `null` means a full export. */
+  scope: BackupScope | null;
+  /** True when the file is an extract, not a whole workspace. */
+  partial: boolean;
   tasks: number;
   subtasks: number;
   completedTasks: number;
@@ -155,6 +179,11 @@ export function validateBackup(raw: unknown): BackupValidation {
   const data = file.data;
   const errors: string[] = [];
   const warnings: string[] = [];
+  const scope = data.scope ?? null;
+
+  if (scope?.kind === "category" && !scope.categoryId) {
+    errors.push("This file says it is a category export but does not name the category.");
+  }
 
   if (file.version === 1) {
     const legacyLabels = (data.labels?.length ?? 0) + (data.taskLabels?.length ?? 0);
@@ -278,6 +307,8 @@ export function validateBackup(raw: unknown): BackupValidation {
     summary: {
       version: file.version,
       exportedAt: file.exportedAt ?? null,
+      scope,
+      partial: scope !== null && scope.kind !== "all",
       tasks: data.tasks.length - subtasks,
       subtasks,
       completedTasks,
@@ -348,6 +379,8 @@ export function buildBackupFile(input: {
     timestamp: Date;
     metadata: string | null;
   }>;
+  /** v4: what this file holds. Omitted for a full export. */
+  scope?: BackupScope;
   now?: Date;
 }): BackupFile {
   const dateOnly = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : null);
@@ -357,6 +390,7 @@ export function buildBackupFile(input: {
     version: BACKUP_VERSION,
     exportedAt: (input.now ?? new Date()).toISOString(),
     data: {
+      scope: input.scope,
       settings: {
         theme: input.settings.theme as BackupFile["data"]["settings"]["theme"],
         timezone: input.settings.timezone,
