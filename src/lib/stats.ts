@@ -8,7 +8,17 @@
  *    from immutable `TaskEvent` rows so it survives reopens and edits.
  */
 
-import { dateOnlyInTimeZone, lastNDays } from "@/lib/dates";
+import {
+  addDays,
+  compareDateOnly,
+  dateOnlyInTimeZone,
+  dateRange,
+  diffInDays,
+  formatMonthDay,
+  formatMonthDayYear,
+  isValidDateOnly,
+  lastNDays,
+} from "@/lib/dates";
 import { isHabitEventMetadata, parseTaskEventMetadata } from "@/lib/events";
 
 export type TaskEventLike = {
@@ -132,11 +142,122 @@ export function activityWindow(days: number, today: string): string[] {
   return lastNDays(today, days);
 }
 
-export const ACTIVITY_WINDOWS = [7, 30] as const;
-export type ActivityWindow = (typeof ACTIVITY_WINDOWS)[number];
+/** The one-click windows offered by the statistics page. */
+export const ACTIVITY_PRESETS = [7, 30, 90] as const;
+export type ActivityPreset = (typeof ACTIVITY_PRESETS)[number];
+export const DEFAULT_ACTIVITY_PRESET: ActivityPreset = 7;
 
-export function isValidActivityWindow(value: number): value is ActivityWindow {
-  return (ACTIVITY_WINDOWS as readonly number[]).includes(value);
+/**
+ * Hard ceiling for a custom range.
+ *
+ * A year of days is 366 buckets, which the chart can still render; anything
+ * longer is clamped rather than rejected, so a hand-edited URL cannot ask for a
+ * decade of bars.
+ */
+export const ACTIVITY_RANGE_MAX_DAYS = 366;
+
+/** At or above this many days the activity chart buckets per week. */
+export const ACTIVITY_WEEKLY_THRESHOLD_DAYS = 90;
+
+/** A resolved statistics window: inclusive dates plus what to render. */
+export type ActivityRange = {
+  from: string;
+  to: string;
+  /** Every day in the window, oldest first. */
+  days: string[];
+  /** Number of days covered, inclusive. */
+  windowDays: number;
+  /** The preset this range came from, or `null` for a custom range. */
+  preset: ActivityPreset | null;
+  /** Human label: "30 days" or "Sep 1 – Nov 22". */
+  label: string;
+  /** True when `days` should be aggregated per week for display. */
+  weekly: boolean;
+};
+
+export function isValidActivityPreset(value: number): value is ActivityPreset {
+  return (ACTIVITY_PRESETS as readonly number[]).includes(value);
+}
+
+function buildActivityRange(
+  from: string,
+  to: string,
+  preset: ActivityPreset | null,
+): ActivityRange {
+  const days = dateRange(from, to);
+  const crossesYear = from.slice(0, 4) !== to.slice(0, 4);
+  return {
+    from,
+    to,
+    days,
+    windowDays: days.length,
+    preset,
+    label:
+      from === to
+        ? formatMonthDay(from)
+        : crossesYear
+          ? `${formatMonthDayYear(from)} – ${formatMonthDayYear(to)}`
+          : `${formatMonthDay(from)} – ${formatMonthDay(to)}`,
+    weekly: days.length > ACTIVITY_WEEKLY_THRESHOLD_DAYS,
+  };
+}
+
+/** A range ending today and covering the last `days` days. */
+export function activityRangeForDays(today: string, days: number): ActivityRange {
+  const preset = isValidActivityPreset(days) ? days : null;
+  const count = Math.min(Math.max(Math.round(days) || 1, 1), ACTIVITY_RANGE_MAX_DAYS);
+  return buildActivityRange(addDays(today, -(count - 1)), today, preset);
+}
+
+/**
+ * Resolve the statistics window from the query string.
+ *
+ * `?from=&to=` wins when both are real dates (swapped if reversed, never later
+ * than today, clamped to `ACTIVITY_RANGE_MAX_DAYS`); otherwise `?range=7|30|90`
+ * is honoured, and anything else falls back to the 7-day default.
+ */
+export function resolveActivityRange(
+  params: { range?: string | null; from?: string | null; to?: string | null },
+  today: string,
+): ActivityRange {
+  if (isValidDateOnly(params.from) && isValidDateOnly(params.to)) {
+    let from = params.from;
+    let to = params.to;
+    if (compareDateOnly(from, to) > 0) [from, to] = [to, from];
+    // The future holds no history, so a range that reaches past today ends today.
+    if (compareDateOnly(to, today) > 0) to = today;
+    if (compareDateOnly(from, to) > 0) from = to;
+    if (diffInDays(to, from) + 1 > ACTIVITY_RANGE_MAX_DAYS) {
+      from = addDays(to, -(ACTIVITY_RANGE_MAX_DAYS - 1));
+    }
+    return buildActivityRange(from, to, null);
+  }
+
+  const requested = Number(params.range);
+  return activityRangeForDays(
+    today,
+    isValidActivityPreset(requested) ? requested : DEFAULT_ACTIVITY_PRESET,
+  );
+}
+
+/**
+ * Sum a daily series into consecutive 7-day buckets, counted backwards from the
+ * last day so the most recent bucket is always a full week.
+ */
+export function bucketActivityByWeek(points: readonly ActivityPoint[]): ActivityPoint[] {
+  const buckets: ActivityPoint[] = [];
+  let end = points.length;
+  while (end > 0) {
+    const start = Math.max(0, end - 7);
+    const chunk = points.slice(start, end);
+    buckets.unshift({
+      date: chunk[0]!.date,
+      completed: chunk.reduce((total, point) => total + point.completed, 0),
+      reopened: chunk.reduce((total, point) => total + point.reopened, 0),
+    });
+    end = start;
+  }
+  return buckets;
 }
 
 /**

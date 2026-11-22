@@ -6,14 +6,15 @@ import {
   UNCATEGORIZED_ID,
 } from "@/lib/categories";
 import { UNCATEGORIZED_LABEL } from "@/lib/constants";
-import { addDays, dateOnlyToDate } from "@/lib/dates";
 import {
   buildActivitySeries,
   buildScopeCounts,
+  bucketActivityByWeek,
   type ActivityPoint,
+  type ActivityRange,
   type ScopeCounts,
 } from "@/lib/stats";
-import { lastNDays } from "@/lib/dates";
+import { addDays, dateOnlyToDate, startOfWeek } from "@/lib/dates";
 import { selectScopedTasks, type ViewScope } from "@/lib/views";
 import type { RequestContext } from "@/server/context";
 import { listEventsSince } from "@/server/services/events";
@@ -34,14 +35,22 @@ export type CategoryBreakdown = {
 
 export type StatisticsPayload = {
   scope: ViewScope;
+  /** The resolved window this payload describes. */
+  range: ActivityRange;
+  /** Number of days in `range` (kept for the compact progress panel). */
   windowDays: number;
   today: string;
   /** Current state of the parent tasks in scope. */
   parents: ScopeCounts;
   /** Current state of their subtasks (counted separately, never merged). */
   subtasks: ScopeCounts;
-  /** Historical completion/reopen activity, newest last. */
+  /** Historical completion/reopen activity, newest last. Weekly when long. */
   activity: ActivityPoint[];
+  /**
+   * Completions since the configured week start, always from the daily series so
+   * a weekly-bucketed chart cannot make this figure wrong.
+   */
+  completedThisWeek: number;
   categoryBreakdown: CategoryBreakdown[];
   /** Completion activity per category over the selected window. */
   activityTotals: { completed: number; reopened: number };
@@ -64,14 +73,19 @@ export async function getStatistics(
   ctx: RequestContext,
   options: {
     scope: ViewScope;
-    windowDays: number;
+    range: ActivityRange;
+    /**
+     * Tasks already loaded for this request. The workspace reads them anyway, so
+     * passing them in avoids a second identical table scan.
+     */
+    tasks?: readonly TaskDTO[];
   },
 ): Promise<StatisticsPayload> {
   const { userId, today, timeZone } = ctx;
-  const { scope, windowDays } = options;
+  const { scope, range } = options;
 
   const [tasks, categories] = await Promise.all([
-    listTasks(userId),
+    options.tasks ? Promise.resolve(options.tasks) : listTasks(userId),
     listCategories(userId),
   ]);
 
@@ -80,25 +94,32 @@ export async function getStatistics(
     task.subtasks.map((subtask) => ({ status: subtask.status })),
   );
 
-  const days = lastNDays(today, windowDays);
   // Fetch a little more than the window so timezone offsets cannot clip a day.
-  const since = dateOnlyToDate(addDays(today, -(windowDays + 2)));
-  const events = await listEventsSince(userId, since);
-  const activity = buildActivitySeries(events, days, timeZone);
+  const since = dateOnlyToDate(addDays(range.from, -2));
+  // Only completion history is charted; reading every event type would grow
+  // without bound as the workspace is used, and is discarded immediately.
+  const events = await listEventsSince(userId, since, ["completed", "reopened"]);
+  const dailyActivity = buildActivitySeries(events, range.days, timeZone);
+  const activity = range.weekly ? bucketActivityByWeek(dailyActivity) : dailyActivity;
+  const weekStart = startOfWeek(today, ctx.settings.weekStartsOn);
 
   const categoryBreakdown = buildCategoryBreakdown(tasks, categories);
 
   return {
     scope,
-    windowDays,
+    range,
+    windowDays: range.windowDays,
     today,
     parents: buildScopeCounts(scoped),
     subtasks: buildScopeCounts(subtasks),
     activity,
+    completedThisWeek: dailyActivity
+      .filter((point) => point.date >= weekStart)
+      .reduce((total, point) => total + point.completed, 0),
     categoryBreakdown,
     activityTotals: {
-      completed: activity.reduce((total, point) => total + point.completed, 0),
-      reopened: activity.reduce((total, point) => total + point.reopened, 0),
+      completed: dailyActivity.reduce((total, point) => total + point.completed, 0),
+      reopened: dailyActivity.reduce((total, point) => total + point.reopened, 0),
     },
   };
 }

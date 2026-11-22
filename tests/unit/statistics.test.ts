@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { buildActivitySeries, buildScopeCounts, completionPercentage, isHabitEvent } from "@/lib/stats";
+import {
+  ACTIVITY_RANGE_MAX_DAYS,
+  buildActivitySeries,
+  buildScopeCounts,
+  bucketActivityByWeek,
+  completionPercentage,
+  isHabitEvent,
+  resolveActivityRange,
+} from "@/lib/stats";
 
 const DAYS = ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"];
 
@@ -140,5 +148,80 @@ describe("completion activity history", () => {
     expect(isHabitEvent(withMetadata(JSON.stringify({ taskId: "t1" })))).toBe(false);
     expect(isHabitEvent(withMetadata(null))).toBe(false);
     expect(isHabitEvent(withMetadata("not json"))).toBe(false);
+  });
+});
+
+describe("activity range", () => {
+  const TODAY = "2026-11-22";
+
+  it("defaults to the last 7 days", () => {
+    const range = resolveActivityRange({}, TODAY);
+    expect(range.from).toBe("2026-11-16");
+    expect(range.to).toBe(TODAY);
+    expect(range.windowDays).toBe(7);
+    expect(range.preset).toBe(7);
+    expect(range.weekly).toBe(false);
+  });
+
+  it("honours the 7/30/90 presets and ignores anything else", () => {
+    expect(resolveActivityRange({ range: "30" }, TODAY).windowDays).toBe(30);
+    expect(resolveActivityRange({ range: "90" }, TODAY).preset).toBe(90);
+    expect(resolveActivityRange({ range: "45" }, TODAY).preset).toBe(7);
+    expect(resolveActivityRange({ range: "junk" }, TODAY).preset).toBe(7);
+  });
+
+  it("accepts a custom range and labels it", () => {
+    const range = resolveActivityRange({ from: "2026-10-01", to: "2026-10-31" }, TODAY);
+    expect(range.from).toBe("2026-10-01");
+    expect(range.to).toBe("2026-10-31");
+    expect(range.windowDays).toBe(31);
+    expect(range.preset).toBeNull();
+    expect(range.label).toBe("Oct 1 – Oct 31");
+  });
+
+  it("swaps a reversed range and never reaches into the future", () => {
+    const swapped = resolveActivityRange({ from: "2026-10-31", to: "2026-10-01" }, TODAY);
+    expect([swapped.from, swapped.to]).toEqual(["2026-10-01", "2026-10-31"]);
+
+    const future = resolveActivityRange({ from: "2026-11-01", to: "2026-12-31" }, TODAY);
+    expect(future.to).toBe(TODAY);
+  });
+
+  it("caps a very long range instead of rejecting it", () => {
+    const range = resolveActivityRange({ from: "2020-01-01", to: TODAY }, TODAY);
+    expect(range.windowDays).toBe(ACTIVITY_RANGE_MAX_DAYS);
+    expect(range.to).toBe(TODAY);
+    // A year is charted per week, so the bars stay readable.
+    expect(range.weekly).toBe(true);
+  });
+
+  it("falls back to the preset when a date is not a real day", () => {
+    const range = resolveActivityRange({ from: "2026-02-30", to: TODAY, range: "30" }, TODAY);
+    expect(range.preset).toBe(30);
+  });
+});
+
+describe("weekly activity buckets", () => {
+  const series = Array.from({ length: 14 }, (_, index) => ({
+    date: `2026-10-${String(index + 1).padStart(2, "0")}`,
+    completed: index + 1,
+    reopened: 0,
+  }));
+
+  it("sums consecutive weeks, aligned to the most recent day", () => {
+    const buckets = bucketActivityByWeek(series);
+    expect(buckets).toHaveLength(2);
+    expect(buckets[0].date).toBe("2026-10-01");
+    expect(buckets[0].completed).toBe(1 + 2 + 3 + 4 + 5 + 6 + 7);
+    expect(buckets[1].date).toBe("2026-10-08");
+    expect(buckets[1].completed).toBe(8 + 9 + 10 + 11 + 12 + 13 + 14);
+  });
+
+  it("keeps a short tail as its own bucket", () => {
+    const buckets = bucketActivityByWeek(series.slice(0, 9));
+    // Aligned from the end: the newest bucket is a full week, the remainder
+    // becomes the oldest bucket.
+    expect(buckets.map((bucket) => bucket.date)).toEqual(["2026-10-01", "2026-10-03"]);
+    expect(buckets.map((bucket) => bucket.completed)).toEqual([1 + 2, 3 + 4 + 5 + 6 + 7 + 8 + 9]);
   });
 });

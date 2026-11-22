@@ -41,7 +41,6 @@ import { TaskToolbar } from "@/components/tasks/task-toolbar";
 import { Button } from "@/components/ui/button";
 import { applyFilters, hasActiveFilters } from "@/lib/filters";
 import { categoryFilterLabel } from "@/lib/categories";
-import type { WorkspaceProgress } from "@/lib/stats";
 import {
   buildSections,
   COMPLETED_PAGE_SIZE,
@@ -73,23 +72,25 @@ export type TaskWorkspaceProps = {
   title: string;
   /** Every top-level task; the workspace narrows it to the current view. */
   tasks: TaskDTO[];
-  progress: WorkspaceProgress;
+  /**
+   * The progress panel, already wrapped in a Suspense boundary by the page.
+   * Statistics are slow relative to the rows, so they must not block them.
+   */
+  progressContent: React.ReactNode;
   emptyTitle: string;
   emptyDescription: string;
   /** Shows the category chip on each row (All Tasks / Completed). */
   showCategory: boolean;
-  statisticsHref?: string;
 };
 
 export function TaskWorkspace({
   scope,
   title,
   tasks,
-  progress,
+  progressContent,
   emptyTitle,
   emptyDescription,
   showCategory,
-  statisticsHref,
 }: TaskWorkspaceProps) {
   const { categories, today, counts, settings } = useAppData();
   const { handlers } = useDragRegistry();
@@ -125,6 +126,9 @@ export function TaskWorkspace({
   // The Completed view is the only one that pages: it is a history, and a
   // history is read newest-first rather than scrolled through in one go.
   const isCompletedView = scope.kind === "completed";
+  // A category lists its whole Completed group (like All Tasks lists whole days),
+  // so it pages too. All Tasks only ever previews the latest few, so it cannot.
+  const paginatesCompleted = isCompletedView || scope.kind === "category";
   const [page, setPage] = useState(1);
 
   // Completed tasks are always part of the list (in their own section); the view
@@ -173,7 +177,7 @@ export function TaskWorkspace({
   // leave the reader on a page that no longer exists.
   const currentPage = Math.min(page, pageCount);
   const pagedSections = useMemo(() => {
-    if (!isCompletedView) return sections;
+    if (!paginatesCompleted) return sections;
     return sections.map((section) => {
       if (section.kind !== "completed") return section;
       const start = (currentPage - 1) * COMPLETED_PAGE_SIZE;
@@ -183,7 +187,7 @@ export function TaskWorkspace({
         total: section.tasks.length,
       };
     });
-  }, [sections, isCompletedView, currentPage]);
+  }, [sections, paginatesCompleted, currentPage]);
 
   // A new filter or view starts at the first page again.
   useEffect(() => {
@@ -817,7 +821,7 @@ export function TaskWorkspace({
             />
           ))}
 
-          {isCompletedView ? (
+          {paginatesCompleted ? (
             <TaskPagination
               page={currentPage}
               pageCount={pageCount}
@@ -854,14 +858,12 @@ export function TaskWorkspace({
         </div>
       </div>
 
-      <ProgressPanel title={title} progress={progress} statisticsHref={statisticsHref} />
+      <ProgressPanel content={progressContent} />
 
       <ProgressPanelSheet
         open={progressOpen}
         onOpenChange={setProgressOpen}
-        title={title}
-        progress={progress}
-        statisticsHref={statisticsHref}
+        content={progressContent}
       />
 
       <TaskDetailsPanel

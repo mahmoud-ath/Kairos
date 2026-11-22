@@ -117,15 +117,7 @@ export function ProgressPanelContent({
 }
 
 /** Desktop panel: collapsible, never takes focus away from the task list. */
-export function ProgressPanel({
-  title,
-  progress,
-  statisticsHref = "/statistics",
-}: {
-  title: string;
-  progress: WorkspaceProgress;
-  statisticsHref?: string;
-}) {
+export function ProgressPanel({ content }: { content: React.ReactNode }) {
   const { collapsed, toggle } = usePanelState();
 
   if (collapsed) {
@@ -170,9 +162,7 @@ export function ProgressPanel({
           <TooltipContent side="left">Hide progress</TooltipContent>
         </Tooltip>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <ProgressPanelContent title={title} progress={progress} statisticsHref={statisticsHref} />
-      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
     </aside>
   );
 }
@@ -181,26 +171,17 @@ export function ProgressPanel({
 export function ProgressPanelSheet({
   open,
   onOpenChange,
-  title,
-  progress,
-  statisticsHref = "/statistics",
+  content,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  title: string;
-  progress: WorkspaceProgress;
-  statisticsHref?: string;
+  content: React.ReactNode;
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-sm">
         <SheetTitle className="sr-only">Progress</SheetTitle>
-        <ProgressPanelContent
-          title={title}
-          progress={progress}
-          statisticsHref={statisticsHref}
-          className="pt-10"
-        />
+        <div className="pt-10">{content}</div>
       </SheetContent>
     </Sheet>
   );

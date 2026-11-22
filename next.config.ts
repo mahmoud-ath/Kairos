@@ -83,6 +83,12 @@ const nextConfig: NextConfig = {
     // Rewrite barrel imports to the module actually used, so the client does not
     // parse icons and date helpers it never renders.
     optimizePackageImports: ["lucide-react", "date-fns"],
+    // Revisiting a view inside this window is served from the client router cache
+    // instead of re-rendering the whole dynamic route, which is what makes
+    // switching between the tabs feel immediate. Every mutation still calls
+    // `revalidatePath` (and the actions refresh the tree), which bypasses this
+    // cache, so counters cannot stay stale after an edit.
+    staleTimes: { dynamic: 30, static: 180 },
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

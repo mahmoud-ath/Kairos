@@ -270,6 +270,18 @@ export function formatFullMonthDay(dateOnly: string): string {
   return FULL_DAY_FORMATTER.format(dateOnlyToDate(dateOnly));
 }
 
+const MONTH_DAY_YEAR_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/** Short day with its year, e.g. "Nov 22, 2025" — for ranges that cross a year. */
+export function formatMonthDayYear(dateOnly: string): string {
+  return MONTH_DAY_YEAR_FORMATTER.format(dateOnlyToDate(dateOnly));
+}
+
 /** Human label for a date group heading, relative to today. */
 export function formatRelativeDate(dateOnly: string, today: string): string {
   const delta = diffInDays(dateOnly, today);

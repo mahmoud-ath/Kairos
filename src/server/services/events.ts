@@ -43,11 +43,21 @@ export async function recordTaskEvent(db: Db, event: TaskEventDetails): Promise<
   });
 }
 
-/** Events newer than `since` for one owner, used to build activity charts. */
-export async function listEventsSince(userId: string, since: Date) {
+/**
+ * Events newer than `since` for one owner, used to build activity charts.
+ *
+ * `actions` narrows the read at the database: the chart only ever looks at
+ * completions and reopens, and the log grows with every edit, so filtering here
+ * keeps the query and the payload proportional to what is actually charted.
+ */
+export async function listEventsSince(
+  userId: string,
+  since: Date,
+  actions?: readonly TaskEventAction[],
+) {
   const prisma = scopedPrisma(userId);
   return prisma.taskEvent.findMany({
-    where: { timestamp: { gte: since } },
+    where: { timestamp: { gte: since }, ...(actions?.length ? { action: { in: [...actions] } } : {}) },
     orderBy: { timestamp: "asc" },
     select: { id: true, taskId: true, action: true, timestamp: true, metadata: true },
   });

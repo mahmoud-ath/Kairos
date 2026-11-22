@@ -1,12 +1,25 @@
 "use client";
 
+import { CalendarRange } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { ActivityBarChart, DonutChart, DonutLegend } from "@/components/statistics/charts";
 import type { DonutSlice } from "@/components/statistics/donut-chart";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { formatMonthDay, startOfWeek } from "@/lib/dates";
-import type { ActivityPoint, ScopeCounts } from "@/lib/stats";
+import {
+  ACTIVITY_PRESETS,
+  ACTIVITY_RANGE_MAX_DAYS,
+  type ActivityPoint,
+  type ActivityRange,
+  type ScopeCounts,
+} from "@/lib/stats";
 import { cn } from "@/lib/utils";
 
 export type CategoryBreakdownRow = {
@@ -25,8 +38,11 @@ export type StatisticsViewData = {
   subtasks: ScopeCounts;
   activity: ActivityPoint[];
   activityTotals: { completed: number; reopened: number };
+  /** Completions since the configured week start, from the daily series. */
+  completedThisWeek: number;
   categoryBreakdown: CategoryBreakdownRow[];
-  windowDays: number;
+  /** The window on show: presets, custom dates, and whether the chart is weekly. */
+  range: ActivityRange;
 };
 
 const COMPLETED_COLOR = "hsl(var(--primary))";
@@ -112,6 +128,87 @@ function openWorkByCategory(rows: readonly CategoryBreakdownRow[]): DonutSlice[]
   return slices;
 }
 
+/**
+ * Presets cover the common windows; this covers everything else.
+ *
+ * The chosen dates travel in the URL (`?from=&to=`), exactly like a preset, so
+ * the page stays server-rendered and shareable.
+ */
+function CustomRangePicker({ range, today }: { range: ActivityRange; today: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState(range.from);
+  const [to, setTo] = useState(range.to);
+  const active = range.preset === null;
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    // Reopening starts from the window on screen, not from an abandoned edit.
+    if (next) {
+      setFrom(range.from);
+      setTo(range.to);
+    }
+  }
+
+  function apply() {
+    if (!from || !to) return;
+    const [start, end] = from <= to ? [from, to] : [to, from];
+    setOpen(false);
+    router.push(`/statistics?from=${start}&to=${end}`);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-current={active ? "page" : undefined}
+          className={cn(
+            "flex items-center gap-1 rounded px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+            active && "bg-accent font-medium text-foreground",
+          )}
+        >
+          <CalendarRange className="h-3.5 w-3.5" />
+          {active ? range.label : "Custom"}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 space-y-3">
+        <div className="space-y-1">
+          <Label htmlFor="statistics-range-from" className="text-xs">
+            From
+          </Label>
+          <Input
+            id="statistics-range-from"
+            type="date"
+            value={from}
+            max={today}
+            onChange={(event) => setFrom(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="statistics-range-to" className="text-xs">
+            To
+          </Label>
+          <Input
+            id="statistics-range-to"
+            type="date"
+            value={to}
+            max={today}
+            onChange={(event) => setTo(event.target.value)}
+          />
+        </div>
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Up to {ACTIVITY_RANGE_MAX_DAYS} days, never past today. Longer windows are charted
+          per week.
+        </p>
+        <Button size="sm" className="w-full" onClick={apply} disabled={!from || !to}>
+          Apply range
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function StatisticsView({
   data,
   today,
@@ -123,13 +220,18 @@ export function StatisticsView({
   scopeLabel: string;
   weekStartsOn: number;
 }) {
-  const { parents, subtasks, activity, activityTotals, categoryBreakdown } = data;
+  const {
+    parents,
+    subtasks,
+    activity,
+    activityTotals,
+    categoryBreakdown,
+    range,
+    completedThisWeek,
+  } = data;
 
   // The configured week start is used for the "this week" figure.
   const weekStart = startOfWeek(today, weekStartsOn);
-  const completedThisWeek = activity
-    .filter((point) => point.date >= weekStart)
-    .reduce((total, point) => total + point.completed, 0);
 
   const completionSplit: DonutSlice[] = [
     { name: "Completed", value: parents.completed, color: COMPLETED_COLOR },
@@ -149,22 +251,23 @@ export function StatisticsView({
 
         <nav
           aria-label="Activity window"
-          className="flex items-center gap-1 rounded-md border border-border p-0.5"
+          className="flex flex-wrap items-center gap-1 rounded-md border border-border p-0.5"
         >
-          {[7, 30].map((days) => (
+          {ACTIVITY_PRESETS.map((days) => (
             <Link
               key={days}
               href={`/statistics?range=${days}`}
               prefetch={false}
-              aria-current={data.windowDays === days ? "page" : undefined}
+              aria-current={range.preset === days ? "page" : undefined}
               className={cn(
                 "rounded px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                data.windowDays === days && "bg-accent font-medium text-foreground",
+                range.preset === days && "bg-accent font-medium text-foreground",
               )}
             >
               {days} days
             </Link>
           ))}
+          <CustomRangePicker range={range} today={today} />
         </nav>
       </header>
 
@@ -216,7 +319,7 @@ export function StatisticsView({
 
         <Card
           title="History"
-          caption={`Tasks completed per day, in your timezone · last ${data.windowDays} days`}
+          caption={`Tasks completed per ${range.weekly ? "week" : "day"}, in your timezone · ${range.label}`}
           className="lg:col-span-3"
           aside={
             <span className="text-xs tabular-nums text-muted-foreground">

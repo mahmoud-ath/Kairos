@@ -1,16 +1,19 @@
+import { Suspense } from "react";
+
 import { TaskWorkspace } from "@/components/tasks/task-workspace";
-import type { WorkspaceProgress } from "@/lib/stats";
+import { ProgressSkeleton, ViewProgress } from "@/components/tasks/view-progress";
 import type { ViewScope } from "@/lib/views";
 import { getRequestContext } from "@/server/context";
 import { ensureHabitInstances } from "@/server/services/habits";
-import { getStatistics } from "@/server/services/statistics";
 import { listTasks } from "@/server/services/tasks";
 
 /**
  * Renders one task view.
  *
- * Server Component: reads the tasks, the settings and the view's stats on the
- * server, then hands them to the interactive client workspace.
+ * Server Component: reads the tasks for the view, then hands them to the
+ * interactive client workspace. The progress panel's statistics render behind a
+ * Suspense boundary, so the rows paint as soon as the tasks are here instead of
+ * waiting for the event history as well.
  */
 export async function WorkspacePage({
   scope,
@@ -40,24 +43,24 @@ export async function WorkspacePage({
   // still guaranteed to see the instances it is about to list.
   if (includeHabitInstances) await ensureHabitInstances(ctx);
 
-  const [tasks, statistics] = await Promise.all([
-    listTasks(ctx.userId, includeHabitInstances),
-    getStatistics(ctx, { scope, windowDays }),
-  ]);
-
-  const progress: WorkspaceProgress = {
-    parents: statistics.parents,
-    subtasks: statistics.subtasks,
-    activity: statistics.activity,
-    windowDays: statistics.windowDays,
-  };
+  const tasks = await listTasks(ctx.userId, includeHabitInstances);
 
   return (
     <TaskWorkspace
       scope={scope}
       title={title}
       tasks={tasks}
-      progress={progress}
+      progressContent={
+        <Suspense fallback={<ProgressSkeleton />}>
+          <ViewProgress
+            ctx={ctx}
+            scope={scope}
+            title={title}
+            windowDays={windowDays}
+            includeHabitInstances={includeHabitInstances}
+          />
+        </Suspense>
+      }
       emptyTitle={emptyTitle}
       emptyDescription={emptyDescription}
       showCategory={showCategory}
