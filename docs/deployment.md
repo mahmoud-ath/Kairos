@@ -340,8 +340,10 @@ would then race the production database.)
 
 ### Backups
 
-- **In the app:** Settings → Backup & data → *Export JSON*. This is a complete,
-  portable snapshot and the easiest option.
+- **In the app:** Settings → Backup & data → *Export JSON*. The dialog can write
+  the whole workspace, only open tasks, or one category (optionally without
+  history). A full export is a complete, portable snapshot and the easiest
+  option; importing any file adds to the workspace instead of replacing it.
 - **At the database level:**
   ```bash
   pg_dump "$DIRECT_URL" > "kairos-$(date +%F).sql"

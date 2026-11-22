@@ -340,7 +340,7 @@ what lets the landing page be statically rendered.
 | `/` | marketing | **public**, statically rendered — no session and no Supabase configuration required |
 | `/login` | auth | public, `noindex` |
 | `/register` | auth | public, indexable, listed in `sitemap.xml` |
-| `/today`, `/tasks`, `/completed`, `/categories/[id]`, `/statistics`, `/settings`, `/habits` | app | **session required**, `noindex` |
+| `/today`, `/tasks`, `/completed`, `/categories/[slug]`, `/statistics`, `/settings`, `/habits` | app | **session required**, `noindex` |
 | `/auth/callback` | root | public — it sets the session cookie and must never be redirected |
 | `/api/health` | root | public — uptime checks run before a session exists |
 | `/api/cron/daily-reminder` | root | **public, and secret-authenticated** — a scheduler has no session; see §20 |
@@ -947,7 +947,7 @@ holds for every caller, not just the UI:
 | --- | --- |
 | `/today` | **shown**, planned for today, in the day's list and in Completed |
 | `/habits` | shown as the month grid, the 30-day trend and per-habit stats |
-| `/tasks`, `/completed`, `/categories/[id]` | never |
+| `/tasks`, `/completed`, `/categories/[slug]` | never |
 | statistics, category counters | never |
 | sidebar **Today** badge | counted |
 | sidebar **Habits** badge | open instances today |

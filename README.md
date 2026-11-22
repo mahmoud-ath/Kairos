@@ -169,7 +169,9 @@ The sidebar holds four views, then one entry per category:
 **Statistics**
 
 - One condensed analytics page: current-state tiles, a completion donut with a
-  separate subtask bar, and daily completion history for the last 7 or 30 days
+  separate subtask bar, and daily completion history for the last 7, 30 or 90
+  days — or any custom range you pick (up to a year, charted per week above 90
+  days)
 - Category donut plus a per-category table (done/total, progress, still open)
 - Current status and historical activity are always labelled and shown separately
 
@@ -322,24 +324,30 @@ versioned JSON format.
 
 ### JSON export / import (recommended)
 
-1. Open **Settings → Backup & data → Export JSON**. The browser downloads
-   `kairos-backup-YYYY-MM-DD.json` containing tasks, subtasks, habits, categories,
-   history events and settings.
+1. Open **Settings → Backup & data → Export JSON**. A dialog asks what to
+   include: **everything**, **only open tasks**, or **one category** (with its
+   subtasks and habits), and whether to include the task history. The browser
+   downloads `kairos-backup-YYYY-MM-DD.json` (partial files add a suffix such as
+   `-open` or `-work`).
 2. To restore, choose **Import JSON**, pick the file, and review the summary that
-   appears (counts, timezone, and any warnings). Importing **replaces** the
-   current data, in a single transaction, and is rejected outright if the file is
-   invalid — unsupported versions, broken references, cycles or nesting deeper
-   than one level all fail before anything is written.
+   appears (contents, counts, timezone, and any warnings). **Importing never
+   deletes anything:** it adds the rows the file holds, updates the ones it
+   already knows by id, and leaves the rest of the workspace alone — so importing
+   a category into a busy workspace is safe, and re-importing the same file
+   changes nothing. A file is rejected outright if it is invalid — unsupported
+   versions, broken references, cycles or nesting deeper than one level all fail
+   before anything is written.
 
 Exported files are private user data: keep them out of repositories (`.gitignore`
 already excludes `backups/`, `*.kairos.json`, `kairos-backup-*.json` and
 `kairos-tasks-*.json`).
 
-> **Older backup files.** The format is versioned (currently **v3**, which added
-> habits and the habit link on a generated task). Files written by v1 and v2 are
-> still accepted: labels and priorities no longer exist, so those fields are
-> ignored and the import summary says so. Every reference between tasks,
-> subtasks, categories and habits is checked before anything is written.
+> **Older backup files.** The format is versioned (currently **v4**, which added
+> an optional `scope` describing a partial export; v3 added habits and the habit
+> link on a generated task). Files written by v1–v3 are still accepted: labels
+> and priorities no longer exist, so those fields are ignored and the import
+> summary says so. Every reference between tasks, subtasks, categories and
+> habits is checked before anything is written.
 
 ### Tasks-only transfer
 
@@ -481,7 +489,7 @@ src/
 │   ├── auth/callback/         # where Supabase returns after sign-in
 │   ├── (app)/                 # signed-in shell (layout = sidebar + top bar)
 │   │   ├── today/ tasks/ completed/ habits/
-│   │   ├── categories/[id]/ statistics/ settings/
+│   │   ├── categories/[slug]/ statistics/ settings/
 │   │   └── loading.tsx error.tsx
 │   ├── api/
 │   │   ├── backup/            # full-workspace JSON download
