@@ -51,6 +51,11 @@ export type CategoryDTO = {
   /** Lucide icon name (see `src/lib/category-icons.ts`). */
   icon: string;
   position: number;
+  /**
+   * URL-safe, unique form of `name` — the category's address is
+   * `/categories/<slug>` (see `categorySlugMap` in `lib/categories.ts`).
+   */
+  slug: string;
   /** Unfinished top-level tasks in this category. */
   openTaskCount: number;
 };

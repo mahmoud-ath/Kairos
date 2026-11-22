@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useDroppable } from "@dnd-kit/core";
+import { categoryPath } from "@/lib/categories";
 import { NAME_MAX_LENGTH } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { CategoryDTO, ThemePreference } from "@/types/kairos";
@@ -51,6 +52,9 @@ function CategoryRow({
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Readable address (`/categories/work`), not the database id.
+  const href = categoryPath(category.slug);
+
   return (
     <div
       ref={setNodeRef}
@@ -61,7 +65,7 @@ function CategoryRow({
       )}
     >
       <Link
-        href={`/categories/${category.id}`}
+        href={href}
         onClick={onNavigate}
         // No prefetch: every workspace route is dynamic, so a prefetch is a full
         // server render (settings, categories, counters) against a remote
@@ -270,7 +274,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               <CategoryRow
                 key={category.id}
                 category={category}
-                active={pathname === `/categories/${category.id}`}
+                active={pathname === categoryPath(category.slug) || pathname === `/categories/${category.id}`}
                 onNavigate={onNavigate}
               />
             ))}

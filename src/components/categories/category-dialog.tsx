@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { ColorPicker } from "@/components/taxonomy/color-picker";
@@ -19,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CATEGORY_COLORS } from "@/lib/constants";
 import { DEFAULT_CATEGORY_ICON } from "@/lib/category-icons";
+import { categoryPath } from "@/lib/categories";
 import type { CategoryDTO } from "@/types/kairos";
 import { createCategoryAction, updateCategoryAction } from "@/server/actions/taxonomy";
 
@@ -33,6 +35,8 @@ export function CategoryDialog({
   category?: CategoryDTO;
 }) {
   const isEdit = Boolean(category);
+  const pathname = usePathname();
+  const router = useRouter();
   const [name, setName] = useState(category?.name ?? "");
   const [color, setColor] = useState(category?.color ?? CATEGORY_COLORS[0]);
   const [icon, setIcon] = useState(category?.icon ?? DEFAULT_CATEGORY_ICON);
@@ -63,6 +67,16 @@ export function CategoryDialog({
     }
     toast.success(isEdit ? "Category updated" : "Category created");
     onOpenChange(false);
+
+    // A rename changes the readable URL. If the reader is looking at this very
+    // category, follow it instead of leaving them on an address that no longer
+    // resolves.
+    const updated = result.data;
+    if (isEdit && category && updated?.slug && updated.slug !== category.slug) {
+      const viewingThisCategory =
+        pathname === categoryPath(category.slug) || pathname === `/categories/${category.id}`;
+      if (viewingThisCategory) router.replace(categoryPath(updated.slug));
+    }
   }
 
   return (

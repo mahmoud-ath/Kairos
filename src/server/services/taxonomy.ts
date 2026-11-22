@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
+import { categorySlug, categorySlugMap } from "@/lib/categories";
 import { CATEGORY_COLORS } from "@/lib/constants";
 import { DEFAULT_CATEGORY_ICON } from "@/lib/category-icons";
 import type { CategoryDTO } from "@/types/kairos";
@@ -15,11 +16,17 @@ import { scopedPrisma, type Prisma } from "@/server/db";
  * see anybody else's rows (see `scopedPrisma`).
  */
 
+/** Display order: the sidebar's, and the order slugs are disambiguated in. */
+const CATEGORY_ORDER: Prisma.CategoryOrderByWithRelationInput[] = [
+  { position: "asc" },
+  { name: "asc" },
+];
+
 /** Categories in display order, with the number of unfinished tasks each holds. */
 export const listCategories = cache(async (userId: string): Promise<CategoryDTO[]> => {
   const prisma = scopedPrisma(userId);
   const [categories, counts] = await Promise.all([
-    prisma.category.findMany({ orderBy: [{ position: "asc" }, { name: "asc" }] }),
+    prisma.category.findMany({ orderBy: CATEGORY_ORDER }),
     prisma.task.groupBy({
       by: ["categoryId"],
       // Generated habit instances belong to Today and are left out, so a
@@ -38,6 +45,7 @@ export const listCategories = cache(async (userId: string): Promise<CategoryDTO[
   for (const row of counts) {
     if (row.categoryId) countByCategory.set(row.categoryId, row._count._all);
   }
+  const slugs = categorySlugMap(categories);
 
   return categories.map((category) => ({
     id: category.id,
@@ -45,9 +53,74 @@ export const listCategories = cache(async (userId: string): Promise<CategoryDTO[
     color: category.color,
     icon: category.icon,
     position: category.position,
+    slug: slugs.get(category.id) ?? categorySlug(category.name),
     openTaskCount: countByCategory.get(category.id) ?? 0,
   }));
 });
+
+/** The unique slug of one category, for the DTOs a mutation returns. */
+export async function categorySlugFor(userId: string, id: string): Promise<string> {
+  const prisma = scopedPrisma(userId);
+  const categories = await prisma.category.findMany({
+    select: { id: true, name: true },
+    orderBy: CATEGORY_ORDER,
+  });
+  const slugs = categorySlugMap(categories);
+  const match = categories.find((category) => category.id === id);
+  return slugs.get(id) ?? (match ? categorySlug(match.name) : categorySlug(id));
+}
+
+/** A category row as stored (not the UI DTO). */
+export type CategoryRow = {
+  id: string;
+  userId: string;
+  name: string;
+  color: string;
+  icon: string;
+  position: number;
+  createdAt: Date;
+};
+
+/** One category with the slug its view lives at. */
+export type ResolvedCategory = {
+  category: CategoryRow;
+  slug: string;
+};
+
+/**
+ * Look up a category from the URL.
+ *
+ * Both forms work: the readable slug (`/categories/work`) and the legacy id
+ * (`/categories/cmv05qmz…`), because links written before slugs existed are
+ * still in browser histories and bookmarks. The canonical slug comes back either
+ * way, so the page can advertise the pretty URL.
+ */
+export async function resolveCategory(
+  userId: string,
+  segment: string,
+): Promise<ResolvedCategory | null> {
+  let decoded = segment;
+  try {
+    decoded = decodeURIComponent(segment).trim();
+  } catch {
+    return null; // malformed escape in the URL
+  }
+  if (!decoded) return null;
+
+  const prisma = scopedPrisma(userId);
+  const rows = await prisma.category.findMany({ orderBy: CATEGORY_ORDER });
+  const slugs = categorySlugMap(rows);
+
+  const byId = rows.find((row) => row.id === decoded);
+  if (byId) {
+    return { category: byId, slug: slugs.get(byId.id) ?? categorySlug(byId.name) };
+  }
+
+  const wanted = decoded.toLowerCase();
+  const bySlug = rows.find((row) => slugs.get(row.id) === wanted);
+  if (!bySlug) return null;
+  return { category: bySlug, slug: slugs.get(bySlug.id) ?? wanted };
+}
 
 export async function getCategory(userId: string, id: string) {
   const prisma = scopedPrisma(userId);

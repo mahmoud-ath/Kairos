@@ -98,6 +98,7 @@ export function serializeTransferTask(task: {
 export function serializeCategory(
   category: { id: string; name: string; color: string; icon: string; position: number },
   openTaskCount: number,
+  slug: string,
 ): CategoryDTO {
   return {
     id: category.id,
@@ -105,6 +106,7 @@ export function serializeCategory(
     color: category.color,
     icon: category.icon,
     position: category.position,
+    slug,
     openTaskCount,
   };
 }

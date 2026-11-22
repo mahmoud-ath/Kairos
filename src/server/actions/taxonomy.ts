@@ -11,6 +11,7 @@ import type { ActionResult, CategoryDTO } from "@/types/kairos";
 import { requireUserId } from "@/server/auth";
 import { runAction } from "@/server/actions/helpers";
 import {
+  categorySlugFor,
   createCategory,
   deleteCategory,
   reorderCategories,
@@ -24,7 +25,11 @@ export async function createCategoryAction(
     const userId = await requireUserId();
     const values = createCategorySchema.parse(input);
     const category = await createCategory(userId, values);
-    return { ...category, openTaskCount: 0 };
+    return {
+      ...category,
+      slug: await categorySlugFor(userId, category.id),
+      openTaskCount: 0,
+    };
   });
 }
 
@@ -35,7 +40,11 @@ export async function updateCategoryAction(
     const userId = await requireUserId();
     const values = updateCategorySchema.parse(input);
     const category = await updateCategory(userId, values);
-    return { ...category, openTaskCount: 0 };
+    return {
+      ...category,
+      slug: await categorySlugFor(userId, category.id),
+      openTaskCount: 0,
+    };
   });
 }
 

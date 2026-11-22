@@ -61,3 +61,65 @@ export function categoryFilterLabel(
   if (isUncategorizedKey(categoryId)) return UNCATEGORIZED_LABEL;
   return categories.find((category) => category.id === categoryId)?.name ?? null;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Readable URLs                                                             */
+/* -------------------------------------------------------------------------- */
+
+/** Longest slug we generate; well under any practical URL limit. */
+export const CATEGORY_SLUG_MAX_LENGTH = 40;
+
+/**
+ * A URL-friendly form of a category name: "Work & Money" → "work-money".
+ *
+ * This is presentation, not identity — the database id stays the real key, so
+ * renaming a category only changes its link and never breaks the data. Names
+ * that slugify to nothing (emoji only, "!!!") fall back to "category".
+ */
+export function categorySlug(name: string): string {
+  const slug = name
+    .normalize("NFKD")
+    // Drop the combining marks NFKD split off, so "Café" → "cafe".
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, CATEGORY_SLUG_MAX_LENGTH)
+    .replace(/-+$/g, "");
+  return slug || "category";
+}
+
+/**
+ * Unique slugs for every category of one account, keyed by id.
+ *
+ * Two names can slugify to the same text ("Work" and "Work!"), and category
+ * names are only unique verbatim. A list in display order therefore resolves
+ * collisions deterministically: the first keeps the bare slug, the next become
+ * `work-2`, `work-3`, … Both the links and the route resolver use this, so they
+ * can never disagree.
+ */
+export function categorySlugMap(
+  categories: readonly { id: string; name: string }[],
+): Map<string, string> {
+  const used = new Set<string>();
+  const slugs = new Map<string, string>();
+
+  for (const category of categories) {
+    const base = categorySlug(category.name);
+    let candidate = base;
+    let suffix = 2;
+    while (used.has(candidate)) {
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    used.add(candidate);
+    slugs.set(category.id, candidate);
+  }
+
+  return slugs;
+}
+
+/** The path a category's view lives at. */
+export function categoryPath(slug: string): string {
+  return `/categories/${encodeURIComponent(slug)}`;
+}

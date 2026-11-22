@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   categoryFilterLabel,
   categoryKey,
+  categoryPath,
+  categorySlug,
+  categorySlugMap,
+  CATEGORY_SLUG_MAX_LENGTH,
   isUncategorized,
   isUncategorizedKey,
   UNCATEGORIZED_ID,
@@ -53,5 +57,47 @@ describe("the category filter label", () => {
 
   it("returns null for a category that no longer exists", () => {
     expect(categoryFilterLabel("deleted-id", categories)).toBeNull();
+  });
+});
+
+describe("category slugs", () => {
+  it("turns a name into a readable, url-safe segment", () => {
+    expect(categorySlug("Work")).toBe("work");
+    expect(categorySlug("Work & Money")).toBe("work-money");
+    expect(categorySlug("  Deep   Work  ")).toBe("deep-work");
+    expect(categorySlug("Café")).toBe("cafe");
+    expect(categorySlug("Q4 / 2026 planning")).toBe("q4-2026-planning");
+  });
+
+  it("never returns an empty or trailing-dash segment", () => {
+    expect(categorySlug("!!!")).toBe("category");
+    expect(categorySlug("")).toBe("category");
+    expect(categorySlug("Work!")).toBe("work");
+  });
+
+  it("caps the length", () => {
+    const slug = categorySlug("word ".repeat(30));
+    expect(slug.length).toBeLessThanOrEqual(CATEGORY_SLUG_MAX_LENGTH);
+    expect(slug.endsWith("-")).toBe(false);
+  });
+
+  it("keeps the first name's slug and numbers the collisions", () => {
+    const slugs = categorySlugMap([
+      { id: "cat-1", name: "Work" },
+      { id: "cat-2", name: "Work!" },
+      { id: "cat-3", name: "work" },
+      { id: "cat-4", name: "Home" },
+    ]);
+
+    expect(slugs.get("cat-1")).toBe("work");
+    expect(slugs.get("cat-2")).toBe("work-2");
+    expect(slugs.get("cat-3")).toBe("work-3");
+    expect(slugs.get("cat-4")).toBe("home");
+    // Every slug is unique, so a URL can only ever mean one category.
+    expect(new Set(slugs.values()).size).toBe(4);
+  });
+
+  it("builds the path a link points at", () => {
+    expect(categoryPath("deep-work")).toBe("/categories/deep-work");
   });
 });

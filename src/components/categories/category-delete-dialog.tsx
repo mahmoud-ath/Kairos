@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
@@ -14,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { CategoryDTO } from "@/types/kairos";
+import { categoryPath } from "@/lib/categories";
 import { deleteCategoryAction } from "@/server/actions/taxonomy";
 
 /** Deleting a category never deletes tasks: they move to Uncategorized. */
@@ -27,6 +29,8 @@ export function CategoryDeleteDialog({
   category: CategoryDTO;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
 
   async function handleDelete() {
     setDeleting(true);
@@ -43,6 +47,15 @@ export function CategoryDeleteDialog({
         : "Category deleted",
     );
     onOpenChange(false);
+
+    // The view itself is gone: go somewhere that still exists rather than
+    // refreshing an address that now 404s.
+    if (
+      pathname === categoryPath(category.slug) ||
+      pathname === `/categories/${category.id}`
+    ) {
+      router.replace("/today");
+    }
   }
 
   return (
